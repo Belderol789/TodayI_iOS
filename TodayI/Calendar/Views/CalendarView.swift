@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-struct HomeView: View {
+struct CalendarView: View {
   @Environment(\.modelContext) private var context
   @State private var selectedYear = Calendar.current.component(.year, from: Date())
   @State private var yearModels: [DateModel] = []

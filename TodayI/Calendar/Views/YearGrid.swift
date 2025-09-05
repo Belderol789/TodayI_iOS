@@ -3,6 +3,7 @@ import SwiftUI
 struct YearGrid: View {
   let year: Int
   let models: [DateModel]
+  @Environment(\.colorScheme) private var scheme
   @Binding var selectedMonth: Date?
   let onSelect: (Date) -> Void
   let zoomNS: Namespace.ID
@@ -28,7 +29,8 @@ struct YearGrid: View {
           
           // normalize key and fetch models for this month
           let key = month.startOfMonth(using: cal)
-          let bucket: [DateModel] = grouped[key] ?? []
+          let bucket = grouped[month] ?? []
+          let chrome = monthChrome(for: bucket, scheme: scheme)
           
           Button {
             selectedMonth = month
@@ -40,7 +42,8 @@ struct YearGrid: View {
               zoomNS: zoomNS,
               isMatched: isSel,
               isSource: false,
-              chrome: .card
+              chrome: chrome,
+              pageEdge: .rounded
             ) {
               MonthThumbnail(month: month, models: bucket)
             }
@@ -56,4 +59,28 @@ struct YearGrid: View {
       .padding(16)
     }
   }
+  
+  private func monthChrome(for models: [DateModel], scheme: ColorScheme) -> MonthChrome {
+    guard !models.isEmpty else { return .card }
+    
+    // Count all moods across models
+    var counts: [Mood: Int] = [:]
+    for m in models {
+      for mood in m.moods {
+        counts[mood, default: 0] += 1
+      }
+    }
+    
+    let total = max(1, counts.values.reduce(0, +))
+    let maxCount = counts.values.max() ?? 0
+    
+    // winners = moods tied for dominance
+    let winners = Mood.allCases.filter { counts[$0] == maxCount && maxCount > 0 }
+    let colors = winners.map { $0.color(for: scheme) }   // ✅ adaptive colors
+    
+    let strength = Double(maxCount) / Double(total)
+    
+    return .tinted(colors, strength: strength)
+  }
+  
 }

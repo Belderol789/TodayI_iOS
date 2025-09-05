@@ -11,7 +11,7 @@ import SwiftUI
 struct TodayIApp: App {
     var body: some Scene {
         WindowGroup {
-          HomeView()
+          CalendarView()
         }
         .modelContainer(for: DateModel.self)
     }

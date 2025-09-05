@@ -12,9 +12,13 @@ struct CalendarShell: View {
   @Namespace private var zoomNS
   private let cal = Calendar.current
   
+  // CalendarShell.swift (only the changes)
   var body: some View {
+    let insets = EdgeInsets(top: 8, leading: 16, bottom: 0, trailing: 16)
+    
     VStack(spacing: 0) {
-      header
+      header                          // already uses .padding(.horizontal, 16)
+      
       ZStack {
         MonthPager(
           year: year,
@@ -23,8 +27,10 @@ struct CalendarShell: View {
           mode: mode,
           zoomNS: zoomNS
         )
+        .id(year)
         .opacity(mode == .month ? 1 : 0)
         .allowsHitTesting(mode == .month)
+        .environment(\.calendarInsets, insets)   // ← inject shared inset
         
         YearGrid(
           year: year,
@@ -40,12 +46,15 @@ struct CalendarShell: View {
         )
         .opacity(mode == .year ? 1 : 0)
         .allowsHitTesting(mode == .year)
+        .environment(\.calendarInsets, insets) // optional, if you want the grid aligned too
       }
       .animation(.spring(response: 0.5, dampingFraction: 0.85), value: mode)
     }
     .onAppear { seedCurrentMonth() }
     .onChange(of: year) { _, _ in seedCurrentMonth() }
   }
+  
+  // MARK: Header
   
   private var header: some View {
     HStack {
@@ -54,7 +63,7 @@ struct CalendarShell: View {
           mode = (mode == .month ? .year : .month)
         }
       } label: {
-        Text(year, format: .number.grouping(.never))
+        Text(year, format: .number.grouping(.never))  // no comma in year
           .font(.system(size: 34, weight: .bold, design: .rounded))
           .foregroundStyle(.primary)
       }
@@ -64,14 +73,15 @@ struct CalendarShell: View {
     .padding(.top, 8)
   }
   
+  // MARK: Seeding
+  
+  /// Choose the initial/current month for a given `year`.
+  /// If `year` is the current year, pick today's month; else pick January.
   private func seedCurrentMonth() {
     let today = Date()
-    let todayYear = cal.component(.year, from: today)
-    if year == todayYear {
-      let m = cal.date(from: DateComponents(year: year,
-                                            month: cal.component(.month, from: today),
-                                            day: 1))!
-      currentMonth = m
+    if cal.component(.year, from: today) == year {
+      let m = cal.component(.month, from: today)
+      currentMonth = cal.date(from: DateComponents(year: year, month: m, day: 1))!
     } else {
       currentMonth = cal.date(from: DateComponents(year: year, month: 1, day: 1))!
     }

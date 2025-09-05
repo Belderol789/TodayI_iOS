@@ -3,6 +3,7 @@ import SwiftUI
 struct MonthThumbnail: View {
   let month: Date
   let models: [DateModel]
+  @Environment(\.colorScheme) private var scheme
   
   private let cols = Array(repeating: GridItem(.flexible(), spacing: 2), count: 7)
   private let cal = Calendar.current
@@ -12,7 +13,7 @@ struct MonthThumbnail: View {
     var dict: [Date: Color] = [:]
     for m in models {
       let key = cal.startOfDay(for: m.date)
-      let color = m.moods.last?.color ?? .gray
+      let color = m.moods.last?.color(for: scheme) ?? .gray
       dict[key] = color
     }
     return dict
