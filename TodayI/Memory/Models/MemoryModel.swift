@@ -3,35 +3,34 @@ import SwiftData
 
 @Model
 final class MemoryModel {
-  // Identity
   @Attribute(.unique) var id: String
+  var userID: String                  // <- who owns this memory
   var username: String
-  var userID: String
-  
-  // Core fields
-  var date: Date                 // normalized (start-of-day)
+  var date: Date
   private(set) var moodRaw: String
   var journalText: String
   
-  // Image references (local disk or Firebase Storage paths / URLs)
-  var localImagePaths: [String]  // e.g. file paths in Documents/Cache
-  var remoteImagePaths: [String] // e.g. "users/{uid}/memories/{id}/img_0.jpg"
-  var downloadURLs: [String]     // optional https URLs (if you fetch them)
+  // media
+  var localImagePaths: [String]
+  var remoteImagePaths: [String]
+  var downloadURLs: [String]
   
-  // Metadata
+  // privacy
+  var isPublic: Bool = false          // <- NEW
+  
+  // timestamps
   var createdAt: Date
   var updatedAt: Date
   
-  // Computed mood
   @Transient
   var mood: Mood {
     get { Mood(rawValue: moodRaw) ?? .neutral }
     set { moodRaw = newValue.rawValue }
   }
   
-  // Designated init (use factory below in production code)
   init(
     id: String = UUID().uuidString,
+    userID: String,
     username: String,
     date: Date,
     mood: Mood,
@@ -39,10 +38,12 @@ final class MemoryModel {
     localImagePaths: [String] = [],
     remoteImagePaths: [String] = [],
     downloadURLs: [String] = [],
-    createdAt: Date = Date(),
-    updatedAt: Date = Date()
+    isPublic: Bool = false,
+    createdAt: Date = .now,
+    updatedAt: Date = .now
   ) {
     self.id = id
+    self.userID = userID
     self.username = username
     self.date = Calendar.current.startOfDay(for: date)
     self.moodRaw = mood.rawValue
@@ -50,35 +51,13 @@ final class MemoryModel {
     self.localImagePaths = localImagePaths
     self.remoteImagePaths = remoteImagePaths
     self.downloadURLs = downloadURLs
+    self.isPublic = isPublic
     self.createdAt = createdAt
     self.updatedAt = updatedAt
   }
 }
 
 enum MemoryError: Error { case futureDate }
-
-extension MemoryModel {
-  static func make(
-    username: String,
-    date: Date,
-    mood: Mood,
-    journalText: String,
-    localImagePaths: [String] = []
-  ) throws -> MemoryModel {
-    let cal = Calendar.current
-    let day = cal.startOfDay(for: date)
-    let today = cal.startOfDay(for: Date())
-    guard day <= today else { throw MemoryError.futureDate }
-    
-    return MemoryModel(
-      username: username,
-      date: day,
-      mood: mood,
-      journalText: journalText,
-      localImagePaths: localImagePaths
-    )
-  }
-}
 
 extension MemoryModel {
   var mediaSources: [MediaSource] {

@@ -12,8 +12,8 @@ struct DateView: View {
     RoundedRectangle(cornerRadius: 12, style: .continuous)
       .fill(
         store.isPremium
-        ? AnyShapeStyle(model.moods.gradient(for: scheme))
-        : AnyShapeStyle(model.moods.last?.color(for: scheme) ?? .clear)
+        ? AnyShapeStyle(model.moods.adaptiveGradient())
+        : AnyShapeStyle(model.moods.last?.adaptiveColor ?? .clear)
       )
       .overlay(
         Text(Calendar.current.component(.day, from: model.date).description)

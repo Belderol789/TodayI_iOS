@@ -1,57 +1,83 @@
 import SwiftUI
 
-// MARK: - MemoryRow (social-post style)
-
 struct MemoryRow: View {
-  @Environment(\.colorScheme) private var scheme
-  let memory: MemoryModel
+  @Bindable var memory: MemoryModel
   let isPremium: Bool
   var onMore: (() -> Void)? = nil
   var onTapImage: ((Int) -> Void)? = nil
   
+  @EnvironmentObject private var auth: AuthStore
+  @Environment(\.modelContext) private var context
+  @Environment(\.colorScheme) private var scheme
+  
+  private var canEditPrivacy: Bool {
+    (auth.userID ?? "") == memory.userID && auth.userID != nil
+  }
+  
   private var timeString: String {
-    Self.timeFormatter.string(from: memory.date)
+    // If you have your own formatter, keep it. Otherwise this is a nice default:
+    DateFormatter.localizedString(from: memory.date, dateStyle: .medium, timeStyle: .short)
   }
   
   var body: some View {
+    let moodColor = memory.mood.adaptiveColor
+    
     VStack(alignment: .leading, spacing: 12) {
-      // 1) Mood Banner
-      HStack {
-        Text("TodayI felt")
+      
+      // 0) Privacy badge at the very top-right
+      if canEditPrivacy {
+        HStack {
+          Spacer()
+          PrivacyBadge(isPublic: $memory.isPublic)
+        }
+      }
+      
+      // 1) Header – “Today I felt {Mood}”
+      HStack(alignment: .center, spacing: 12) {
+        Text("Today I felt")
           .font(.subheadline)
           .foregroundStyle(.secondary)
         
         if isPremium {
-          // Premium: capsule background makes mood pop
           Text(memory.mood.rawValue)
             .font(.headline.bold())
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
             .background(
-              Capsule()
-                .fill(memory.mood.color(for: scheme))
+              Capsule().fill(Color(.systemBackground).opacity(0.85))
             )
-            .foregroundColor(.white)
+            .foregroundStyle(moodColor)
+            .shadow(color: .black.opacity(0.18), radius: 1, x: 0, y: 1)
         } else {
-          // Free: simple mood text in mood color
           Text(memory.mood.rawValue)
             .font(.headline.bold())
-            .foregroundColor(memory.mood.color(for: scheme))
+            .foregroundStyle(moodColor)
         }
-        Spacer()
+        
+        Spacer(minLength: 0)
+        
+        if let onMore {
+          Menu {
+            Button("Edit") { /* hook up later */ }
+            Button("Delete", role: .destructive) { /* hook up later */ }
+          } label: {
+            Image(systemName: "ellipsis.circle")
+              .imageScale(.large)
+              .foregroundStyle(.secondary)
+          }
+          .simultaneousGesture(TapGesture().onEnded { onMore() })
+        }
       }
-      .padding(.vertical, 10)
+      .padding(.vertical, 8)
       .padding(.horizontal, 12)
-      .frame(maxWidth: .infinity, alignment: .leading)
       .background(
-        (isPremium ? memory.mood.color(for: scheme).opacity(0.25)
-         : memory.mood.color(for: scheme).opacity(0.15))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        (isPremium ? moodColor.opacity(0.25) : moodColor.opacity(0.15))
+          .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
       )
       
-      // 2) Username + Date
+      // 2) Username + date
       HStack {
-        Text(memory.username)
+        Text("@\(memory.username)")
           .font(.subheadline.weight(.semibold))
         Spacer()
         Text(timeString)
@@ -59,29 +85,23 @@ struct MemoryRow: View {
           .foregroundStyle(.secondary)
       }
       
-      // 3) Journal Text
+      // 3) Journal text
       if !memory.journalText.isEmpty {
         Text(memory.journalText)
           .font(.body)
           .fixedSize(horizontal: false, vertical: true)
       }
       
-      // 4) Media (hero or grid)
+      // 4) Media (replace MediaBlock with your actual component)
       if !memory.mediaSources.isEmpty {
-        MediaBlock(sources: memory.mediaSources) { index in
-          onTapImage?(index)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        MediaBlock(sources: memory.mediaSources, onTap: onTapImage)
+          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
       }
       
-      // 5) Lightweight actions
+      // 5) Actions / flags
       HStack(spacing: 20) {
-        Button { /* like */ } label: {
-          Label("Like", systemImage: "hand.thumbsup")
-        }
-        Button { /* comment */ } label: {
-          Label("Comment", systemImage: "text.bubble")
-        }
+        Button { } label: { Label("Like", systemImage: "hand.thumbsup") }
+        Button { } label: { Label("Comment", systemImage: "text.bubble") }
         Spacer()
         if isPremium {
           Label("Premium", systemImage: "star.fill")
@@ -101,70 +121,43 @@ struct MemoryRow: View {
         .fill(Color(.secondarySystemBackground))
     )
   }
-  
-  private static let timeFormatter: DateFormatter = {
-    let df = DateFormatter()
-    df.dateStyle = .medium
-    df.timeStyle = .short
-    return df
-  }()
 }
 
-#Preview("MemoryRow – Single Image") {
-  let sample = MemoryModel(
-    id: UUID().uuidString,
+#Preview("MemoryRow – Owner (toggle enabled)") {
+  // Mock memory
+  let m = MemoryModel(
+    userID: "abc123",
     username: "kemuel",
-    date: Date(),
+    date: .now,
     mood: .happy,
-    journalText: "Walked through the park 🌳 and listened to my favorite podcast.",
-    localImagePaths: [],
-    remoteImagePaths: [],
-    downloadURLs: ["photo"],
-    createdAt: Date(),
-    updatedAt: Date()
+    journalText: "Great run today!",
+    downloadURLs: ["photo"],  // SF Symbol stand-in
+    isPublic: false
   )
   
-  MemoryRow(memory: sample, isPremium: false)
+  // Mock auth where current user == owner
+  let auth = AuthStore()
+  auth.userID = "abc123"
+  
+  return MemoryRow(memory: m, isPremium: true)
+    .environmentObject(auth)
     .padding()
 }
 
-#Preview("MemoryRow – Gallery") {
-  let gallery = MemoryModel(
-    id: UUID().uuidString,
+#Preview("MemoryRow – Not owner (read-only)") {
+  let m = MemoryModel(
+    userID: "owner-id",
     username: "todayi_user",
-    date: Date(),
-    mood: .surprise,
-    journalText: "Weekend highlights with friends 🎉",
-    localImagePaths: [],
-    remoteImagePaths: [],
-    downloadURLs: ["photo", "photo.on.rectangle", "rectangle.stack.person.crop", "film", "mountain.2", "camera.aperture"],
-    createdAt: Date(),
-    updatedAt: Date()
-  )
-  
-  MemoryRow(memory: gallery, isPremium: true)
-    .padding()
-}
-
-#Preview("MemoryRow – Long Text") {
-  let long = MemoryModel(
-    id: UUID().uuidString,
-    username: "clyde",
-    date: Date(),
+    date: .now,
     mood: .sad,
-    journalText: """
-    Today was one of those days where everything seemed to happen at once. \
-    I woke up late, spilled coffee on my shirt, and then ran into traffic. \
-    But somehow, despite all of that, I made it through feeling oddly grateful. \
-    Maybe it’s the small wins that keep us going. ☕️🚦✨
-    """,
-    localImagePaths: [],
-    remoteImagePaths: [],
-    downloadURLs: [],
-    createdAt: Date(),
-    updatedAt: Date()
+    journalText: "Tough morning, but hanging in there.",
+    isPublic: true
   )
   
-  MemoryRow(memory: long, isPremium: false)
+  let auth = AuthStore()
+  auth.userID = "viewer-id"
+  
+  return MemoryRow(memory: m, isPremium: false)
+    .environmentObject(auth)
     .padding()
 }

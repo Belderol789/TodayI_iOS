@@ -13,7 +13,7 @@ struct MonthThumbnail: View {
     var dict: [Date: Color] = [:]
     for m in models {
       let key = cal.startOfDay(for: m.date)
-      let color = m.moods.last?.color(for: scheme) ?? .gray
+      let color = m.moods.last?.adaptiveColor ?? .gray
       dict[key] = color
     }
     return dict

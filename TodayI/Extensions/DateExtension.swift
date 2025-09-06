@@ -15,6 +15,10 @@ extension Date {
   
   var startOfDay: Date { Calendar.current.startOfDay(for: self) }
   
+  var startOfDayUTC: Date {
+    Calendar.utc.startOfDay(for: self)
+  }
+  
   /// Returns a full, localized description of the date (e.g. "Wednesday, September 3, 2025").
   var accessibilityLabel: String {
     let df = DateFormatter()

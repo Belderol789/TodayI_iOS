@@ -8,10 +8,9 @@
 import SwiftUI
 
 extension Array where Element == Mood {
-  func gradient(for scheme: ColorScheme) -> LinearGradient {
-    let colors = self.map { $0.color(for: scheme) }
-    return LinearGradient(colors: colors.isEmpty ? [.gray] : colors,
-                          startPoint: .top,
-                          endPoint: .bottom)
+  /// Top→bottom gradient that adapts automatically.
+  func adaptiveGradient(axis: (start: UnitPoint, end: UnitPoint) = (.top, .bottom)) -> LinearGradient {
+    let colors = (isEmpty ? [.clear] : map { $0.adaptiveColor })
+    return LinearGradient(colors: colors, startPoint: axis.start, endPoint: axis.end)
   }
 }

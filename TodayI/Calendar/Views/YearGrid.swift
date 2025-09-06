@@ -76,7 +76,7 @@ struct YearGrid: View {
     
     // winners = moods tied for dominance
     let winners = Mood.allCases.filter { counts[$0] == maxCount && maxCount > 0 }
-    let colors = winners.map { $0.color(for: scheme) }   // ✅ adaptive colors
+    let colors = winners.map { $0.adaptiveColor }   // ✅ adaptive colors
     
     let strength = Double(maxCount) / Double(total)
     

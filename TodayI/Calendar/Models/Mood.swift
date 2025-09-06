@@ -11,7 +11,7 @@ enum Mood: String, CaseIterable, Identifiable, Hashable  {
   
   var id: String { rawValue }
   
-  func color(for scheme: ColorScheme) -> Color {
+  private func color(for scheme: ColorScheme) -> Color {
     switch self {
     case .happy:
       return scheme == .dark
@@ -42,5 +42,16 @@ enum Mood: String, CaseIterable, Identifiable, Hashable  {
       ? Color(red: 0.38, green: 0.25, blue: 0.55)  // midnight violet
       : Color(red: 0.48, green: 0.32, blue: 0.66)  // royal violet
     }
+  }
+}
+
+extension Mood {
+  /// Auto-adapts to light/dark without passing `ColorScheme`.
+  var adaptiveColor: Color {
+    let light = UIColor(self.color(for: .light))
+    let dark  = UIColor(self.color(for: .dark))
+    return Color(UIColor { traits in
+      traits.userInterfaceStyle == .dark ? dark : light
+    })
   }
 }
