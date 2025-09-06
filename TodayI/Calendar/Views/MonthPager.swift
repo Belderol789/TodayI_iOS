@@ -36,8 +36,10 @@ struct MonthPager: View {
             chrome: chrome,
             pageEdge: .fullBleed
           ) {
-            MonthView(month: month, models: bucket)
-              .frame(maxHeight: .infinity, alignment: .top)
+            MonthView(month: month, models: bucket, onSelectDate: { date in
+              
+            })
+            .frame(maxHeight: .infinity, alignment: .top)
           }
           .id(month)
           .containerRelativeFrame(.vertical)   // each page = viewport height

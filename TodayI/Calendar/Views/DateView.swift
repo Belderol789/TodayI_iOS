@@ -2,13 +2,19 @@ import SwiftUI
 
 struct DateView: View {
   @Environment(\.colorScheme) private var scheme
+  @EnvironmentObject var store: EntitlementStore
   @Bindable var model: DateModel
   var cornerRadius: CGFloat = 12
   var showsGlow: Bool = false          // ← only glows when true
   
   var body: some View {
+    
     RoundedRectangle(cornerRadius: 12, style: .continuous)
-      .fill(model.moods.gradient(for: scheme))   // <-- gradient background
+      .fill(
+        store.isPremium
+        ? AnyShapeStyle(model.moods.gradient(for: scheme))
+        : AnyShapeStyle(model.moods.last?.color(for: scheme) ?? .clear)
+      )
       .overlay(
         Text(Calendar.current.component(.day, from: model.date).description)
           .font(.system(size: 14, weight: .semibold, design: .rounded))

@@ -3,6 +3,7 @@ import SwiftData
 
 struct CalendarView: View {
   @Environment(\.modelContext) private var context
+  @EnvironmentObject var store: EntitlementStore
   @State private var selectedYear = Calendar.current.component(.year, from: Date())
   @State private var yearModels: [DateModel] = []
   @State private var refreshToken = UUID()          // <—
@@ -49,6 +50,11 @@ struct CalendarView: View {
               }
             } label: {
               Label("\(selectedYear)", systemImage: "calendar")
+            }
+          }
+          ToolbarItem(placement: .topBarTrailing) {
+            Button(store.isPremium ? "Set Free" : "Set Premium") {
+              store.isPremium.toggle()
             }
           }
         }
