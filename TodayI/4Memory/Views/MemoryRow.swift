@@ -34,7 +34,7 @@ struct MemoryRow: View {
       
       // 1) Header – “Today I felt {Mood}”
       HStack(alignment: .center, spacing: 12) {
-        Text("Today I felt")
+        Text("TodayI felt")
           .font(.subheadline)
           .foregroundStyle(.secondary)
         
@@ -56,17 +56,15 @@ struct MemoryRow: View {
         
         Spacer(minLength: 0)
         
-        if let onMore {
-          Menu {
-            Button("Edit") { /* hook up later */ }
-            Button("Delete", role: .destructive) { /* hook up later */ }
-          } label: {
-            Image(systemName: "ellipsis.circle")
-              .imageScale(.large)
-              .foregroundStyle(.secondary)
-          }
-          .simultaneousGesture(TapGesture().onEnded { onMore() })
+        Menu {
+          Button("Edit") { /* hook up later */ }
+          Button("Delete", role: .destructive) { /* hook up later */ }
+        } label: {
+          Image(systemName: "ellipsis.circle")
+            .imageScale(.large)
+            .foregroundStyle(moodColor)
         }
+        .simultaneousGesture(TapGesture().onEnded { onMore?() })
       }
       .padding(.vertical, 8)
       .padding(.horizontal, 12)
@@ -111,8 +109,8 @@ struct MemoryRow: View {
             .background(.yellow.opacity(0.2), in: Capsule())
         }
       }
-      .font(.subheadline)
-      .foregroundStyle(.secondary)
+      .font(.subheadline.weight(.semibold))
+      .foregroundStyle(moodColor)
       .padding(.top, 4)
     }
     .padding(14)

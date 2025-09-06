@@ -23,7 +23,7 @@ struct TodayIApp: App {
   
   var body: some Scene {
     WindowGroup {
-      CalendarView()
+      RootView()
         .environmentObject(store)
         .environmentObject(auth)
         .task {

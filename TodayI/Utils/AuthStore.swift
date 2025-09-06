@@ -8,5 +8,6 @@
 import Foundation
 
 final class AuthStore: ObservableObject {
-  @Published var userID: String? = nil   // set this after sign-in
+  @Published var userID: String? = "debug-user"   // set this after sign-in
+  @Published var username: String? = "tester"
 }
