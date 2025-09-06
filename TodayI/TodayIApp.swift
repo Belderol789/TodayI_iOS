@@ -18,18 +18,19 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 @main
 struct TodayIApp: App {
-  
   @StateObject private var store = EntitlementStore()
+  @StateObject private var auth = AuthStore()
   
   var body: some Scene {
     WindowGroup {
       CalendarView()
         .environmentObject(store)
+        .environmentObject(auth)
         .task {
-          await store.refresh()     // verify with StoreKit at launch
-          store.observeUpdates()    // keep in sync with changes
+          await store.refresh()
+          store.observeUpdates()
         }
     }
-    .modelContainer(for: DateModel.self)
+    .modelContainer(for: [DateModel.self, MemoryModel.self])   // ← include both models
   }
 }

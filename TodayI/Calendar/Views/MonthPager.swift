@@ -8,6 +8,8 @@ struct MonthPager: View {
   let mode: CalendarMode
   let zoomNS: Namespace.ID
   
+  @State private var presentedDay: Date? = nil   // ← modal day to show
+  
   private let cal = Calendar.current
   
   // First-of-month dates for this year
@@ -36,9 +38,14 @@ struct MonthPager: View {
             chrome: chrome,
             pageEdge: .fullBleed
           ) {
-            MonthView(month: month, models: bucket, onSelectDate: { date in
-              
-            })
+            MonthView(
+              month: month,
+              models: bucket,
+              onSelectDate: { date in
+                // ✅ Show MemoryContainer for the tapped day
+                presentedDay = Calendar.current.startOfDay(for: date)
+              }
+            )
             .frame(maxHeight: .infinity, alignment: .top)
           }
           .id(month)
@@ -46,16 +53,25 @@ struct MonthPager: View {
         }
       }
       .scrollTargetLayout()
-      .contentMargins(.vertical, 0, for: .scrollContent) // no top/bottom slivers
+      .contentMargins(.vertical, 0, for: .scrollContent)
     }
     .scrollIndicators(.hidden)
-    // Use view-aligned snapping so .top anchor is respected precisely
     .scrollTargetBehavior(.viewAligned)
     .defaultScrollAnchor(.top)
     .scrollPosition(id: $currentMonth, anchor: .top)
     .animation(.spring(response: 0.5, dampingFraction: 0.9), value: currentMonth)
-    .onAppear { snapCurrentToExactInstance() }       // fix initial instance
+    .onAppear { snapCurrentToExactInstance() }
     .onChange(of: year) { _, _ in snapCurrentToExactInstance(resetIfNeeded: true) }
+    
+    // 🔽 Modal presentation
+    .sheet(isPresented: Binding(
+      get: { presentedDay != nil },
+      set: { if !$0 { presentedDay = nil } }
+    )) {
+      if let day = presentedDay {
+        MemoryContainer(day: day)   // EntitlementStore is expected via .environmentObject higher up
+      }
+    }
   }
   
   // MARK: helpers
@@ -67,24 +83,13 @@ struct MonthPager: View {
   
   private func monthChrome(for models: [DateModel], scheme: ColorScheme) -> MonthChrome {
     guard !models.isEmpty else { return .card }
-    
-    // Count all moods across models
     var counts: [Mood: Int] = [:]
-    for m in models {
-      for mood in m.moods {
-        counts[mood, default: 0] += 1
-      }
-    }
-    
+    for m in models { for mood in m.moods { counts[mood, default: 0] += 1 } }
     let total = max(1, counts.values.reduce(0, +))
     let maxCount = counts.values.max() ?? 0
-    
-    // winners = moods tied for dominance
     let winners = Mood.allCases.filter { counts[$0] == maxCount && maxCount > 0 }
-    let colors = winners.map { $0.adaptiveColor }   // ✅ adaptive colors
-    
+    let colors = winners.map { $0.adaptiveColor }
     let strength = Double(maxCount) / Double(total)
-    
     return .tinted(colors, strength: strength)
   }
   
@@ -92,7 +97,6 @@ struct MonthPager: View {
   private func snapCurrentToExactInstance(resetIfNeeded: Bool = false) {
     let wanted: Date = {
       if let cm = currentMonth, cal.component(.year, from: cm) == year { return cm }
-      // default to today's month if same year; otherwise January
       let today = Date()
       if cal.component(.year, from: today) == year {
         let m = cal.component(.month, from: today)
@@ -102,9 +106,7 @@ struct MonthPager: View {
     }()
     
     if let exact = months.first(where: { cal.isDate($0, equalTo: wanted, toGranularity: .month) }) {
-      // assign without animation on mount to avoid any drift
-      var txn = Transaction()
-      txn.disablesAnimations = true
+      var txn = Transaction(); txn.disablesAnimations = true
       withTransaction(txn) {
         if resetIfNeeded || currentMonth == nil ||
             !cal.isDate(exact, equalTo: currentMonth!, toGranularity: .month) {

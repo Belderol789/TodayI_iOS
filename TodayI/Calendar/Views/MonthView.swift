@@ -42,7 +42,9 @@ struct MonthView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       // Title
-      Button {} label: {
+      Button {
+        
+      } label: {
         Text(monthTitle)
           .font(.system(.largeTitle, design: .rounded).weight(.semibold))
           .frame(maxWidth: .infinity, alignment: .leading)
