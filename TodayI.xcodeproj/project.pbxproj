@@ -309,6 +309,8 @@
 				DEVELOPMENT_TEAM = XUN95V9WDZ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "TodayI needs permission to save images to your photo library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TodayI needs access to your photo library so you can attach memories.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -338,6 +340,8 @@
 				DEVELOPMENT_TEAM = XUN95V9WDZ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "TodayI needs permission to save images to your photo library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TodayI needs access to your photo library so you can attach memories.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

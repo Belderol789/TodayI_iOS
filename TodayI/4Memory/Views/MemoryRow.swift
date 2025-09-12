@@ -48,16 +48,15 @@ struct MemoryRow: View {
             )
             .foregroundStyle(moodColor)
             .shadow(color: .black.opacity(0.18), radius: 1, x: 0, y: 1)
+          
+          MoodIcon(mood: memory.mood, size: 20)
         } else {
           Text(memory.mood.rawValue)
             .font(.headline.bold())
             .foregroundStyle(moodColor)
         }
         
-        MoodIcon(mood: memory.mood, size: 20)
-        
         Spacer(minLength: 0)
-        
         Menu {
           Button("Edit") { /* hook up later */ }
           Button("Delete", role: .destructive) { /* hook up later */ }

@@ -14,7 +14,7 @@ struct RootView: View {
         case .calendar:
           CalendarView() // your existing calendar
         case .create:
-          Text("➕ Create something").font(.largeTitle.bold())
+          CreateMemoryView()
         case .global:
           Text("🌍 Global Feed").font(.largeTitle.bold())
         case .notifications:

@@ -1,113 +1,61 @@
 import SwiftUI
-
-// MARK: - CreateMemoryView
+import PhotosUI
 
 struct CreateMemoryView: View {
   @EnvironmentObject private var entitlements: EntitlementStore
   @Environment(\.dismiss) private var dismiss
-  
-  // Form state
-  @State private var selectedMood: Mood? = nil
-  @State private var text: String = ""
-  @State private var remaining: Int = 300
-  
-  private let maxChars = 300
+  @StateObject private var vm = CreateMemoryViewModel()
   
   var body: some View {
     NavigationStack {
-      VStack(spacing: 16) {
-        header
-        // Journal text area (no border, as requested)
-        ZStack(alignment: .topLeading) {
-          if text.isEmpty {
-            Text("Write your thoughts for today…")
-              .foregroundStyle(.secondary)
-              .padding(.horizontal, 4)
-              .padding(.top, 8)
-          }
-          TextEditor(text: $text)
-            .scrollContentBackground(.hidden)
-            .frame(minHeight: 160, maxHeight: 220)
-            .onChange(of: text) { _, newValue in
-              if entitlements.isPremium {
-                text = newValue
-              } else {
-                if newValue.count > maxChars {
-                  text = String(newValue.prefix(maxChars))
-                }
-                remaining = max(0, maxChars - text.count)
-              }
-            }
+      ScrollView {
+        VStack(spacing: 16) {
+          header
+          mediaSection
+          journalSection
+          counterSection
+          quickActions
         }
-        .padding(.horizontal)
-        
-        // character counter
-        HStack {
-          Spacer()
-          if entitlements.isPremium {
-            PremiumPill(isPremium: entitlements.isPremium)
-          } else {
-            Text("\(remaining) left")
-              .font(.caption)
-              .foregroundStyle(remaining < 20 ? .orange : .secondary)
-          }
-        }
-        .padding(.horizontal)
-        
-        // Quick actions
-        HStack(spacing: 12) {
-          QuickActionButton(
-            title: "Photo", systemImage: "photo",
-            action: { /* open photo picker */ },
-            isEnabled: true,
-            color: selectedMood?.adaptiveColor
-          )
-          QuickActionButton(
-            title: "Video", systemImage: "video",
-            action: { /* open video picker */ },
-            isEnabled: entitlements.isPremium,
-            color: selectedMood?.adaptiveColor
-          )
-          QuickActionButton(
-            title: "Gallery", systemImage: "photo.on.rectangle",
-            action: { /* open multi-image picker */ },
-            isEnabled: entitlements.isPremium,
-            color: selectedMood?.adaptiveColor
-          )
-          QuickActionButton(
-            title: "Link", systemImage: "link",
-            action: { /* add URL */ },
-            isEnabled: true,
-            color: selectedMood?.adaptiveColor
-          )
-        }
-        Spacer()
+        .padding(.top, 10)
       }
       .navigationTitle("Create")
       .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
-          Button {
-            // save action (validate mood + text)
-          } label: {
-            Text("Post")
-              .font(.headline.bold())
-              .padding(.horizontal, 10)
-              .padding(.vertical, 4)
-              .background(
-                Capsule().fill(selectedMood != nil ? selectedMood!.adaptiveColor : Color(.systemBackground).opacity(0.85))
-              )
-              .foregroundStyle(Color(.systemBackground))
-              .shadow(color: .black.opacity(0.18), radius: 1, x: 0, y: 1)
-          }
-          .disabled(selectedMood == nil || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      .safeAreaInset(edge: .bottom) { postButton }
+      .onAppear {
+        vm.isPremium = entitlements.isPremium
+        vm.onPost = { mood, text, images in
+          // save & dismiss
+          dismiss()
         }
+      }
+      .onChange(of: entitlements.isPremium) { _, new in
+        vm.isPremium = new
+      }
+      // Pickers
+      .photosPicker(isPresented: $vm.presentSinglePicker,
+                    selection: $vm.singleItem,
+                    matching: .images)
+      .onChange(of: vm.singleItem) { _, _ in
+        Task { await vm.handleSingleSelectionChange() }
+      }
+      .photosPicker(isPresented: $vm.presentMultiPicker,
+                    selection: $vm.galleryItems,
+                    maxSelectionCount: entitlements.isPremium ? 12 : 1,
+                    matching: .images)
+      .onChange(of: vm.galleryItems) { _, _ in
+        Task { await vm.handleGallerySelectionChange() }
       }
     }
   }
+}
+
+// MARK: - Sections
+private extension CreateMemoryView {
   
-  // MARK: Header (Today I feel + mood dropdown with premium styling)
-  var header: some View {
+  // MARK: - Header (Today I feel + mood dropdown)
+  
+  // MARK: - Header (Today I feel + mood dropdown)
+  private var header: some View {
     HStack(spacing: 10) {
       Text("TodayI feel")
         .font(.headline)
@@ -115,60 +63,58 @@ struct CreateMemoryView: View {
       Menu {
         ForEach(Mood.allCases) { mood in
           Button {
-            selectedMood = mood
+            vm.choose(mood: mood)
           } label: {
-            HStack {
+            HStack(spacing: 8) {
+              MoodIcon(mood: mood, size: 20)
+              Text(mood.rawValue)
+                .font(.headline.bold())
+                .foregroundStyle(mood.adaptiveColor)   // <- ensure colored text
+            }
+          }
+        }
+        
+        if vm.selectedMood != nil {
+          Divider()
+          Button(role: .destructive) {
+            vm.selectedMood = nil                      // <- just clear
+          } label: {
+            Label("Clear", systemImage: "xmark")
+          }
+        }
+      } label: {
+        Group {
+          if let mood = vm.selectedMood {
+            HStack(spacing: 8) {
               if entitlements.isPremium {
                 Text(mood.rawValue)
                   .font(.headline.bold())
                   .padding(.horizontal, 10)
-                  .padding(.vertical, 4)
-                  .background(
-                    Capsule().fill(Color(.systemBackground).opacity(0.85))
-                  )
+                  .padding(.vertical, 6)
+                  .background(Capsule().fill(mood.adaptiveColor))
+                  .foregroundStyle(Color(.systemBackground))
                   .shadow(color: .black.opacity(0.18), radius: 1, x: 0, y: 1)
+                MoodIcon(mood: mood, size: 24)
               } else {
                 Text(mood.rawValue)
                   .font(.headline.bold())
+                  .foregroundStyle(mood.adaptiveColor)
               }
-              mood.image
             }
-          }
-          .tint(mood.adaptiveColor)
-        }
-      } label: {
-        if let mood = selectedMood {
-          HStack {
-            if entitlements.isPremium {
-              Text(mood.rawValue)
-                .font(.headline.bold())
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(
-                  Capsule().fill(mood.adaptiveColor)
-                )
-                .foregroundStyle(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.18), radius: 1, x: 0, y: 1)
-            } else {
-              Text(mood.rawValue)
-                .font(.headline.bold())
-                .foregroundStyle((mood.adaptiveColor))
+            .animation(.easeInOut(duration: 0.15), value: vm.selectedMood) // <- nice touch
+          } else {
+            HStack(spacing: 8) {
+              Text("Select mood")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+              Image(systemName: "chevron.down")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
-            MoodIcon(mood: mood, size: 25)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.thinMaterial, in: Capsule())
           }
-          
-        } else {
-          HStack(spacing: 8) {
-            Text("Select mood")
-              .font(.subheadline)
-              .foregroundStyle(.secondary)
-            Image(systemName: "chevron.down")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          }
-          .padding(.horizontal, 12)
-          .padding(.vertical, 8)
-          .background(.thinMaterial, in: Capsule())
         }
       }
       
@@ -177,31 +123,153 @@ struct CreateMemoryView: View {
     .padding(.horizontal)
     .padding(.top, 4)
   }
-}
-
-// MARK: - PREVIEWS
-
-/// Simple preview stub for your EntitlementStore.
-/// Your real app already provides EntitlementStore; this is just for previews.
-#Preview("Premium") {
-  PreviewWrapper(isPremium: true)
-}
-
-#Preview("Free") {
-  PreviewWrapper(isPremium: false)
-}
-
-private struct PreviewWrapper: View {
-  @StateObject private var entitlement: EntitlementStore
   
-  init(isPremium: Bool) {
-    let store = EntitlementStore()
-    store.isPremium = isPremium
-    _entitlement = StateObject(wrappedValue: store)
+  var mediaSection: some View {
+    Group {
+      if !vm.pickedImages.isEmpty {
+        MediaSection(
+          images: vm.pickedImages,
+          onRemove: { id in vm.removeImage(id) }
+        )
+        .padding(.horizontal)
+      }
+    }
   }
   
+  private var journalSection: some View {
+    PlaceholderTextEditor(
+      text: $vm.text,
+      placeholder: "Write your thoughts for today…",
+      minHeight: 160,
+      maxHeight: 220
+    )
+    .padding(.horizontal)
+  }
+  
+  var counterSection: some View {
+    HStack {
+      Spacer()
+      if entitlements.isPremium {
+        PremiumPill(isPremium: true)
+      } else {
+        Text("\(vm.remaining) left")
+          .font(.caption)
+          .foregroundStyle(vm.remaining < 20 ? .orange : .secondary)
+      }
+    }
+    .padding(.horizontal)
+  }
+  
+  var quickActions: some View {
+    HStack(spacing: 12) {
+      QuickActionButton(
+        title: "Photo", systemImage: "photo",
+        action: { vm.tapPhoto() },
+        isEnabled: true,
+        color: vm.selectedMood?.adaptiveColor
+      )
+      QuickActionButton(
+        title: "Video", systemImage: "video",
+        action: { vm.tapVideo() },
+        isEnabled: entitlements.isPremium,
+        color: vm.selectedMood?.adaptiveColor
+      )
+      QuickActionButton(
+        title: "Gallery", systemImage: "photo.on.rectangle",
+        action: { vm.tapGallery() },
+        isEnabled: entitlements.isPremium,
+        color: vm.selectedMood?.adaptiveColor
+      )
+      QuickActionButton(
+        title: "Link", systemImage: "link",
+        action: { vm.tapLink() },
+        isEnabled: true,
+        color: vm.selectedMood?.adaptiveColor
+      )
+    }
+    .padding(.horizontal)
+    .padding(.bottom, 120)
+  }
+  
+  var postButton: some View {
+    HStack {
+      Spacer(minLength: 0)
+      Button {
+        vm.pressPost()
+      } label: {
+        Text("Post")
+          .font(.headline.bold())
+          .padding(.horizontal, 24)
+          .padding(.vertical, 12)
+          .background(
+            Capsule()
+              .fill((vm.selectedMood?.adaptiveColor ?? .secondary)
+                .opacity(vm.canPost ? 1.0 : 0.4))
+          )
+          .foregroundStyle(Color(.systemBackground))
+          .shadow(color: .black.opacity(0.18), radius: 1, x: 0, y: 1)
+      }
+      .disabled(!vm.canPost)
+      Spacer(minLength: 0)
+    }
+    .padding(.horizontal, 16)
+    .padding(.top, 8)
+    .padding(.bottom, 12)
+    .background(.regularMaterial)
+  }
+}
+
+// MARK: - Media section (one image full-width or a horizontal gallery)
+
+private struct MediaSection: View {
+  let images: [PickedImage]
+  var onRemove: (UUID) -> Void
+  
   var body: some View {
-    CreateMemoryView()
-      .environmentObject(entitlement)
+    if images.count == 1, let item = images.first {
+      ZStack(alignment: .topTrailing) {
+        Image(uiImage: item.image)
+          .resizable()
+          .scaledToFit()
+          .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        
+        removeButton(id: item.id)
+      }
+      .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    } else {
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 10) {
+          ForEach(images) { item in
+            ZStack(alignment: .topTrailing) {
+              Image(uiImage: item.image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 180, height: 160)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+              
+              removeButton(id: item.id)
+            }
+          }
+        }
+        .frame(height: 160)
+      }
+    }
+  }
+  
+  @ViewBuilder
+  private func removeButton(id: UUID) -> some View {
+    Button {
+      onRemove(id)
+    } label: {
+      Image(systemName: "xmark.circle.fill")
+        .font(.title3)
+        .symbolRenderingMode(.hierarchical)
+        .foregroundStyle(.primary)
+        .padding(6)
+        .background(.thinMaterial, in: Circle())
+    }
+    .buttonStyle(.plain)
+    .padding(8)
   }
 }
