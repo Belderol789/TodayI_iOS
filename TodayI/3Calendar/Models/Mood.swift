@@ -54,4 +54,9 @@ extension Mood {
       traits.userInterfaceStyle == .dark ? dark : light
     })
   }
+  
+  var image: Image {
+    Image(rawValue) // looks up the asset by the mood's name
+  }
+  
 }

@@ -54,6 +54,8 @@ struct MemoryRow: View {
             .foregroundStyle(moodColor)
         }
         
+        MoodIcon(mood: memory.mood, size: 20)
+        
         Spacer(minLength: 0)
         
         Menu {
@@ -101,16 +103,9 @@ struct MemoryRow: View {
         Button { } label: { Label("Like", systemImage: "hand.thumbsup") }
         Button { } label: { Label("Comment", systemImage: "text.bubble") }
         Spacer()
-        if isPremium {
-          Label("Premium", systemImage: "star.fill")
-            .font(.caption.weight(.semibold))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(.yellow.opacity(0.2), in: Capsule())
-        }
+        PremiumPill(isPremium: isPremium)
       }
       .font(.subheadline.weight(.semibold))
-      .foregroundStyle(moodColor)
       .padding(.top, 4)
     }
     .padding(14)
