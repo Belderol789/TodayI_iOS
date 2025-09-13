@@ -111,7 +111,7 @@ private extension CreateMemoryView {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 8)
             .padding(.vertical, 8)
             .background(.thinMaterial, in: Capsule())
           }
