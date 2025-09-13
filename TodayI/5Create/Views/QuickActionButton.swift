@@ -37,7 +37,7 @@ struct QuickActionButton: View {
             .stroke(color ?? .accentColor, lineWidth: 1)
           if !isEnabled {
             VStack(spacing: 4) {
-              Image(systemName: "lock.fill")
+              Image(systemName: "star.fill")
                 .font(.system(size: 14, weight: .bold))
             }
             .foregroundColor(.secondary)

@@ -53,13 +53,13 @@ struct CreateMemoryView: View {
 private extension CreateMemoryView {
   
   // MARK: - Header (Today I feel + mood dropdown)
-  
-  // MARK: - Header (Today I feel + mood dropdown)
   private var header: some View {
-    HStack(spacing: 10) {
+    HStack(spacing: 4) {
       Text("TodayI feel")
         .font(.headline)
+        .frame(minWidth: 100, alignment: .leading)
       
+      // Mood dropdown
       Menu {
         ForEach(Mood.allCases) { mood in
           Button {
@@ -69,7 +69,7 @@ private extension CreateMemoryView {
               MoodIcon(mood: mood, size: 20)
               Text(mood.rawValue)
                 .font(.headline.bold())
-                .foregroundStyle(mood.adaptiveColor)   // <- ensure colored text
+                .foregroundStyle(mood.adaptiveColor)
             }
           }
         }
@@ -77,7 +77,7 @@ private extension CreateMemoryView {
         if vm.selectedMood != nil {
           Divider()
           Button(role: .destructive) {
-            vm.selectedMood = nil                      // <- just clear
+            vm.selectedMood = nil
           } label: {
             Label("Clear", systemImage: "xmark")
           }
@@ -85,7 +85,7 @@ private extension CreateMemoryView {
       } label: {
         Group {
           if let mood = vm.selectedMood {
-            HStack(spacing: 8) {
+            HStack(spacing: 4) {
               if entitlements.isPremium {
                 Text(mood.rawValue)
                   .font(.headline.bold())
@@ -99,9 +99,9 @@ private extension CreateMemoryView {
                 Text(mood.rawValue)
                   .font(.headline.bold())
                   .foregroundStyle(mood.adaptiveColor)
+                MoodIcon(mood: mood, size: 24)
               }
             }
-            .animation(.easeInOut(duration: 0.15), value: vm.selectedMood) // <- nice touch
           } else {
             HStack(spacing: 8) {
               Text("Select mood")
@@ -111,14 +111,21 @@ private extension CreateMemoryView {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 4)
             .padding(.vertical, 8)
             .background(.thinMaterial, in: Capsule())
           }
         }
+        // 🔑 Fix width so the menu label doesn’t shrink
+        .frame(minWidth: 160, alignment: .leading)
       }
       
       Spacer()
+      
+      // Today’s date using the extension
+      Text(Date().formatted("MMM d, yyyy"))
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.secondary)
     }
     .padding(.horizontal)
     .padding(.top, 4)

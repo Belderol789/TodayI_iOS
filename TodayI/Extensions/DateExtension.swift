@@ -8,6 +8,13 @@
 import Foundation
 
 extension Date {
+  
+  func formatted(_ format: String) -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = format
+    return formatter.string(from: self)
+  }
+  
   /// Returns the day-of-month as a string (e.g. "3", "24").
   var dayString: String {
     String(Calendar.current.component(.day, from: self))

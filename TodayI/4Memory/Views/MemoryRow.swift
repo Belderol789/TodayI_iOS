@@ -63,7 +63,7 @@ struct MemoryRow: View {
         } label: {
           Image(systemName: "ellipsis.circle")
             .imageScale(.large)
-            .foregroundStyle(moodColor)
+            .foregroundStyle(Color.secondary)
         }
         .simultaneousGesture(TapGesture().onEnded { onMore?() })
       }
@@ -100,7 +100,9 @@ struct MemoryRow: View {
       // 5) Actions / flags
       HStack(spacing: 20) {
         Button { } label: { Label("Like", systemImage: "hand.thumbsup") }
+          .tint(moodColor)
         Button { } label: { Label("Comment", systemImage: "text.bubble") }
+          .tint(moodColor)
         Spacer()
         PremiumPill(isPremium: isPremium)
       }
