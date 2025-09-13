@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import AVKit   // ⟵ add this
 
 struct CreateMemoryView: View {
   @EnvironmentObject private var entitlements: EntitlementStore
@@ -11,6 +12,7 @@ struct CreateMemoryView: View {
       ScrollView {
         VStack(spacing: 16) {
           header
+          videoSection
           mediaSection
           journalSection
           counterSection
@@ -44,6 +46,14 @@ struct CreateMemoryView: View {
                     matching: .images)
       .onChange(of: vm.galleryItems) { _, _ in
         Task { await vm.handleGallerySelectionChange() }
+      }
+      .photosPicker(
+        isPresented: $vm.presentVideoPicker,
+        selection: $vm.videoItem,
+        matching: .videos
+      )
+      .onChange(of: vm.videoItem) { _, _ in
+        Task { await vm.handleVideoSelectionChange() }
       }
     }
   }
@@ -151,6 +161,32 @@ private extension CreateMemoryView {
       maxHeight: 220
     )
     .padding(.horizontal)
+  }
+  
+  private var videoSection: some View {
+    Group {
+      if let url = vm.pendingVideoURL {
+        ZStack(alignment: .topTrailing) {
+          VideoPlayer(player: AVPlayer(url: url))
+            .frame(height: 180)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+          
+          Button {
+            vm.clearVideo()
+          } label: {
+            Image(systemName: "xmark.circle.fill")
+              .font(.title3)
+              .symbolRenderingMode(.hierarchical)
+              .foregroundStyle(.primary)
+              .padding(6)
+              .background(.thinMaterial, in: Circle())
+          }
+          .buttonStyle(.plain)
+          .padding(8)
+        }
+        .padding(.horizontal)
+      }
+    }
   }
   
   var counterSection: some View {

@@ -1,5 +1,5 @@
 //
-//  CalendarModel.swift
+//  DateModel.swift
 //  TodayI
 //
 //  Created by Kemuel Clyde Belderol on 9/3/25.

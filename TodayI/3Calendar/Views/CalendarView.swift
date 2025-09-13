@@ -16,38 +16,6 @@ struct CalendarView: View {
           ToolbarItem(placement: .topBarTrailing) {
             Menu {
               YearPicker(selectedYear: $selectedYear)
-              
-              Divider()
-              
-              Button("Seed \(selectedYear)") {
-                do {
-                  try TestManager.seedYear(selectedYear, in: context, strategy: .random)
-                  print("✅ Seeding completed for year \(selectedYear)")
-                  
-                  // DEBUG: what’s in the store now?
-                  let all = try context.fetch(FetchDescriptor<DateModel>())
-                  print("📦 Total rows in store:", all.count)
-                  if let first = all.first, let last = all.last {
-                    print("📦 Sample:", first.date, "…", last.date)
-                  }
-                  
-                  Task { await loadYear(selectedYear) }
-                } catch {
-                  print("❌ Seeding failed:", error)
-                }
-              }
-              
-              Button("Clear \(selectedYear)", role: .destructive) {
-                do {
-                  try TestManager.clearYear(selectedYear, in: context)
-                  Task {
-                    await loadYear(selectedYear)
-                    await MainActor.run { refreshToken = UUID() }
-                  }
-                } catch {
-                  print("❌ Clear failed:", error)
-                }
-              }
             } label: {
               Label("\(selectedYear)", systemImage: "calendar")
             }

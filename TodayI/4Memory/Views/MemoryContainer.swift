@@ -77,16 +77,6 @@ private extension MemoryContainer {
     }
     ToolbarItem(placement: .topBarTrailing) {
       Menu {
-        Button("Seed random for this day") {
-          Task {
-            do {
-              try await seedForThisDay()
-              await load()
-            } catch {
-              self.errorText = error.localizedDescription
-            }
-          }
-        }
         Button("Clear memories for this day", role: .destructive) {
           Task {
             do {
@@ -110,11 +100,22 @@ private extension MemoryContainer {
       errorText = nil
     }
     do {
-      let items = try TestManager.loadMemories(
-        on: day,
-        in: context,
-        isPremium: entitlements.isPremium
+      let cal  = Calendar.current
+      let key  = cal.startOfDay(for: day)
+      let next = cal.date(byAdding: .day, value: 1, to: key)!
+      
+      // Fetch all memories for the given calendar day, sorted by date ascending.
+      var fetch = FetchDescriptor<MemoryModel>(
+        predicate: #Predicate { $0.date >= key && $0.date < next },
+        sortBy: [SortDescriptor(\.date, order: .forward)]
       )
+      // If you want to scope to a user, uncomment and adapt the predicate:
+      // let uid = auth.userID
+      // fetch.predicate = #Predicate { mem in
+      //   mem.date >= key && mem.date < next && mem.userID == uid
+      // }
+      
+      let items = try context.fetch(fetch)
       await MainActor.run {
         self.memories = items
         self.isLoading = false
@@ -137,25 +138,5 @@ private extension MemoryContainer {
     let rows = try context.fetch(fetch)
     rows.forEach { context.delete($0) }
     try context.save()
-  }
-  
-  func seedForThisDay() async throws {
-    // Require a logged-in user (so the row is "yours")
-    guard let userID = auth.userID else {
-      throw NSError(domain: "MemoryContainer", code: 1, userInfo: [
-        NSLocalizedDescriptionKey: "No logged-in user."
-      ])
-    }
-    let username = auth.username ?? "Me"
-    
-    _ = try TestManager.seedMemories(
-      on: day,
-      in: context,
-      isPremium: entitlements.isPremium,
-      username: username,
-      userID: userID,
-      strategy: .random,
-      replaceExisting: false
-    )
   }
 }
