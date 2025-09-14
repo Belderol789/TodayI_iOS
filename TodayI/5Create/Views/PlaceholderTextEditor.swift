@@ -12,7 +12,7 @@ struct PlaceholderTextEditor: View {
         Text(placeholder)
           .foregroundStyle(.secondary)
           .padding(.horizontal, 12)
-          .padding(.vertical, 12)
+          .padding(.vertical, 16)
       }
       
       TextEditor(text: $text)

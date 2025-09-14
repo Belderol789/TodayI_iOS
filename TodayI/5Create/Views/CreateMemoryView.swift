@@ -9,6 +9,9 @@ struct CreateMemoryView: View {
   @Environment(\.dismiss) private var dismiss
   @StateObject private var vm = CreateMemoryViewModel()
   
+  @State private var showPreview = false
+  @State private var postedMemory: MemoryModel? = nil
+  
   var body: some View {
     NavigationStack {
       ScrollView {
@@ -36,15 +39,21 @@ struct CreateMemoryView: View {
       .onAppear {
         vm.isPremium = entitlements.isPremium
         vm.onPost = { payload in
-          guard let swiftManager, let uid = auth.userID else {
-            return
-          }
+          guard let swiftManager, let uid = auth.userID else { return }
           let username = auth.username ?? "Me"
-          _ = try? swiftManager.savePostPayload(payload,
-                                           userID: uid,
-                                                username: username)
-          vm.clearAll()
-          dismiss()
+          
+          do {
+            if let model = try swiftManager.savePostPayload(payload,
+                                                            userID: uid,
+                                                            username: username) as MemoryModel? {
+              postedMemory = model          // keep a reference so the sheet can bind to it
+              showPreview = true            // present modal
+              vm.clearAll()                 // reset composer
+            }
+          } catch {
+            print("Save failed: \(error)")
+            // surface an error toast if you like
+          }
         }
       }
       .onChange(of: entitlements.isPremium) { _, new in
@@ -84,6 +93,25 @@ struct CreateMemoryView: View {
         }
       } message: {
         Text("Paste a website link to preview it.")
+      }
+      .sheet(isPresented: $showPreview) {
+        if let mem = postedMemory {
+          // Wrap in a NavigationStack to get a close button
+          NavigationStack {
+            ScrollView {
+              MemoryRow(memory: mem, isPremium: entitlements.isPremium)
+                .environmentObject(auth) // inherits from parent, usually not needed, but safe
+                .padding()
+            }
+            .navigationTitle("Preview")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+              ToolbarItem(placement: .topBarTrailing) {
+                Button("Done") { showPreview = false }
+              }
+            }
+          }
+        }
       }
     }
   }

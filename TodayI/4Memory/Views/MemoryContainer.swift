@@ -104,16 +104,22 @@ private extension MemoryContainer {
       let key  = cal.startOfDay(for: day)
       let next = cal.date(byAdding: .day, value: 1, to: key)!
       
-      // Fetch all memories for the given calendar day, sorted by date ascending.
-      var fetch = FetchDescriptor<MemoryModel>(
-        predicate: #Predicate { $0.date >= key && $0.date < next },
-        sortBy: [SortDescriptor(\.date, order: .forward)]
-      )
-      // If you want to scope to a user, uncomment and adapt the predicate:
-      // let uid = auth.userID
-      // fetch.predicate = #Predicate { mem in
-      //   mem.date >= key && mem.date < next && mem.userID == uid
-      // }
+      // Base predicate: this day (optionally scope to current user)
+      var predicate = #Predicate<MemoryModel> { $0.date >= key && $0.date < next }
+      if let uid = auth.userID {
+        predicate = #Predicate<MemoryModel> { $0.date >= key && $0.date < next && $0.userID == uid }
+      }
+      
+      var fetch = FetchDescriptor<MemoryModel>(predicate: predicate)
+      
+      if entitlements.isPremium {
+        // Premium: show all (oldest → newest or whichever you prefer)
+        fetch.sortBy = [SortDescriptor(\.createdAt, order: .forward)]
+      } else {
+        // Free: only the latest (newest first, limit 1)
+        fetch.sortBy = [SortDescriptor(\.createdAt, order: .reverse)]
+        fetch.fetchLimit = 1
+      }
       
       let items = try context.fetch(fetch)
       await MainActor.run {

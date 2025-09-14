@@ -92,9 +92,12 @@ struct MemoryRow: View {
       }
       
       // 4) Media (replace MediaBlock with your actual component)
-      if !memory.mediaSources.isEmpty {
-        MediaBlock(sources: memory.mediaSources, onTap: onTapImage)
+      if !memory.imageSources.isEmpty {
+        MediaBlock(sources: memory.imageSources, onTap: onTapImage)
           .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+          .onAppear {
+            print("🖼 imageSources=\(memory.imageSources.count)  locals=\(memory.localImagePaths.count) remotes=\(memory.remoteImagePaths.count)")
+          }
       }
       
       // 5) Actions / flags

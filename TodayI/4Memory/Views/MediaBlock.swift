@@ -16,44 +16,22 @@ struct MediaBlock: View {
       }
       .frame(maxWidth: .infinity, maxHeight: 320)
       
-    case 2:
-      HStack(spacing: 6) {
-        ForEach(0..<2, id: \.self) { i in
-          MediaTile(source: sources[i]) { onTap?(i) }
-        }
-      }
-      .frame(height: 260)
-      
-    case 3:
-      HStack(spacing: 6) {
-        MediaTile(source: sources[0]) { onTap?(0) }
-        VStack(spacing: 6) {
-          MediaTile(source: sources[1]) { onTap?(1) }
-          MediaTile(source: sources[2]) { onTap?(2) }
-        }
-      }
-      .frame(height: 260)
-      
     default:
-      let firstNine = Array(sources.prefix(9))
-      let over = sources.count - firstNine.count
-      LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
-        ForEach(firstNine.indices, id: \.self) { i in
-          ZStack {
-            MediaTile(source: firstNine[i]) { onTap?(i) }
-            if i == firstNine.count - 1 && over > 0 {
-              Color.black.opacity(0.35)
-                .overlay(
-                  Text("+\(over)")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(.white)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+      // Horizontally scrollable gallery for 2+
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 10) {
+          ForEach(sources.indices, id: \.self) { i in
+            MediaTile(source: sources[i], cornerRadius: 12, minHeight: 160) {
+              onTap?(i)
             }
+            .frame(width: 220, height: 180)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
           }
         }
+        .padding(.horizontal, 2)
       }
-      .frame(height: 300)
+      .frame(height: 190)
     }
   }
 }

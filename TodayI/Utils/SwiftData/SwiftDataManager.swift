@@ -86,28 +86,36 @@ extension SwiftDataManager {
     // --- Background upload to Firebase Storage + Firestore ---
     Task {
       do {
+        print("🟦 Starting upload task for memoryID: \(memoryID)")
+        
         var remoteImages: [String] = []
         
         // Upload each image
         for (i, img) in payload.images.enumerated() {
+          print("📤 Uploading image \(i + 1)/\(payload.images.count) for userID: \(userID)")
           let url = try await FirebaseStorageManager.uploadImage(
             img.image,
             userID: userID,
             memoryID: memoryID,
             index: i
           )
+          print("✅ Image \(i + 1) uploaded: \(url.absoluteString)")
           remoteImages.append(url.absoluteString)
         }
         
         // Upload video if present
         var videoURLString: String?
         if let videoURL = payload.videoURL {
+          print("📤 Uploading video for userID: \(userID), file: \(videoURL.lastPathComponent)")
           let url = try await FirebaseStorageManager.uploadVideo(
             fileURL: videoURL,
             userID: userID,
             memoryID: memoryID
           )
           videoURLString = url.absoluteString
+          print("✅ Video uploaded: \(url.absoluteString)")
+        } else {
+          print("ℹ️ No video to upload")
         }
         
         // Build final DTO with remote paths
@@ -116,6 +124,7 @@ extension SwiftDataManager {
         if let v = videoURLString {
           finalDTO.downloadURLs.append(v)
         }
+        print("🟩 Final DTO prepared with \(remoteImages.count) images, video: \(videoURLString ?? "none")")
         
         // Update local model with remote paths
         await MainActor.run {
@@ -124,15 +133,21 @@ extension SwiftDataManager {
             model.downloadURLs.append(v)
           }
           model.updatedAt = Date()
-          try? context.save()
+          do {
+            try context.save()
+            print("💾 Local SwiftData updated successfully")
+          } catch {
+            print("⚠️ Failed to save SwiftData update: \(error)")
+          }
         }
         
         // Upload to Firestore
+        print("📤 Posting memory to Firestore for userID: \(userID)")
         try await MemoryService.postMemory(model)
         print("✅ Post synced to Firestore with remote URLs")
         
       } catch {
-        print("⚠️ Failed uploading media or posting to Firestore: \(error)")
+        print("❌ Failed in upload task: \(error)")
       }
     }
     
@@ -142,19 +157,19 @@ extension SwiftDataManager {
   // MARK: - Helpers
   /// Writes UIImages to app's temporary dir as JPEG and returns file paths.
   private func persistImagesToFiles(_ picked: [PickedImage], dayKey: Date) throws -> [String] {
-    let dir = URL(fileURLWithPath: NSTemporaryDirectory())
-      .appendingPathComponent("memories", isDirectory: true)
+    let base = try FileManager.default.url(
+      for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true
+    ).appendingPathComponent("memories", isDirectory: true)
     
-    // Ensure directory exists
-    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
     
     var paths: [String] = []
     for item in picked {
       guard let data = item.image.jpegData(compressionQuality: 0.85) else { continue }
       let name = "\(Int(dayKey.timeIntervalSince1970))-\(UUID().uuidString).jpg"
-      let url = dir.appendingPathComponent(name)
+      let url = base.appendingPathComponent(name)
       try data.write(to: url, options: .atomic)
-      paths.append(url.path)
+      paths.append(url.path)            // keep the *path*, not absoluteString
     }
     return paths
   }

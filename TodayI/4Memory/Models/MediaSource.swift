@@ -8,7 +8,6 @@
 import Foundation
 
 enum MediaSource: Hashable {
-  case symbol(String)                // SF Symbol name
   case local(path: String)           // file path on disk
   case remote(url: URL)              // network URL
 }
