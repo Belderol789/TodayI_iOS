@@ -29,6 +29,7 @@ final class CreateMemoryViewModel: ObservableObject {
   // Video picker
   @Published var presentVideoPicker: Bool = false
   @Published var videoItem: PhotosPickerItem? = nil
+  @Published var videoPlayer: AVPlayer?
   
   // Keep exactly ONE video
   @Published private(set) var pendingVideoURL: URL? = nil
@@ -133,25 +134,26 @@ final class CreateMemoryViewModel: ObservableObject {
     
     do {
       clearImages()
-      // 1) Import as a FILE (not Data) using a Transferable
-      let movie = try await item.loadTransferable(type: PickedMovie.self)
-      guard var url = movie?.url else { return }
+      // 1) Import as a FILE using your PickedMovie
+      guard var url = try await item.loadTransferable(type: PickedMovie.self)?.url else { return }
       
       // 2) Check duration
       let asset = AVURLAsset(url: url)
-      let duration = await CMTimeGetSeconds(try asset.load(.duration))
-      // 3) If > 30s, trim & transcode to .mp4 (720p to control size)
+      let duration = try await asset.load(.duration).seconds
       if duration > 30.0 {
-          url = try await exportFirst30SecondsMp4(from: asset)
+        url = try await exportFirst30SecondsMp4(from: asset) // overwrite with trimmed
       }
       
-      // 4) Generate a thumbnail for UI
+      // 3) Generate a thumbnail for UI
       if let thumb = await generateVideoThumbnail(from: url) {
         self.videoThumbnail = thumb
       }
       
-      // 5) Keep exactly one pending video
-      self.pendingVideoURL = url
+      // 4) Assign once
+      DispatchQueue.main.async {
+        self.pendingVideoURL = url
+        self.videoPlayer = AVPlayer(url: url)   // 👈 stable player
+      }
     } catch {
       print("Video import failed: \(error)")
     }

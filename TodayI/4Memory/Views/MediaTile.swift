@@ -1,4 +1,5 @@
 import SwiftUI
+import AVKit
 
 struct MediaTile: View {
   let source: MediaSource
@@ -9,14 +10,11 @@ struct MediaTile: View {
   var body: some View {
     ZStack {
       switch source {
-      case .local(let path):
+      case .localImage(let path):
         LocalImageView(path: path)
-          .onAppear {
-            print("Local image source \(path)")
-          }
+          .onAppear { print("📷 Local image source \(path)") }
         
-      case .remote(let url):
-        // AsyncImage is fine for remote
+      case .remoteImage(let url):
         AsyncImage(url: url) { phase in
           switch phase {
           case .empty:
@@ -29,6 +27,18 @@ struct MediaTile: View {
             placeholder
           }
         }
+        
+      case .localVideo(let path):
+        if FileManager.default.fileExists(atPath: path) {
+          VideoPlayer(player: AVPlayer(url: URL(fileURLWithPath: path)))
+            .onAppear { print("🎥 Local video source \(path)") }
+        } else {
+          placeholderVideo
+        }
+        
+      case .remoteVideo(let url):
+        VideoPlayer(player: AVPlayer(url: url))
+          .onAppear { print("🌐 Remote video source \(url)") }
       }
     }
     .frame(maxWidth: .infinity, minHeight: minHeight)
@@ -45,43 +55,15 @@ struct MediaTile: View {
       .padding(24)
       .foregroundStyle(.secondary)
   }
-}
-
-private struct LocalImageView: View {
-  let path: String
   
-  var body: some View {
-    Group {
-      if FileManager.default.fileExists(atPath: path),
-         let ui = UIImage(contentsOfFile: path) {
-        // Direct path works
-        Image(uiImage: ui)
-          .resizable()
-          .scaledToFill()
-        
-      } else if let ui = UIImage(contentsOfFile: URL(fileURLWithPath: path).path) {
-        // Handles when you accidentally saved "file://..." string
-        Image(uiImage: ui)
-          .resizable()
-          .scaledToFill()
-        
-      } else {
-        // Debug fallback
-        ZStack {
-          Color.secondary.opacity(0.1)
-          VStack {
-            Image(systemName: "photo")
-              .resizable()
-              .scaledToFit()
-              .padding(24)
-              .foregroundStyle(.secondary)
-          }
-        }
-        .onAppear {
-          print("❌ LocalImageView failed for path:", path,
-                "exists:", FileManager.default.fileExists(atPath: path))
-        }
-      }
+  private var placeholderVideo: some View {
+    ZStack {
+      Color.secondary.opacity(0.1)
+      Image(systemName: "video")
+        .resizable()
+        .scaledToFit()
+        .padding(24)
+        .foregroundStyle(.secondary)
     }
   }
 }

@@ -30,11 +30,12 @@ struct MemoryService {
       "id": memory.id,
       "userID": memory.userID,
       "username": memory.username,
-      "date": memory.date,                     // Firestore will store this as a Timestamp
+      "date": memory.date,
       "mood": memory.mood.rawValue,
       "journalText": memory.journalText,
       "remoteImagePaths": memory.remoteImagePaths,
-      "downloadURLs": memory.downloadURLs,
+      "videoRemoteURL": memory.videoRemoteURL as Any,   // 👈
+      "linkURL": memory.linkURL as Any,                 // 👈
       "isPublic": memory.isPublic,
       "createdAt": memory.createdAt,
       "updatedAt": memory.updatedAt

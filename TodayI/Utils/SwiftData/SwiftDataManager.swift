@@ -39,21 +39,23 @@ extension SwiftDataManager {
     let now = Date()
     let memoryID = UUID().uuidString
     
-    let dto = MemoryDTO(
+    // --- Initial DTO (empty media, will fill later) ---
+    var dto = MemoryDTO(
       id: memoryID,
       username: username,
       userID: userID,
       date: day.startOfDayUTC,
       mood: payload.mood.rawValue,
       journalText: payload.text,
-      remoteImagePaths: [],                 // filled later
-      downloadURLs: payload.linkString.map { [$0] } ?? [],
+      remoteImagePaths: [],
+      videoRemoteURL: nil,
+      linkURL: payload.linkString,
       isPublic: payload.isPublic,
       createdAt: now,
       updatedAt: now
     )
     
-    // Upsert into SwiftData immediately
+    // --- Upsert into SwiftData immediately ---
     let model = try MemoryModel.upsert(from: dto, in: context)
     
     // Save local image paths (for offline cache)
@@ -63,9 +65,15 @@ extension SwiftDataManager {
       model.localImagePaths = []
     }
     
-    // Save video local path for offline cache
+    // Save video local path (for offline cache)
     if let videoURL = payload.videoURL {
-      model.downloadURLs.append(videoURL.absoluteString)
+      let localPath = try persistVideoToFiles(videoURL, dayKey: day.startOfDayUTC)
+      model.videoLocalPath = localPath
+    }
+    
+    // Save link
+    if let link = payload.linkString {
+      model.linkURL = link
     }
     
     // --- DateModel update (append mood) ---
@@ -119,19 +127,16 @@ extension SwiftDataManager {
         }
         
         // Build final DTO with remote paths
-        var finalDTO = dto
-        finalDTO.remoteImagePaths = remoteImages
-        if let v = videoURLString {
-          finalDTO.downloadURLs.append(v)
-        }
-        print("🟩 Final DTO prepared with \(remoteImages.count) images, video: \(videoURLString ?? "none")")
+        dto.remoteImagePaths = remoteImages
+        dto.videoRemoteURL = videoURLString
+        dto.linkURL = payload.linkString
+        print("🟩 Final DTO prepared with \(remoteImages.count) images, video: \(videoURLString ?? "none"), link: \(payload.linkString ?? "none")")
         
-        // Update local model with remote paths
+        // Update local model with remote fields
         await MainActor.run {
           model.remoteImagePaths = remoteImages
-          if let v = videoURLString {
-            model.downloadURLs.append(v)
-          }
+          if let v = videoURLString { model.videoRemoteURL = v }
+          if let l = payload.linkString { model.linkURL = l }
           model.updatedAt = Date()
           do {
             try context.save()
@@ -157,20 +162,38 @@ extension SwiftDataManager {
   // MARK: - Helpers
   /// Writes UIImages to app's temporary dir as JPEG and returns file paths.
   private func persistImagesToFiles(_ picked: [PickedImage], dayKey: Date) throws -> [String] {
-    let base = try FileManager.default.url(
-      for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true
-    ).appendingPathComponent("memories", isDirectory: true)
+    let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+      .appendingPathComponent("memories", isDirectory: true)
     
-    try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     
     var paths: [String] = []
     for item in picked {
       guard let data = item.image.jpegData(compressionQuality: 0.85) else { continue }
       let name = "\(Int(dayKey.timeIntervalSince1970))-\(UUID().uuidString).jpg"
-      let url = base.appendingPathComponent(name)
+      let url = dir.appendingPathComponent(name)
       try data.write(to: url, options: .atomic)
-      paths.append(url.path)            // keep the *path*, not absoluteString
+      paths.append(url.path)
     }
     return paths
   }
+  
+  private func persistVideoToFiles(_ originalURL: URL, dayKey: Date) throws -> String {
+    // choose a persistent base — Documents or Caches
+    let base = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+      .appendingPathComponent("videos", isDirectory: true)
+    try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+    
+    let ext = originalURL.pathExtension.isEmpty ? "mp4" : originalURL.pathExtension
+    let name = "\(Int(dayKey.timeIntervalSince1970))-\(UUID().uuidString).\(ext)"
+    let dest = base.appendingPathComponent(name)
+    
+    // copy (or move) the file into your sandbox
+    if FileManager.default.fileExists(atPath: dest.path) {
+      try FileManager.default.removeItem(at: dest)
+    }
+    try FileManager.default.copyItem(at: originalURL, to: dest)
+    return dest.path   // store *path*, not absoluteString
+  }
+  
 }

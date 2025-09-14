@@ -223,9 +223,9 @@ extension CreateMemoryView {
   
   private var videoSection: some View {
     Group {
-      if let url = vm.pendingVideoURL {
+      if let player = vm.videoPlayer {
         ZStack(alignment: .topTrailing) {
-          VideoPlayer(player: AVPlayer(url: url))
+          VideoPlayer(player: player)
             .frame(height: 180)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
           

@@ -92,12 +92,15 @@ struct MemoryRow: View {
       }
       
       // 4) Media (replace MediaBlock with your actual component)
-      if !memory.imageSources.isEmpty {
+      // Video first
+      if let video = memory.videoSource {
+        MediaTile(source: video, cornerRadius: 14, minHeight: 220)
+          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+      }
+      // Else images
+      else if !memory.imageSources.isEmpty {
         MediaBlock(sources: memory.imageSources, onTap: onTapImage)
           .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-          .onAppear {
-            print("🖼 imageSources=\(memory.imageSources.count)  locals=\(memory.localImagePaths.count) remotes=\(memory.remoteImagePaths.count)")
-          }
       }
       
       // 5) Actions / flags

@@ -7,7 +7,9 @@
 
 import Foundation
 
-enum MediaSource: Hashable {
-  case local(path: String)           // file path on disk
-  case remote(url: URL)              // network URL
+enum MediaSource {
+  case localImage(path: String)
+  case remoteImage(url: URL)
+  case localVideo(path: String)
+  case remoteVideo(url: URL)
 }

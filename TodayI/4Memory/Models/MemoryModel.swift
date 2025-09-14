@@ -18,9 +18,6 @@ final class MemoryModel {
   var videoRemoteURL: String?         // Firebase Storage URL for video
   var linkURL: String?                // external website link
   
-  // (Optional) Keep this only for SF Symbol placeholders / emoji tags
-  var downloadURLs: [String]
-  
   // Privacy
   var isPublic: Bool = false
   
@@ -48,7 +45,6 @@ final class MemoryModel {
     videoLocalPath: String? = nil,
     videoRemoteURL: String? = nil,
     linkURL: String? = nil,
-    downloadURLs: [String] = [],
     isPublic: Bool = false,
     createdAt: Date = .now,
     updatedAt: Date = .now
@@ -64,7 +60,6 @@ final class MemoryModel {
     self.videoLocalPath = videoLocalPath
     self.videoRemoteURL = videoRemoteURL
     self.linkURL = linkURL
-    self.downloadURLs = downloadURLs
     self.isPublic = isPublic
     self.createdAt = createdAt
     self.updatedAt = updatedAt
@@ -73,16 +68,70 @@ final class MemoryModel {
 
 enum MemoryError: Error { case futureDate }
 
+// MARK: - MemoryDTO
+extension MemoryModel {
+  @discardableResult
+  static func upsert(from dto: MemoryDTO, in context: ModelContext) throws -> MemoryModel {
+    var fetch = FetchDescriptor<MemoryModel>(predicate: #Predicate { $0.id == dto.id })
+    fetch.fetchLimit = 1
+    let existing: MemoryModel? = try context.fetch(fetch).first
+    
+    if let m = existing {
+      m.username = dto.username
+      m.userID = dto.userID
+      m.date = dto.date.startOfDayUTC
+      m.mood = Mood(rawValue: dto.mood) ?? .neutral
+      m.journalText = dto.journalText
+      m.remoteImagePaths = dto.remoteImagePaths
+      m.videoRemoteURL = dto.videoRemoteURL    // 👈
+      m.linkURL = dto.linkURL                  // 👈
+      m.isPublic = dto.isPublic
+      m.updatedAt = dto.updatedAt
+      return m
+    } else {
+      let m = MemoryModel(
+        id: dto.id,
+        userID: dto.userID,
+        username: dto.username,
+        date: dto.date.startOfDayUTC,
+        mood: Mood(rawValue: dto.mood) ?? .neutral,
+        journalText: dto.journalText,
+        localImagePaths: [],
+        remoteImagePaths: dto.remoteImagePaths,
+        videoLocalPath: nil,                    // 👈 stays nil from DTO
+        videoRemoteURL: dto.videoRemoteURL,     // 👈
+        linkURL: dto.linkURL,                   // 👈
+        isPublic: dto.isPublic,
+        createdAt: dto.createdAt,
+        updatedAt: dto.updatedAt
+      )
+      context.insert(m)
+      return m
+    }
+  }
+}
+
 // MARK: - Helpers
 extension MemoryModel {
-  /// Prefer local files for rendering; fall back to remote URLs if locals are empty.
+  // Prefer local images; fall back to remotes
   var imageSources: [MediaSource] {
     if !localImagePaths.isEmpty {
-      return localImagePaths.map { MediaSource.local(path: $0) }
+      return localImagePaths.map { .localImage(path: $0) }
     } else {
       return remoteImagePaths
         .compactMap(URL.init(string:))
-        .map { MediaSource.remote(url: $0) }
+        .map { .remoteImage(url: $0) }
     }
+  }
+  
+  // Prefer local video; fall back to remote
+  var videoSource: MediaSource? {
+    if let path = videoLocalPath, FileManager.default.fileExists(atPath: path) {
+      return .localVideo(path: path)
+    }
+    if let s = videoRemoteURL, let u = URL(string: s) {
+      return .remoteVideo(url: u)
+    }
+    return nil
   }
 }
