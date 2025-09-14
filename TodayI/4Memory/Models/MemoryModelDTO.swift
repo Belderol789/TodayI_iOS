@@ -11,8 +11,8 @@ struct MemoryDTO: Codable {
   let date: Date
   let mood: String                 // Mood.rawValue
   let journalText: String
-  let remoteImagePaths: [String]
-  let downloadURLs: [String]
+  var remoteImagePaths: [String]
+  var downloadURLs: [String]
   let isPublic: Bool               // ← include privacy
   let createdAt: Date
   let updatedAt: Date

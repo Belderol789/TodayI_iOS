@@ -20,10 +20,14 @@ extension Date {
     String(Calendar.current.component(.day, from: self))
   }
   
-  var startOfDay: Date { Calendar.current.startOfDay(for: self) }
+  var startOfDay: Date {
+    Calendar.current.startOfDay(for: self)
+  }
   
   var startOfDayUTC: Date {
-    Calendar.utc.startOfDay(for: self)
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = TimeZone(secondsFromGMT: 0)!
+    return cal.startOfDay(for: self)
   }
   
   /// Returns a full, localized description of the date (e.g. "Wednesday, September 3, 2025").

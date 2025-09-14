@@ -11,6 +11,7 @@ final class CreateMemoryViewModel: ObservableObject {
   @Published var selectedMood: Mood? = nil
   @Published var text: String = "" { didSet { enforceLimit() } }
   @Published var isPremium: Bool = false { didSet { enforceLimit() } }
+  @Published var isPublic: Bool = true
   
   // Picked images the UI renders
   @Published private(set) var pickedImages: [PickedImage] = []
@@ -40,7 +41,7 @@ final class CreateMemoryViewModel: ObservableObject {
   
   // MARK: - Hooks (optional)
   var onAddLink: (() -> Void)?
-  var onPost: ((Mood, String, [PickedImage]) -> Void)?
+  var onPost: ((PostPayload) -> Void)?
   
   // MARK: - Init
   init(isPremium: Bool = false, selectedMood: Mood? = nil, text: String = "") {
@@ -88,7 +89,15 @@ final class CreateMemoryViewModel: ObservableObject {
   
   func pressPost() {
     guard let mood = selectedMood else { return }
-    onPost?(mood, text, pickedImages)
+    let payload = PostPayload(
+      mood: mood,
+      isPublic: isPublic,
+      text: text,
+      images: pickedImages,
+      videoURL: pendingVideoURL,
+      linkString: linkString
+    )
+    onPost?(payload)
   }
   
   // MARK: - PhotosPicker change handlers (called by the View’s .onChange)
@@ -215,6 +224,14 @@ final class CreateMemoryViewModel: ObservableObject {
         }
       }
     }
+  }
+  
+  func clearAll() {
+    clearVideo()
+    clearImages()
+    clearLink()
+    selectedMood = nil
+    text = ""
   }
   
   // Public image ops (used by the view)

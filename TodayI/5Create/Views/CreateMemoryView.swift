@@ -4,6 +4,8 @@ import AVKit   // ⟵ add this
 
 struct CreateMemoryView: View {
   @EnvironmentObject private var entitlements: EntitlementStore
+  @Environment(\.swiftDataManager) private var swiftManager
+  @EnvironmentObject private var auth: AuthStore
   @Environment(\.dismiss) private var dismiss
   @StateObject private var vm = CreateMemoryViewModel()
   
@@ -33,8 +35,15 @@ struct CreateMemoryView: View {
       .safeAreaInset(edge: .bottom) { postButton }
       .onAppear {
         vm.isPremium = entitlements.isPremium
-        vm.onPost = { mood, text, images in
-          // save & dismiss
+        vm.onPost = { payload in
+          guard let swiftManager, let uid = auth.userID else {
+            return
+          }
+          let username = auth.username ?? "Me"
+          _ = try? swiftManager.savePostPayload(payload,
+                                           userID: uid,
+                                                username: username)
+          vm.clearAll()
           dismiss()
         }
       }
@@ -81,7 +90,7 @@ struct CreateMemoryView: View {
 }
 
 // MARK: - Sections
-private extension CreateMemoryView {
+extension CreateMemoryView {
   
   // MARK: - Header (Today I feel + mood dropdown)
   private var header: some View {
@@ -245,6 +254,7 @@ private extension CreateMemoryView {
   
   private var counterSection: some View {
     HStack {
+      PrivacyBadge(isPublic: $vm.isPublic)
       Spacer()
       if entitlements.isPremium {
         PremiumPill(isPremium: true)
@@ -315,60 +325,5 @@ private extension CreateMemoryView {
     .padding(.top, 8)
     .padding(.bottom, 12)
     .background(.regularMaterial)
-  }
-}
-
-// MARK: - Media section (one image full-width or a horizontal gallery)
-
-private struct MediaSection: View {
-  let images: [PickedImage]
-  var onRemove: (UUID) -> Void
-  
-  var body: some View {
-    if images.count == 1, let item = images.first {
-      ZStack(alignment: .topTrailing) {
-        Image(uiImage: item.image)
-          .resizable()
-          .scaledToFit()
-          .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        
-        removeButton(id: item.id)
-      }
-      .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    } else {
-      ScrollView(.horizontal, showsIndicators: false) {
-        HStack(spacing: 10) {
-          ForEach(images) { item in
-            ZStack(alignment: .topTrailing) {
-              Image(uiImage: item.image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 180, height: 160)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-              
-              removeButton(id: item.id)
-            }
-          }
-        }
-        .frame(height: 160)
-      }
-    }
-  }
-  
-  @ViewBuilder
-  private func removeButton(id: UUID) -> some View {
-    Button {
-      onRemove(id)
-    } label: {
-      Image(systemName: "xmark.circle.fill")
-        .font(.title3)
-        .symbolRenderingMode(.hierarchical)
-        .foregroundStyle(.primary)
-        .padding(6)
-        .background(.thinMaterial, in: Circle())
-    }
-    .buttonStyle(.plain)
-    .padding(8)
   }
 }
