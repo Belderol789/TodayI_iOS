@@ -33,6 +33,11 @@ final class CreateMemoryViewModel: ObservableObject {
   @Published private(set) var pendingVideoURL: URL? = nil
   @Published private(set) var videoThumbnail: UIImage? = nil
   
+  // Link
+  @Published var linkString: String? = nil
+  @Published var showLinkPrompt = false
+  @Published var tempLinkInput = ""
+  
   // MARK: - Hooks (optional)
   var onAddLink: (() -> Void)?
   var onPost: ((Mood, String, [PickedImage]) -> Void)?
@@ -71,7 +76,7 @@ final class CreateMemoryViewModel: ObservableObject {
   func tapLink() {
     clearVideo()
     clearImages()
-    onAddLink?()
+    showLinkPrompt = true
   }
   
   func tapVideo() {
@@ -217,11 +222,17 @@ final class CreateMemoryViewModel: ObservableObject {
     pickedImages.removeAll { $0.id == id }
   }
   
-  func clearImages() { pickedImages.removeAll() }
+  func clearImages() {
+    pickedImages.removeAll()
+  }
   
   func clearVideo() {
     pendingVideoURL = nil
     videoThumbnail = nil
+  }
+  
+  func clearLink() {
+    linkString = nil
   }
   
   // MARK: - Text helpers
@@ -230,5 +241,21 @@ final class CreateMemoryViewModel: ObservableObject {
       text = String(text.prefix(maxChars))
     }
     remaining = max(0, maxChars - text.count)
+  }
+}
+
+extension CreateMemoryViewModel {
+  var attachmentIndicatorText: String? {
+    if !pickedImages.isEmpty {
+      return pickedImages.count == 1 ? "📷 1 photo" : "📷 \(pickedImages.count) photos"
+    } else if pendingVideoURL != nil {
+      return "🎬 1 video"
+    } else if let link = linkString, !link.isEmpty {
+      // Keep it short (strip scheme)
+      let display = link.replacingOccurrences(of: "^https?://", with: "", options: .regularExpression)
+      return "🔗 \(display)"
+    } else {
+      return nil
+    }
   }
 }

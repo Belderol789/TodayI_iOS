@@ -12,8 +12,16 @@ struct CreateMemoryView: View {
       ScrollView {
         VStack(spacing: 16) {
           header
+          if let indicator = vm.attachmentIndicatorText {
+            Text(indicator)
+              .font(.subheadline.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .padding(.horizontal)
+          }
           videoSection
           mediaSection
+          linkSection
           journalSection
           counterSection
           quickActions
@@ -54,6 +62,19 @@ struct CreateMemoryView: View {
       )
       .onChange(of: vm.videoItem) { _, _ in
         Task { await vm.handleVideoSelectionChange() }
+      }
+      .alert("Add a link", isPresented: $vm.showLinkPrompt) {
+        TextField("https://example.com", text: $vm.tempLinkInput)
+        Button("Cancel", role: .cancel) { vm.tempLinkInput = "" }
+        Button("Add") {
+          let trimmed = vm.tempLinkInput.trimmingCharacters(in: .whitespacesAndNewlines)
+          if !trimmed.isEmpty {
+            vm.linkString = trimmed.hasPrefix("http") ? trimmed : "https://\(trimmed)"
+          }
+          vm.tempLinkInput = ""
+        }
+      } message: {
+        Text("Paste a website link to preview it.")
       }
     }
   }
@@ -189,7 +210,40 @@ private extension CreateMemoryView {
     }
   }
   
-  var counterSection: some View {
+  private var linkSection: some View {
+    Group {
+      if let linkString = vm.linkString,
+         let url = URL(string: linkString) {
+        ZStack(alignment: .topTrailing) {
+          // 👇 Option 1: open in Safari by default
+          Link(destination: url) {
+            LinkPreviewView(url: url)
+              .frame(height: 120)
+              .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+              .padding(.horizontal)
+          }
+          .buttonStyle(.plain) // so the preview card isn’t dimmed
+          
+          // Remove button
+          Button {
+            vm.clearLink()
+          } label: {
+            Image(systemName: "xmark.circle.fill")
+              .font(.title3)
+              .symbolRenderingMode(.hierarchical)
+              .foregroundStyle(.primary)
+              .padding(6)
+              .background(.thinMaterial, in: Circle())
+          }
+          .buttonStyle(.plain)
+          .padding(.trailing, 24)
+          .padding(.top, 8)
+        }
+      }
+    }
+  }
+  
+  private var counterSection: some View {
     HStack {
       Spacer()
       if entitlements.isPremium {
@@ -203,7 +257,7 @@ private extension CreateMemoryView {
     .padding(.horizontal)
   }
   
-  var quickActions: some View {
+  private var quickActions: some View {
     HStack(spacing: 12) {
       QuickActionButton(
         title: "Photo", systemImage: "photo",
@@ -225,7 +279,9 @@ private extension CreateMemoryView {
       )
       QuickActionButton(
         title: "Link", systemImage: "link",
-        action: { vm.tapLink() },
+        action: {
+          vm.tapLink()
+        },
         isEnabled: true,
         color: vm.selectedMood?.adaptiveColor
       )
@@ -234,7 +290,7 @@ private extension CreateMemoryView {
     .padding(.bottom, 120)
   }
   
-  var postButton: some View {
+  private var postButton: some View {
     HStack {
       Spacer(minLength: 0)
       Button {
