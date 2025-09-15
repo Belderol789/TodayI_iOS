@@ -1,6 +1,7 @@
 import SwiftUI
 import FirebaseCore
 import SwiftData
+import AVFAudio
 
 @main
 struct TodayIApp: App {
@@ -11,7 +12,8 @@ struct TodayIApp: App {
   
   init() {
     FirebaseApp.configure()
-    
+    try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback, options: [])
+    try? AVAudioSession.sharedInstance().setActive(true)
     // Create one shared container
     container = try! ModelContainer(for: UserModel.self, MemoryModel.self, DateModel.self)
     

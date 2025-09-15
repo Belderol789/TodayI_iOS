@@ -30,8 +30,7 @@ final class CreateMemoryViewModel: ObservableObject {
   @Published var presentVideoPicker: Bool = false
   @Published var videoItem: PhotosPickerItem? = nil
   @Published var videoPlayer: AVPlayer?
-  
-  // Keep exactly ONE video
+  private var loopObserver: NSObjectProtocol?
   @Published private(set) var pendingVideoURL: URL? = nil
   @Published private(set) var videoThumbnail: UIImage? = nil
   
@@ -152,7 +151,7 @@ final class CreateMemoryViewModel: ObservableObject {
       // 4) Assign once
       DispatchQueue.main.async {
         self.pendingVideoURL = url
-        self.videoPlayer = AVPlayer(url: url)   // 👈 stable player
+        self.configurePlayer(with: url, autoplay: true, loop: true, muted: false)
       }
     } catch {
       print("Video import failed: \(error)")
@@ -166,6 +165,34 @@ final class CreateMemoryViewModel: ObservableObject {
       return ui
     }
     return nil
+  }
+  
+  private func configurePlayer(with url: URL,
+                               autoplay: Bool = true,
+                               loop: Bool = true,
+                               muted: Bool = true) {
+    // Clean up any previous observer
+    if let obs = loopObserver {
+      NotificationCenter.default.removeObserver(obs)
+      loopObserver = nil
+    }
+    
+    let player = AVPlayer(url: url)
+    player.isMuted = muted
+    player.actionAtItemEnd = .none
+    self.videoPlayer = player
+    
+    if loop {
+      loopObserver = NotificationCenter.default.addObserver(
+        forName: .AVPlayerItemDidPlayToEndTime,
+        object: player.currentItem,
+        queue: .main
+      ) { [weak player] _ in
+        player?.seek(to: .zero)
+        player?.play()
+      }
+    }
+    if autoplay { player.play() }
   }
 
   /// Trim to first 30s and transcode to H.264 .mp4 (720p).
@@ -246,6 +273,12 @@ final class CreateMemoryViewModel: ObservableObject {
   }
   
   func clearVideo() {
+    videoPlayer?.pause()
+    videoPlayer = nil
+    if let obs = loopObserver {
+      NotificationCenter.default.removeObserver(obs)
+      loopObserver = nil
+    }
     pendingVideoURL = nil
     videoThumbnail = nil
   }

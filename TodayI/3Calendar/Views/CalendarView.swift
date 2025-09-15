@@ -3,7 +3,7 @@ import SwiftData
 
 struct CalendarView: View {
   @Environment(\.modelContext) private var context
-  @EnvironmentObject var store: EntitlementStore
+  @EnvironmentObject var entitlements: EntitlementStore
   @State private var selectedYear = Calendar.current.component(.year, from: Date())
   @State private var yearModels: [DateModel] = []
   @State private var refreshToken = UUID()          // <—
@@ -21,8 +21,8 @@ struct CalendarView: View {
             }
           }
           ToolbarItem(placement: .topBarTrailing) {
-            Button(store.isPremium ? "Set Free" : "Set Premium") {
-              store.isPremium.toggle()
+            Button(entitlements.isPremium ? "Set Free" : "Set Premium") {
+              entitlements.isPremium.toggle()
             }
           }
         }

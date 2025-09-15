@@ -36,6 +36,13 @@ struct CreateMemoryView: View {
       .navigationTitle("Create")
       .navigationBarTitleDisplayMode(.inline)
       .safeAreaInset(edge: .bottom) { postButton }
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button(entitlements.isPremium ? "Set Free" : "Set Premium") {
+            entitlements.isPremium.toggle()
+          }
+        }
+      }
       .onAppear {
         vm.isPremium = entitlements.isPremium
         vm.onPost = { payload in
@@ -224,23 +231,36 @@ extension CreateMemoryView {
   private var videoSection: some View {
     Group {
       if let player = vm.videoPlayer {
-        ZStack(alignment: .topTrailing) {
+        ZStack {
           VideoPlayer(player: player)
             .frame(height: 180)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .onAppear { player.play() }
+            .onDisappear { player.pause() }
           
-          Button {
-            vm.clearVideo()
-          } label: {
-            Image(systemName: "xmark.circle.fill")
-              .font(.title3)
-              .symbolRenderingMode(.hierarchical)
-              .foregroundStyle(.primary)
-              .padding(6)
-              .background(.thinMaterial, in: Circle())
+          // Put the close button on the *top-left* to avoid AirPlay/PiP controls
+          VStack {
+            HStack {
+              Button {
+                vm.clearVideo()
+              } label: {
+                Image(systemName: "xmark.circle.fill")
+                  .font(.title3)
+                  .symbolRenderingMode(.hierarchical)
+                  .foregroundStyle(.primary)
+                  .padding(8)
+                  .background(.thinMaterial, in: Circle())
+                  .contentShape(Circle())
+              }
+              .buttonStyle(.plain)
+              .padding(.leading, 8)
+              .padding(.top, 8)
+              
+              Spacer()
+            }
+            Spacer()
           }
-          .buttonStyle(.plain)
-          .padding(8)
+          .allowsHitTesting(true)
         }
         .padding(.horizontal)
       }
