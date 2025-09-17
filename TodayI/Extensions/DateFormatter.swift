@@ -21,4 +21,11 @@ extension DateFormatter {
     return df
   }()
   
+  static let shortDateFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateStyle = .medium
+    f.timeStyle = .short
+    return f
+  }()
+  
 }

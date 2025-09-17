@@ -13,6 +13,7 @@ enum MemoryUploadError: Error {
 }
 
 struct MemoryService {
+  
   /// Upload a single MemoryModel to Firestore and upsert its DateModel under the same user.
   /// - Throws: `MemoryUploadError.missingUserID` if `memory.userID` is empty, or Firestore errors.
   static func postMemory(_ memory: MemoryModel, db: Firestore = Firestore.firestore()) async throws {
@@ -30,15 +31,21 @@ struct MemoryService {
       "id": memory.id,
       "userID": memory.userID,
       "username": memory.username,
-      "date": memory.date,
+      "date": memory.date,                    // author local day start instant
+      "dayKeyLocal": memory.dayKeyLocal,      // "yyyy-MM-dd" (author tz)
+      "dayKeyUTC": memory.dayKeyUTC as Any,   // optional
+      "authorTZ": memory.authorTZ,
+      
       "mood": memory.mood.rawValue,
       "journalText": memory.journalText,
       "remoteImagePaths": memory.remoteImagePaths,
-      "videoRemoteURL": memory.videoRemoteURL as Any,   // 👈
-      "linkURL": memory.linkURL as Any,                 // 👈
+      "videoRemoteURL": memory.videoRemoteURL as Any,
+      "linkURL": memory.linkURL as Any,
       "isPublic": memory.isPublic,
-      "createdAt": memory.createdAt,
-      "updatedAt": memory.updatedAt
+      
+      // prefer server timestamps for consistency in global queries
+      "createdAt": FieldValue.serverTimestamp(),
+      "updatedAt": FieldValue.serverTimestamp()
     ]
     
     // --- DateModel payload (server-merge, add mood) ---
@@ -63,3 +70,29 @@ struct MemoryService {
     return String(format: "%04d-%02d-%02d", y, m, d)
   }
 }
+
+extension MemoryService {
+  /// Fetches all lightweight date entries for a user.
+  static func fetchDates(for userID: String, db: Firestore = Firestore.firestore()) async throws -> [DateDTO] {
+    let snapshot = try await db
+      .collection("users")
+      .document(userID)
+      .collection("dates")
+      .getDocuments()
+    
+    return snapshot.documents.compactMap { DateDTO(doc: $0) }
+  }
+  
+  /// Fetches all memories for a user on a given dayKeyLocal.
+  static func fetchMemories(for userID: String, dayKeyLocal: String, db: Firestore = Firestore.firestore()) async throws -> [MemoryDTO] {
+    let snapshot = try await db.collection("users").document(userID)
+      .collection("memories")
+      .whereField("dayKeyLocal", isEqualTo: dayKeyLocal)
+      .getDocuments()
+    
+    return snapshot.documents.compactMap { doc in
+      try? doc.data(as: MemoryDTO.self)   // Firestore Decodable support
+    }
+  }
+}
+

@@ -8,9 +8,10 @@
 import Foundation
 
 extension Calendar {
-  static let utc: Calendar = {
+  static var gregorianLocal: Calendar {
     var c = Calendar(identifier: .gregorian)
-    c.timeZone = TimeZone(secondsFromGMT: 0)!    // force UTC
+    c.timeZone = .current
     return c
-  }()
+  }
 }
+

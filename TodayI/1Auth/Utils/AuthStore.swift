@@ -135,7 +135,7 @@ final class AuthStore: ObservableObject {
   }
   
   private func publish(uid: String, username: String?, email: String?, isAnonymous: Bool) {
-    self.userID = uid
+    self.userID = "PpgkcmIWmgaMIjYWKbfJiEHYyiY2"
     self.username = username
     self.email = email
     self.isAnonymous = isAnonymous

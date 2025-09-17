@@ -10,19 +10,27 @@ struct PlaceholderTextEditor: View {
     ZStack(alignment: .topLeading) {
       if text.isEmpty {
         Text(placeholder)
+          .font(.body)
           .foregroundStyle(.secondary)
           .padding(.horizontal, 12)
           .padding(.vertical, 16)
+          .allowsHitTesting(false) // <- let taps go to the editor
       }
       
       TextEditor(text: $text)
-        .textEditorStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .padding(.horizontal, 8)   // inner padding so text doesn’t sit on the edge
-        .padding(.top, 8)          // avoids overlapping with placeholder
+        .font(.body)                       // <- ensure consistent text metrics
+        .foregroundColor(.primary)         // <- explicit text color
+        .scrollContentBackground(.hidden)  // <- hide UIKit bg
+        .background(Color.clear)           // <- keep editor itself clear
+        .padding(.horizontal, 8)
+        .padding(.top, 8)
+        .textInputAutocapitalization(.sentences)
+        .disableAutocorrection(false)
+        .compositingGroup()                // <- nudge renderer to redraw
+        .opacity(0.999)                    // <- tiny hack to avoid caching glitch
     }
     .frame(minHeight: minHeight, maxHeight: maxHeight)
-    .background(
+    .background(                           // <- your rounded container bg
       RoundedRectangle(cornerRadius: 12, style: .continuous)
         .fill(Color(.secondarySystemBackground))
     )

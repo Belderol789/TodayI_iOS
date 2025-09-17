@@ -5,9 +5,13 @@ import SwiftData
 final class MemoryModel {
   // Identity
   @Attribute(.unique) var id: String
+  
   var userID: String                  // who owns this memory
   var username: String
   var date: Date
+  var authorTZ: String           // e.g. "Asia/Manila"
+  var dayKeyLocal: String        // e.g. "2025-09-16"
+  var dayKeyUTC: String?         // only if you want a UTC feed later
   private(set) var moodRaw: String
   var journalText: String
   
@@ -63,6 +67,10 @@ final class MemoryModel {
     self.isPublic = isPublic
     self.createdAt = createdAt
     self.updatedAt = updatedAt
+    
+    self.authorTZ   = TimeZone.current.identifier   // at post time
+    self.dayKeyLocal = date.dayKeyLocal(in: .current)
+    self.dayKeyUTC   = date.dayKeyUTC               // optional
   }
 }
 
@@ -79,7 +87,7 @@ extension MemoryModel {
     if let m = existing {
       m.username = dto.username
       m.userID = dto.userID
-      m.date = dto.date.startOfDayUTC
+      m.date = dto.date
       m.mood = Mood(rawValue: dto.mood) ?? .neutral
       m.journalText = dto.journalText
       m.remoteImagePaths = dto.remoteImagePaths
@@ -87,13 +95,16 @@ extension MemoryModel {
       m.linkURL = dto.linkURL                  // 👈
       m.isPublic = dto.isPublic
       m.updatedAt = dto.updatedAt
+      m.authorTZ = dto.authorTZ
+      m.dayKeyLocal = dto.dayKeyLocal
+      m.dayKeyUTC = dto.dayKeyUTC
       return m
     } else {
       let m = MemoryModel(
         id: dto.id,
         userID: dto.userID,
         username: dto.username,
-        date: dto.date.startOfDayUTC,
+        date: dto.date,
         mood: Mood(rawValue: dto.mood) ?? .neutral,
         journalText: dto.journalText,
         localImagePaths: [],

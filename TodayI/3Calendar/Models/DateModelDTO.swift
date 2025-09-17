@@ -1,25 +1,19 @@
 import Foundation
 import SwiftData
+import FirebaseFirestore
 
-struct DateModelDTO: Codable {
-  let date: Date           // normalized (start-of-day, UTC)
-  let moods: [String]      // store Mood.rawValue directly
+struct DateDTO: Codable {
+  let dayKeyLocal: String   // "yyyy-MM-dd" in author’s tz
+  let date: Date            // canonical startOfDay
+  let moodRaws: [String]
 }
 
-extension DateModelDTO {
-  init(from model: DateModel) {
-    self.date = model.date
-    self.moods = model.moodRaws   // already String
-  }
-}
-
-extension DateModel {
-  static func fromDTO(_ dto: DateModelDTO, in context: ModelContext) -> DateModel {
-    let m = DateModel(
-      date: dto.date,
-      moods: dto.moods.compactMap(Mood.init(rawValue:))
-    )
-    context.insert(m)
-    return m
+extension DateDTO {
+  init?(doc: DocumentSnapshot) {
+    guard let data = doc.data(),
+          let ts = data["date"] as? Timestamp else { return nil }
+    self.date = ts.dateValue()
+    self.dayKeyLocal = data["dayKeyLocal"] as? String ?? ""
+    self.moodRaws = data["moodRaws"] as? [String] ?? []
   }
 }

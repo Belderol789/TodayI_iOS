@@ -4,9 +4,10 @@ import AVKit   // ⟵ add this
 
 struct CreateMemoryView: View {
   @EnvironmentObject private var entitlements: EntitlementStore
-  @Environment(\.swiftDataManager) private var swiftManager
   @EnvironmentObject private var auth: AuthStore
+  @Environment(\.swiftDataManager) private var swiftManager
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.openURL) private var openURL
   @StateObject private var vm = CreateMemoryViewModel()
   
   @State private var showPreview = false
@@ -204,6 +205,7 @@ extension CreateMemoryView {
     }
     .padding(.horizontal)
     .padding(.top, 4)
+    .zIndex(1)
   }
   
   var mediaSection: some View {
@@ -269,19 +271,19 @@ extension CreateMemoryView {
   
   private var linkSection: some View {
     Group {
-      if let linkString = vm.linkString,
-         let url = URL(string: linkString) {
+      if let s = vm.linkString, let url = URL(string: s) {
         ZStack(alignment: .topTrailing) {
-          // 👇 Option 1: open in Safari by default
-          Link(destination: url) {
-            LinkPreviewView(url: url)
-              .frame(height: 120)
-              .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-              .padding(.horizontal)
-          }
-          .buttonStyle(.plain) // so the preview card isn’t dimmed
           
-          // Remove button
+          Button {
+            openURL(url)
+          } label: {
+            LinkPreviewView(url: url)
+              .frame(height: 150)
+              .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+              .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous)) // 🔐 limit hit area
+          }
+          .buttonStyle(.plain)
+          
           Button {
             vm.clearLink()
           } label: {
@@ -293,9 +295,12 @@ extension CreateMemoryView {
               .background(.thinMaterial, in: Circle())
           }
           .buttonStyle(.plain)
-          .padding(.trailing, 24)
+          .padding(.trailing, 8)
           .padding(.top, 8)
         }
+        .padding(.horizontal)   // ← move padding outside to keep tight hit area
+        .padding(.top, 4)       // ← give breathing room under header
+        .zIndex(0)              // ← keep below header if they ever overlap
       }
     }
   }

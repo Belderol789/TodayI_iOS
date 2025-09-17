@@ -17,10 +17,15 @@ struct MemoryDTO: Codable {
   let createdAt: Date
   let updatedAt: Date
   
+  let authorTZ: String
+  let dayKeyLocal: String
+  let dayKeyUTC: String?      // optional
+  
   enum CodingKeys: String, CodingKey {
     case id, username, userID, date, mood, journalText,
          remoteImagePaths, videoRemoteURL, linkURL,
-         isPublic, createdAt, updatedAt
+         isPublic, createdAt, updatedAt, authorTZ, dayKeyLocal,
+         dayKeyUTC
   }
 }
 
@@ -29,7 +34,7 @@ extension MemoryDTO {
     self.id = model.id
     self.username = model.username
     self.userID = model.userID
-    self.date = model.date.startOfDayUTC
+    self.date = model.date
     self.mood = model.moodRaw
     self.journalText = model.journalText
     self.remoteImagePaths = model.remoteImagePaths
@@ -38,5 +43,9 @@ extension MemoryDTO {
     self.isPublic = model.isPublic
     self.createdAt = model.createdAt
     self.updatedAt = model.updatedAt
+    
+    authorTZ = model.authorTZ
+    dayKeyLocal = model.dayKeyLocal
+    dayKeyUTC = model.dayKeyUTC
   }
 }

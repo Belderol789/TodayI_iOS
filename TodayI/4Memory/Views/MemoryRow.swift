@@ -10,14 +10,8 @@ struct MemoryRow: View {
   @Environment(\.modelContext) private var context
   @Environment(\.colorScheme) private var scheme
   
-  private var canEditPrivacy: Bool {
-    (auth.userID ?? "") == memory.userID && auth.userID != nil
-  }
-  
-  private var timeString: String {
-    // If you have your own formatter, keep it. Otherwise this is a nice default:
-    DateFormatter.localizedString(from: memory.date, dateStyle: .medium, timeStyle: .short)
-  }
+  private var canEditPrivacy: Bool { auth.userID == memory.userID }
+  private var timeString: String { DateFormatter.shortDateFormatter.string(from: memory.date) }
   
   var body: some View {
     let moodColor = memory.mood.adaptiveColor
@@ -91,16 +85,27 @@ struct MemoryRow: View {
           .fixedSize(horizontal: false, vertical: true)
       }
       
-      // 4) Media (replace MediaBlock with your actual component)
-      // Video first
+      // 4) Media (video -> images -> link)
       if let video = memory.videoSource {
         MediaTile(source: video, cornerRadius: 14, minHeight: 220)
           .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-      }
-      // Else images
-      else if !memory.imageSources.isEmpty {
+        
+      } else if !memory.imageSources.isEmpty {
         MediaBlock(sources: memory.imageSources, onTap: onTapImage)
           .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        
+      } else if let urlString = memory.linkURL,
+                !urlString.isEmpty,
+                let url = URL(string: urlString) {
+        
+        Link(destination: url) {
+          LinkPreviewView(url: url)
+            .frame(maxWidth: .infinity)              // fill row width (inside the row’s own padding)
+            .frame(height: 160)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)                          // don’t dim on press
       }
       
       // 5) Actions / flags
@@ -115,6 +120,7 @@ struct MemoryRow: View {
       .font(.subheadline.weight(.semibold))
       .padding(.top, 4)
     }
+    .frame(maxWidth: .infinity, alignment: .leading)   // 👈 add this
     .padding(14)
     .background(
       RoundedRectangle(cornerRadius: 16, style: .continuous)

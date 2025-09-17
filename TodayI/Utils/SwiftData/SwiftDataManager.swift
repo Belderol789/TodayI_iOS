@@ -36,6 +36,9 @@ extension SwiftDataManager {
                        userID: String,
                        username: String,
                        for day: Date = .now) throws -> MemoryModel {
+    
+    let authorTZ = TimeZone.current                          // author’s tz at post time
+    let dayStartLocal = day.startOfDay(in: authorTZ)
     let now = Date()
     let memoryID = UUID().uuidString
     
@@ -44,7 +47,7 @@ extension SwiftDataManager {
       id: memoryID,
       username: username,
       userID: userID,
-      date: day.startOfDayUTC,
+      date: dayStartLocal,                    // <- author local midnight instant
       mood: payload.mood.rawValue,
       journalText: payload.text,
       remoteImagePaths: [],
@@ -52,7 +55,10 @@ extension SwiftDataManager {
       linkURL: payload.linkString,
       isPublic: payload.isPublic,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      authorTZ: authorTZ.identifier,
+      dayKeyLocal: day.dayKeyLocal(in: authorTZ), // <- "yyyy-MM-dd" in author’s tz
+      dayKeyUTC: now.dayKeyUTC                    // optional
     )
     
     // --- Upsert into SwiftData immediately ---
@@ -60,14 +66,14 @@ extension SwiftDataManager {
     
     // Save local image paths (for offline cache)
     if !payload.images.isEmpty {
-      model.localImagePaths = try persistImagesToFiles(payload.images, dayKey: day.startOfDayUTC)
+      model.localImagePaths = try persistImagesToFiles(payload.images, dayKey: dayStartLocal)
     } else {
       model.localImagePaths = []
     }
     
     // Save video local path (for offline cache)
     if let videoURL = payload.videoURL {
-      let localPath = try persistVideoToFiles(videoURL, dayKey: day.startOfDayUTC)
+      let localPath = try persistVideoToFiles(videoURL, dayKey: dayStartLocal)
       model.videoLocalPath = localPath
     }
     
@@ -195,5 +201,36 @@ extension SwiftDataManager {
     try FileManager.default.copyItem(at: originalURL, to: dest)
     return dest.path   // store *path*, not absoluteString
   }
+}
+
+extension SwiftDataManager {
+  func importMemoriesIfNeeded(_ dtos: [MemoryDTO]) throws {
+    for dto in dtos {
+      // Build a typed fetch descriptor
+      var fetch = FetchDescriptor<MemoryModel>(
+        predicate: #Predicate<MemoryModel> { $0.id == dto.id }
+      )
+      fetch.fetchLimit = 1   // 👈 assign separately
+      
+      let existing: [MemoryModel] = try context.fetch(fetch)
+      if existing.first == nil {
+        _ = try MemoryModel.upsert(from: dto, in: context)
+      }
+    }
+    try context.save()
+  }
   
+  func importDatesIfNeeded(_ dtos: [DateDTO]) throws {
+    for dto in dtos {
+      let fetch = FetchDescriptor<DateModel>(
+        predicate: #Predicate { $0.date == dto.date }
+      )
+      if try context.fetch(fetch).isEmpty {
+        let moods = dto.moodRaws.compactMap { Mood(rawValue: $0) }
+        let model = DateModel(date: dto.date, moods: moods)
+        context.insert(model)
+      }
+    }
+    try context.save()
+  }
 }
