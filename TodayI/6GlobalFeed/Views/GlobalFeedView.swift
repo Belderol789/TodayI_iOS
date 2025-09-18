@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GlobalFeedView: View {
   @StateObject private var vm: GlobalFeedViewModel
+  @EnvironmentObject private var entitlements: EntitlementStore
   
   init(day: Date = Date()) {
     _vm = StateObject(wrappedValue: GlobalFeedViewModel(day: day))
@@ -9,32 +10,83 @@ struct GlobalFeedView: View {
   
   var body: some View {
     List {
-      ForEach(vm.rows, id: \.id) { dto in
-        GlobalMemoryRow(dto: dto)
+      Section {
+        // ── Non-sticky card living under the sticky header ──
+        FutureView()
           .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-          .onAppear {
-            if dto.id == vm.rows.suffix(5).first?.id {
-              Task { await vm.loadMore() }
+          .listRowBackground(Color.clear)
+        
+        // ── Feed ──
+        ForEach(vm.rows, id: \.id) { dto in
+          GlobalMemoryRow(dto: dto)
+            .padding(.horizontal, 8)                           // your desired gutter
+            .listRowInsets(EdgeInsets(top: 0, leading: 0,
+                                      bottom: 16, trailing: 0)) // remove List’s insets
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .onAppear {
+              if dto.id == vm.rows.suffix(5).first?.id {
+                Task { await vm.loadMore() }
+              }
             }
-          }
-      }
-      
-      if vm.isLoading {
-        HStack { Spacer(); ProgressView(); Spacer() }
-      } else if vm.reachedEnd {
-        HStack { Spacer(); Text("No more posts").foregroundStyle(.secondary); Spacer() }
+        }
+        
+        // ── Footer states ──
+        if vm.isLoading {
+          HStack { Spacer(); ProgressView(); Spacer() }
+        } else if vm.reachedEnd {
+          HStack { Spacer(); Text("No more posts").foregroundStyle(.secondary); Spacer() }
+        }
+      } header: {
+        // ── Sticky header (pinned automatically) ──
+        GlassMoodFilter(vm: vm)
+          .padding(.vertical, 6)
+          .background(.ultraThinMaterial) // glassy look
       }
     }
+    .contentMargins(.horizontal, 0, for: .scrollContent)
     .listStyle(.plain)
-    .navigationTitle(vm.mode == .live ? "Global (Live)" : "Global (Test)")
+    .navigationTitle("Global")
+    .navigationBarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
-        Button(vm.mode == .live ? "Use Test" : "Use Live") {
-          Task { await vm.toggleMode() }
+        Menu {
+          Button("Load Firebase") {
+            vm.useTestData = false
+            Task { await vm.loadFirstPage() }
+          }
+          Button("Load Test Data") {
+            vm.useTestData = true
+            Task { await vm.loadFirstPage() }
+          }
+        } label: {
+          Label("Data Source", systemImage: "ellipsis.circle")
+        }
+      }
+      ToolbarItem(placement: .topBarTrailing) {
+        Button(entitlements.isPremium ? "Set Free" : "Set Premium") {
+          entitlements.isPremium.toggle()
         }
       }
     }
     .task { await vm.loadFirstPage() }
     .refreshable { await vm.loadFirstPage() }
+  }
+}
+
+// Placeholder – replace with your real view
+private struct FutureView: View {
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Future View")
+        .font(.headline)
+      Text("This sits below the sticky filter and scrolls away with the feed.")
+        .foregroundStyle(.secondary)
+    }
+    .padding()
+    .background(
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .fill(Color(.secondarySystemBackground))
+    )
   }
 }

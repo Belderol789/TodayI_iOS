@@ -29,7 +29,7 @@ struct MemoryRow: View {
       // 1) Header – “Today I felt {Mood}”
       HStack(alignment: .center, spacing: 12) {
         Text("TodayI felt")
-          .font(.subheadline)
+          .font(.subheadline.bold())
           .foregroundStyle(.secondary)
         
         if isPremium {
@@ -42,8 +42,6 @@ struct MemoryRow: View {
             )
             .foregroundStyle(moodColor)
             .shadow(color: .black.opacity(0.18), radius: 1, x: 0, y: 1)
-          
-          MoodIcon(mood: memory.mood, size: 20)
         } else {
           Text(memory.mood.rawValue)
             .font(.headline.bold())
@@ -64,8 +62,29 @@ struct MemoryRow: View {
       .padding(.vertical, 8)
       .padding(.horizontal, 12)
       .background(
-        (isPremium ? moodColor.opacity(0.25) : moodColor.opacity(0.15))
-          .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        Group {
+          if isPremium {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+              .fill(.ultraThinMaterial)
+              .overlay(
+                LinearGradient(
+                  colors: [
+                    moodColor.opacity(0.25),
+                    moodColor.opacity(0.10)
+                  ],
+                  startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+              )
+              .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                  .stroke(moodColor.opacity(0.15), lineWidth: 1)
+              )
+          } else {
+            moodColor.opacity(0.15)
+              .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+          }
+        }
       )
       
       // 2) Username + date
@@ -89,11 +108,14 @@ struct MemoryRow: View {
       if let video = memory.videoSource {
         MediaTile(source: video, cornerRadius: 14, minHeight: 220)
           .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+          .shadow(color: isPremium ? moodColor.opacity(0.12) : .clear,
+                  radius: isPremium ? 10 : 0, x: 0, y: 6)
         
       } else if !memory.imageSources.isEmpty {
         MediaBlock(sources: memory.imageSources, onTap: onTapImage)
           .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        
+          .shadow(color: isPremium ? moodColor.opacity(0.12) : .clear,
+                  radius: isPremium ? 10 : 0, x: 0, y: 6)
       } else if let urlString = memory.linkURL,
                 !urlString.isEmpty,
                 let url = URL(string: urlString) {
@@ -109,11 +131,38 @@ struct MemoryRow: View {
       }
       
       // 5) Actions / flags
-      HStack(spacing: 20) {
-        Button { } label: { Label("Like", systemImage: "hand.thumbsup") }
-          .tint(moodColor)
-        Button { } label: { Label("Comment", systemImage: "text.bubble") }
-          .tint(moodColor)
+      HStack(spacing: 10) {
+        if isPremium {
+          Button {
+            // like
+          } label: {
+            Image(systemName: "hand.thumbsup.fill")
+              .padding(.horizontal, 12).padding(.vertical, 8)
+              .background(Capsule().fill(memory.mood.adaptiveColor.opacity(0.18)))
+              .foregroundStyle(moodColor)
+          }
+          .buttonStyle(.plain)
+          
+          Button {
+            // comment
+          } label: {
+            Image(systemName: "text.bubble.fill")
+              .padding(.horizontal, 12).padding(.vertical, 8)
+              .background(Capsule().fill(moodColor.opacity(0.18)))
+              .foregroundStyle(moodColor)
+          }
+          .buttonStyle(.plain)
+        } else {
+          Button { } label: {
+            Image(systemName: "hand.thumbsup")
+              .foregroundStyle(moodColor)
+          }
+          Button { } label: {
+            Image(systemName: "text.bubble")
+              .foregroundStyle(moodColor)
+          }
+        }
+        
         Spacer()
         PremiumPill(isPremium: isPremium)
       }
@@ -125,6 +174,32 @@ struct MemoryRow: View {
     .background(
       RoundedRectangle(cornerRadius: 16, style: .continuous)
         .fill(Color(.secondarySystemBackground))
+        .overlay(
+          // Premium only: soft gradient stroke
+          Group {
+            if isPremium {
+              RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(
+                  LinearGradient(
+                    colors: [memory.mood.adaptiveColor.opacity(0.6),
+                             memory.mood.adaptiveColor.opacity(0.2)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                  ),
+                  lineWidth: 1.2
+                )
+                .blendMode(.overlay)
+            }
+          }
+        )
+        .shadow(color: isPremium ? memory.mood.adaptiveColor.opacity(0.12) : .clear,
+                radius: isPremium ? 10 : 0, x: 0, y: 6)
     )
+    .overlay(alignment: .topLeading) {          // 👈 add here
+      if isPremium {
+        MoodIcon(mood: memory.mood, size: 20)
+          .offset(x: 14, y: 10)
+          .opacity(0.9)
+      }
+    }
   }
 }
