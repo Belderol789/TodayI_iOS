@@ -16,7 +16,9 @@ struct RootView: View {
         case .create:
           CreateMemoryView()
         case .global:
-          Text("🌍 Global Feed").font(.largeTitle.bold())
+          GlobalFeedView(
+            day: Calendar.current.date(from: DateComponents(year: 2025, month: 9, day: 16))!
+          )
         case .notifications:
           Text("🔔 Notifications").font(.largeTitle.bold())
         }

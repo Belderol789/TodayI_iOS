@@ -10,6 +10,7 @@ struct FirebaseStorageManager {
                           userID: String,
                           memoryID: String,
                           index: Int) async throws -> URL {
+    LoggerManager.instance.logFirebaseCall()
     guard let data = image.jpegData(compressionQuality: 0.85) else {
       throw NSError(domain: "FirebaseStorageManager", code: 1,
                     userInfo: [NSLocalizedDescriptionKey: "Could not convert UIImage to JPEG"])
@@ -26,6 +27,7 @@ struct FirebaseStorageManager {
   static func uploadVideo(fileURL: URL,
                           userID: String,
                           memoryID: String) async throws -> URL {
+    LoggerManager.instance.logFirebaseCall()
     let ref = storage.reference()
       .child("users/\(userID)/memories/\(memoryID)/video.mp4")
     

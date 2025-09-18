@@ -17,6 +17,7 @@ struct MemoryService {
   /// Upload a single MemoryModel to Firestore and upsert its DateModel under the same user.
   /// - Throws: `MemoryUploadError.missingUserID` if `memory.userID` is empty, or Firestore errors.
   static func postMemory(_ memory: MemoryModel, db: Firestore = Firestore.firestore()) async throws {
+    LoggerManager.instance.logFirebaseCall()
     guard !memory.userID.isEmpty else { throw MemoryUploadError.missingUserID }
     
     let userDoc  = db.collection("users").document(memory.userID)
@@ -74,6 +75,7 @@ struct MemoryService {
 extension MemoryService {
   /// Fetches all lightweight date entries for a user.
   static func fetchDates(for userID: String, db: Firestore = Firestore.firestore()) async throws -> [DateDTO] {
+    LoggerManager.instance.logFirebaseCall()
     let snapshot = try await db
       .collection("users")
       .document(userID)
@@ -85,6 +87,7 @@ extension MemoryService {
   
   /// Fetches all memories for a user on a given dayKeyLocal.
   static func fetchMemories(for userID: String, dayKeyLocal: String, db: Firestore = Firestore.firestore()) async throws -> [MemoryDTO] {
+    LoggerManager.instance.logFirebaseCall()
     let snapshot = try await db.collection("users").document(userID)
       .collection("memories")
       .whereField("dayKeyLocal", isEqualTo: dayKeyLocal)

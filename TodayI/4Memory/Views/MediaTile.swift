@@ -1,5 +1,6 @@
 import SwiftUI
 import AVKit
+import AVFoundation
 
 struct MediaTile: View {
   let source: MediaSource
@@ -8,44 +9,49 @@ struct MediaTile: View {
   var onTap: (() -> Void)? = nil
   
   var body: some View {
-    ZStack {
+    Group {
       switch source {
       case .localImage(let path):
-        LocalImageView(path: path)
-          .onAppear { print("📷 Local image source \(path)") }
+        imageBody(LocalImageView(path: path))
         
       case .remoteImage(let url):
-        AsyncImage(url: url) { phase in
-          switch phase {
-          case .empty:
-            ProgressView()
-          case .success(let img):
-            img.resizable().scaledToFill()
-          case .failure:
-            placeholder
-          @unknown default:
-            placeholder
+        imageBody(
+          AsyncImage(url: url) { phase in
+            switch phase {
+            case .empty: ProgressView()
+            case .success(let img): img.resizable().scaledToFill()
+            case .failure: placeholder
+            @unknown default: placeholder
+            }
           }
-        }
+        )
         
       case .localVideo(let path):
-        if FileManager.default.fileExists(atPath: path) {
-          VideoPlayer(player: AVPlayer(url: URL(fileURLWithPath: path)))
-            .onAppear { print("🎥 Local video source \(path)") }
-        } else {
-          placeholderVideo
-        }
+        videoBody(url: URL(fileURLWithPath: path))
         
       case .remoteVideo(let url):
-        VideoPlayer(player: AVPlayer(url: url))
-          .onAppear { print("🌐 Remote video source \(url)") }
+        videoBody(url: url)
       }
     }
     .frame(maxWidth: .infinity, minHeight: minHeight)
     .background(Color.secondary.opacity(0.08))
     .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-    .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-    .onTapGesture { onTap?() }
+  }
+  
+  // MARK: - Builders
+  
+  private func imageBody<Content: View>(_ content: Content) -> some View {
+    content
+      .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+      .onTapGesture { onTap?() }
+  }
+  
+  private func videoBody(url: URL) -> some View {
+    InteractablePlayOverlayPlayer(
+      url: url,
+      cornerRadius: cornerRadius,
+      minHeight: minHeight
+    )
   }
   
   private var placeholder: some View {
@@ -54,16 +60,5 @@ struct MediaTile: View {
       .scaledToFit()
       .padding(24)
       .foregroundStyle(.secondary)
-  }
-  
-  private var placeholderVideo: some View {
-    ZStack {
-      Color.secondary.opacity(0.1)
-      Image(systemName: "video")
-        .resizable()
-        .scaledToFit()
-        .padding(24)
-        .foregroundStyle(.secondary)
-    }
   }
 }
