@@ -11,54 +11,80 @@ struct MediaTile: View {
   var body: some View {
     Group {
       switch source {
+        // Inside MediaTile
       case .localImage(let path):
-        imageBody(LocalImageView(path: path))
+        normalizedImage(
+          Image(path)                   // or LocalImageView(path: path)
+            .resizable()                // force resizable
+            .scaledToFill()             // fill the frame
+        )
         
       case .remoteImage(let url):
-        imageBody(
+        normalizedImage(
           AsyncImage(url: url) { phase in
             switch phase {
-            case .empty: ProgressView()
-            case .success(let img): img.resizable().scaledToFill()
-            case .failure: placeholder
-            @unknown default: placeholder
+            case .empty:
+              ZStack {
+                Color.clear
+                ProgressView()
+              }
+            case .success(let img):
+              img
+                .resizable()
+                .scaledToFill()     // ✅ ensures remote doesn’t expand to natural size
+            case .failure:
+              placeholder
+            @unknown default:
+              placeholder
             }
           }
         )
         
       case .localVideo(let path):
-        videoBody(url: URL(fileURLWithPath: path))
+        normalizedVideo(url: URL(fileURLWithPath: path))
         
       case .remoteVideo(let url):
-        videoBody(url: url)
+        normalizedVideo(url: url)
       }
     }
-    .frame(maxWidth: .infinity, minHeight: minHeight)
     .background(Color.secondary.opacity(0.08))
     .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
   }
   
-  // MARK: - Builders
+  // MARK: - Normalizers
   
-  private func imageBody<Content: View>(_ content: Content) -> some View {
-    content
-      .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-      .onTapGesture { onTap?() }
+  /// Ensures any image-like content fills width, has consistent height, and clips.
+  private func normalizedImage<Content: View>(_ content: Content) -> some View {
+    ZStack {
+      content
+    }
+    .frame(maxWidth: .infinity)       // fill horizontally
+    .frame(minHeight: minHeight,
+           maxHeight: 320)            // keep a sane vertical bound
+    .clipped()                        // prevent overflow
+    .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    .onTapGesture { onTap?() }
   }
   
-  private func videoBody(url: URL) -> some View {
+  /// Ensures videos get the same footprint as images.
+  private func normalizedVideo(url: URL) -> some View {
     InteractablePlayOverlayPlayer(
       url: url,
       cornerRadius: cornerRadius,
       minHeight: minHeight
     )
+    .frame(maxWidth: .infinity)
+    .frame(minHeight: minHeight)
   }
   
   private var placeholder: some View {
-    Image(systemName: "photo")
-      .resizable()
-      .scaledToFit()
-      .padding(24)
-      .foregroundStyle(.secondary)
+    ZStack {
+      Color.clear
+      Image(systemName: "photo")
+        .resizable()
+        .scaledToFit()
+        .padding(24)
+        .foregroundStyle(.secondary)
+    }
   }
 }

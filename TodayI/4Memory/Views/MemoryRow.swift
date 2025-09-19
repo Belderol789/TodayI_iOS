@@ -18,15 +18,29 @@ struct MemoryRow: View {
     
     VStack(alignment: .leading, spacing: 12) {
       
-      // 0) Privacy badge at the very top-right
+      // 0) Privacy badge
       if canEditPrivacy {
         HStack {
           Spacer()
           PrivacyBadge(isPublic: $memory.isPublic)
         }
       }
+
+      // 2) Username + date
+      HStack {
+        if isPremium {
+          MoodIcon(mood: memory.mood, size: 20)
+            .opacity(0.9)
+        }
+        Text("@\(memory.username)")
+          .font(.subheadline.weight(.semibold))
+        Spacer()
+        Text(timeString)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
       
-      // 1) Header – “Today I felt {Mood}”
+      // 1) Header
       HStack(alignment: .center, spacing: 12) {
         Text("TodayI felt")
           .font(.subheadline.bold())
@@ -87,47 +101,40 @@ struct MemoryRow: View {
         }
       )
       
-      // 2) Username + date
-      HStack {
-        Text("@\(memory.username)")
-          .font(.subheadline.weight(.semibold))
-        Spacer()
-        Text(timeString)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      }
-      
       // 3) Journal text
       if !memory.journalText.isEmpty {
         Text(memory.journalText)
           .font(.body)
           .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, alignment: .leading)   // normalize width
       }
       
       // 4) Media (video -> images -> link)
       if let video = memory.videoSource {
         MediaTile(source: video, cornerRadius: 14, minHeight: 220)
+          .frame(maxWidth: .infinity)                        // normalize width
           .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
           .shadow(color: isPremium ? moodColor.opacity(0.12) : .clear,
                   radius: isPremium ? 10 : 0, x: 0, y: 6)
         
       } else if !memory.imageSources.isEmpty {
         MediaBlock(sources: memory.imageSources, onTap: onTapImage)
-          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+          .frame(maxWidth: .infinity)                        // normalize width
           .shadow(color: isPremium ? moodColor.opacity(0.12) : .clear,
                   radius: isPremium ? 10 : 0, x: 0, y: 6)
+        
       } else if let urlString = memory.linkURL,
                 !urlString.isEmpty,
                 let url = URL(string: urlString) {
         
         Link(destination: url) {
           LinkPreviewView(url: url)
-            .frame(maxWidth: .infinity)              // fill row width (inside the row’s own padding)
+            .frame(maxWidth: .infinity, alignment: .leading) // normalize width
             .frame(height: 160)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .buttonStyle(.plain)                          // don’t dim on press
+        .buttonStyle(.plain)
       }
       
       // 5) Actions / flags
@@ -169,13 +176,12 @@ struct MemoryRow: View {
       .font(.subheadline.weight(.semibold))
       .padding(.top, 4)
     }
-    .frame(maxWidth: .infinity, alignment: .leading)   // 👈 add this
-    .padding(14)
+    .padding(14)                                             // inner padding
+    .frame(maxWidth: .infinity, alignment: .leading)         // card full width
     .background(
       RoundedRectangle(cornerRadius: 16, style: .continuous)
         .fill(Color(.secondarySystemBackground))
         .overlay(
-          // Premium only: soft gradient stroke
           Group {
             if isPremium {
               RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -194,12 +200,5 @@ struct MemoryRow: View {
         .shadow(color: isPremium ? memory.mood.adaptiveColor.opacity(0.12) : .clear,
                 radius: isPremium ? 10 : 0, x: 0, y: 6)
     )
-    .overlay(alignment: .topLeading) {          // 👈 add here
-      if isPremium {
-        MoodIcon(mood: memory.mood, size: 20)
-          .offset(x: 14, y: 10)
-          .opacity(0.9)
-      }
-    }
   }
 }

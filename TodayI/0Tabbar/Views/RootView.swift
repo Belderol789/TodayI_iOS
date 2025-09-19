@@ -17,6 +17,7 @@ struct RootView: View {
           CreateMemoryView()
         case .global:
           GlobalFeedView(
+            tabSelection: $selection,
             day: Calendar.current.date(from: DateComponents(year: 2025, month: 9, day: 16))!
           )
         case .notifications:

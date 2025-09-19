@@ -124,3 +124,20 @@ final class GlobalFeedViewModel: ObservableObject {
     return dict
   }
 }
+
+// MARK: - VM helper (no stored changes)
+extension GlobalFeedViewModel {
+  var moodSlices: [MoodSlice] {
+    let counts = Dictionary(grouping: allRows, by: { Mood(rawValue: $0.mood) })
+      .mapValues { $0.count }
+    
+    // Include only moods that appear (or use allCases if you want zeros)
+    return counts
+      .map { MoodSlice(mood: $0.key!, count: $0.value) }
+      .sorted { $0.count > $1.count }
+  }
+  
+  var totalMoodsCount: Int {
+    moodSlices.reduce(0) { $0 + $1.count }
+  }
+}

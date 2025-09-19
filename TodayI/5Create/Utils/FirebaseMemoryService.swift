@@ -96,7 +96,6 @@ struct MemoryService {
     ]
     
     MemoryService.assertMemoryPayload(memory)
-    print("User \(memory.userID) user \(Auth.auth().getUserID())")
     // Write memory first, then upsert the date entry
     try await memRef.setData(memData, merge: true)
     try await dateRef.setData(dateData, merge: true)

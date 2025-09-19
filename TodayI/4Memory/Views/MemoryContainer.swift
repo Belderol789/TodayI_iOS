@@ -86,18 +86,18 @@ private extension MemoryContainer {
         description: Text(day.formatted(date: .abbreviated, time: .omitted))
       )
     } else {
-      ScrollView {
-        LazyVStack(spacing: 16) {
-          ForEach(memories) { mem in
-            MemoryRow(
-              memory: mem,
-              isPremium: entitlements.isPremium
-            )
-            .padding(.horizontal, 16)
-          }
+      List {
+        ForEach(memories, id: \.id) { mem in
+          MemoryRow(memory: mem, isPremium: entitlements.isPremium)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 4)
+            .listRowInsets(EdgeInsets())// remove List’s insets
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
         }
-        .padding(.vertical, 16)
       }
+      .contentMargins(.horizontal, 0, for: .scrollContent)
+      .listStyle(.plain)
       .refreshable { await load() }
     }
   }

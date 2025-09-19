@@ -2,26 +2,27 @@ import SwiftUI
 
 struct GlobalFeedView: View {
   @StateObject private var vm: GlobalFeedViewModel
+  @Binding var tabSelection: AppTab
   @EnvironmentObject private var entitlements: EntitlementStore
   
-  init(day: Date = Date()) {
+  init(tabSelection: Binding<AppTab>, day: Date = Date()) {
     _vm = StateObject(wrappedValue: GlobalFeedViewModel(day: day))
+    _tabSelection = tabSelection
   }
   
   var body: some View {
     List {
       Section {
         // ── Non-sticky card living under the sticky header ──
-        FutureView()
-          .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-          .listRowBackground(Color.clear)
+        MoodPieChart(slices: vm.moodSlices,
+                     total: vm.totalMoodsCount,
+                     tabSelection: $tabSelection)
         
         // ── Feed ──
         ForEach(vm.rows, id: \.id) { dto in
-          GlobalMemoryRow(dto: dto)
-            .padding(.horizontal, 8)                           // your desired gutter
-            .listRowInsets(EdgeInsets(top: 0, leading: 0,
-                                      bottom: 16, trailing: 0)) // remove List’s insets
+          GlobalMemoryRow(dto: dto)                        // your desired gutter
+            .padding(.vertical, 8)
+            .listRowInsets(EdgeInsets())// remove List’s insets
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
             .onAppear {
