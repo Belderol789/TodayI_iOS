@@ -92,6 +92,7 @@ final class CreateMemoryViewModel: ObservableObject {
     let payload = PostPayload(
       mood: mood,
       isPublic: isPublic,
+      isPremium: isPremium,
       text: text,
       images: pickedImages,
       videoURL: pendingVideoURL,

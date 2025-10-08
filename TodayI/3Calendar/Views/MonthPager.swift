@@ -4,6 +4,7 @@ struct MonthPager: View {
   let year: Int
   let models: [DateModel]
   @Environment(\.colorScheme) private var scheme
+  @EnvironmentObject var entitlements: EntitlementStore
   @Binding var currentMonth: Date?
   let mode: CalendarMode
   let zoomNS: Namespace.ID
@@ -22,59 +23,85 @@ struct MonthPager: View {
     Dictionary(grouping: models, by: { $0.date.startOfMonth(using: cal) })
   }
   
+  // MARK: - Body
+  
   var body: some View {
+    scrollContent
+      .scrollIndicators(.hidden)
+      .scrollTargetBehavior(.viewAligned)
+      .defaultScrollAnchor(.top)
+      .scrollPosition(id: $currentMonth, anchor: .top)
+      .animation(.spring(response: 0.5, dampingFraction: 0.9), value: currentMonth)
+      .onAppear { snapCurrentToExactInstance() }
+      .onChange(of: year) { _, _ in snapCurrentToExactInstance(resetIfNeeded: true) }
+      .sheet(isPresented: sheetIsPresentedBinding) { memorySheet }
+  }
+  
+  // MARK: - Subviews (composition)
+  
+  private var scrollContent: some View {
     ScrollView(.vertical) {
-      LazyVStack(spacing: 0) {
-        ForEach(months, id: \.self) { month in
-          let bucket = grouped[month] ?? []
-          let chrome = monthChrome(for: bucket, scheme: scheme)
-          
-          MonthContainer(
-            month: month,
-            id: month,
-            zoomNS: zoomNS,
-            isMatched: isSelected(month),
-            isSource: mode == .month,
-            chrome: chrome,
-            pageEdge: .fullBleed
-          ) {
-            MonthView(
-              month: month,
-              models: bucket,
-              onSelectDate: { date in
-                // ✅ Show MemoryContainer for the tapped day
-                presentedDay = Calendar.current.startOfDay(for: date)
-              }
-            )
-            .frame(maxHeight: .infinity, alignment: .top)
-          }
-          .id(month)
-          .containerRelativeFrame(.vertical)   // each page = viewport height
-        }
-      }
-      .scrollTargetLayout()
-      .contentMargins(.vertical, 0, for: .scrollContent)
+      pagesList
+        .scrollTargetLayout()
+        .contentMargins(.vertical, 0, for: .scrollContent)
     }
-    .scrollIndicators(.hidden)
-    .scrollTargetBehavior(.viewAligned)
-    .defaultScrollAnchor(.top)
-    .scrollPosition(id: $currentMonth, anchor: .top)
-    .animation(.spring(response: 0.5, dampingFraction: 0.9), value: currentMonth)
-    .onAppear { snapCurrentToExactInstance() }
-    .onChange(of: year) { _, _ in snapCurrentToExactInstance(resetIfNeeded: true) }
-    
-    // 🔽 Modal presentation
-    .sheet(isPresented: Binding(
-      get: { presentedDay != nil },
-      set: { if !$0 { presentedDay = nil } }
-    )) {
-      if let day = presentedDay {
-        MemoryContainer(day: day)   // EntitlementStore is expected via .environmentObject higher up
+  }
+  
+  private var pagesList: some View {
+    LazyVStack(spacing: 0) {
+      ForEach(months, id: \.self) { month in
+        monthPage(month)
       }
     }
   }
   
-  // MARK: helpers
+  @ViewBuilder
+  private func monthPage(_ month: Date) -> some View {
+    let bucket = grouped[month] ?? []
+    let chrome = monthChrome(for: bucket, scheme: scheme)
+    
+    MonthContainer(
+      month: month,
+      id: month,
+      zoomNS: zoomNS,
+      isMatched: isSelected(month),
+      isSource: mode == .month,
+      chrome: chrome,
+      pageEdge: .fullBleed
+    ) {
+      MonthView(
+        month: month,
+        models: bucket,
+        isPremium: $entitlements.isPremium,
+        onSelectDate: { date in
+          // ✅ Show MemoryContainer for the tapped day
+          presentedDay = Calendar.current.startOfDay(for: date)
+        }
+      )
+      .frame(maxHeight: .infinity, alignment: .top)
+    }
+    .id(month)
+    .containerRelativeFrame(.vertical)   // each page = viewport height
+  }
+  
+  // MARK: - Sheet pieces
+  
+  private var sheetIsPresentedBinding: Binding<Bool> {
+    Binding(
+      get: { presentedDay != nil },
+      set: { if !$0 { presentedDay = nil } }
+    )
+  }
+  
+  @ViewBuilder
+  private var memorySheet: some View {
+    if let day = presentedDay {
+      // EntitlementStore is expected via .environmentObject higher up
+      MemoryContainer(day: day)
+    }
+  }
+  
+  // MARK: - Helpers
   
   private func isSelected(_ m: Date) -> Bool {
     guard let sel = currentMonth else { return false }

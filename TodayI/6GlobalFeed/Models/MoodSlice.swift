@@ -8,7 +8,7 @@
 import SwiftUI
 
 // MARK: - Slice Model
-struct MoodSlice: Identifiable {
+struct MoodSlice: Identifiable, Equatable {
   let id = UUID()
   let mood: Mood
   let count: Int

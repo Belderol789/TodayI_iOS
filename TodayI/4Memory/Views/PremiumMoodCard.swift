@@ -6,12 +6,12 @@ struct PremiumMoodCard: ViewModifier {
   let scheme: ColorScheme
   
   func body(content: Content) -> some View {
-    // Opacity tuning for light/dark
-    let washHi  = scheme == .dark ? 0.18 : 0.14   // diagonal wash stronger in dark
-    let washLo  = scheme == .dark ? 0.08 : 0.06
-    let blobA   = scheme == .dark ? 0.22 : 0.16   // corner blobs
-    let blobB   = scheme == .dark ? 0.12 : 0.10
-    let strokeO = scheme == .dark ? 0.28 : 0.22
+    // Much softer opacities for light/dark
+    let washHi  = scheme == .dark ? 0.10 : 0.08   // diagonal wash
+    let washLo  = scheme == .dark ? 0.05 : 0.04
+    let blobA   = scheme == .dark ? 0.12 : 0.08   // corner blobs
+    let blobB   = scheme == .dark ? 0.07 : 0.05
+    let strokeO = scheme == .dark ? 0.16 : 0.12   // outline stroke
     
     let base = RoundedRectangle(cornerRadius: 16, style: .continuous)
     
@@ -22,43 +22,40 @@ struct PremiumMoodCard: ViewModifier {
           base.fill(Color(.secondarySystemBackground))
           
           if isPremium {
-            // Diagonal mood wash
-            base
-              .fill(
-                LinearGradient(
-                  colors: [color.opacity(washHi), color.opacity(washLo)],
-                  startPoint: .topLeading, endPoint: .bottomTrailing
-                )
+            // Diagonal mood wash (much duller)
+            base.fill(
+              LinearGradient(
+                colors: [color.opacity(washHi), color.opacity(washLo)],
+                startPoint: .topLeading, endPoint: .bottomTrailing
               )
-              .blendMode(.overlay)
+            )
+            .blendMode(.overlay)
             
-            // Soft corner blobs for depth
-            base
-              .fill(
-                RadialGradient(
-                  colors: [color.opacity(blobA), .clear],
-                  center: .topLeading, startRadius: 0, endRadius: 280
-                )
+            // Corner blobs (more muted)
+            base.fill(
+              RadialGradient(
+                colors: [color.opacity(blobA), .clear],
+                center: .topLeading, startRadius: 0, endRadius: 280
               )
-              .blendMode(.plusLighter)
+            )
+            .blendMode(.plusLighter)
             
-            base
-              .fill(
-                RadialGradient(
-                  colors: [color.opacity(blobB), .clear],
-                  center: .bottomTrailing, startRadius: 0, endRadius: 240
-                )
+            base.fill(
+              RadialGradient(
+                colors: [color.opacity(blobB), .clear],
+                center: .bottomTrailing, startRadius: 0, endRadius: 240
               )
-              .blendMode(.plusLighter)
+            )
+            .blendMode(.plusLighter)
             
-            // Premium stroke (subtle)
-            base
-              .stroke(color.opacity(strokeO), lineWidth: 1)
+            // Premium stroke (lighter)
+            base.stroke(color.opacity(strokeO), lineWidth: 1)
           }
         }
       )
-    // Outer shadow (kept subtle; only when premium)
-      .shadow(color: isPremium ? color.opacity(0.12) : .clear, radius: isPremium ? 10 : 0, x: 0, y: 6)
+    // Very subtle shadow
+      .shadow(color: isPremium ? color.opacity(0.08) : .clear,
+              radius: isPremium ? 6 : 0, x: 0, y: 3)
   }
 }
 

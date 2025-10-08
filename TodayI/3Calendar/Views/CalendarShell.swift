@@ -63,10 +63,18 @@ struct CalendarShell: View {
           mode = (mode == .month ? .year : .month)
         }
       } label: {
-        Text(year, format: .number.grouping(.never))  // no comma in year
-          .font(.system(size: 34, weight: .bold, design: .rounded))
-          .foregroundStyle(.primary)
+        HStack(spacing: 6) {
+          Text(year, format: .number.grouping(.never))
+            .font(.system(size: 34, weight: .bold, design: .rounded))
+            .foregroundStyle(.primary)        // ✅ adapts to light/dark (label color)
+          Image(systemName: "chevron.down")
+            .font(.headline)
+            .foregroundStyle(.secondary)
+            .rotationEffect(.degrees(mode == .year ? 180 : 0))   // flip up/down
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: mode)
+        }
       }
+      .buttonStyle(.plain)                      // avoids default tint styling
       Spacer()
     }
     .padding(.horizontal, 16)

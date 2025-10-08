@@ -14,6 +14,7 @@ struct MemoryDTO: Codable {
   var linkURL: String?             // 👈 NEW
   
   let isPublic: Bool
+  let isPremium: Bool
   let createdAt: Date
   let updatedAt: Date
   
@@ -24,7 +25,7 @@ struct MemoryDTO: Codable {
   enum CodingKeys: String, CodingKey {
     case id, username, userID, date, mood, journalText,
          remoteImagePaths, videoRemoteURL, linkURL,
-         isPublic, createdAt, updatedAt, authorTZ, dayKeyLocal,
+         isPublic, isPremium, createdAt, updatedAt, authorTZ, dayKeyLocal,
          dayKeyUTC
   }
 }
@@ -41,6 +42,7 @@ extension MemoryDTO {
     self.videoRemoteURL = model.videoRemoteURL       // 👈
     self.linkURL = model.linkURL                     // 👈
     self.isPublic = model.isPublic
+    self.isPremium = model.isPremium
     self.createdAt = model.createdAt
     self.updatedAt = model.updatedAt
     
@@ -48,4 +50,24 @@ extension MemoryDTO {
     dayKeyLocal = model.dayKeyLocal
     dayKeyUTC = model.dayKeyUTC
   }
+  
+  init(payload: PostPayload, userID: String, username: String, day: Date) {
+    self.id = UUID().uuidString
+    self.username = username
+    self.userID = userID
+    self.date = day.startOfDay(in: TimeZone.current)
+    self.mood = payload.mood.rawValue
+    self.journalText = payload.text
+    self.remoteImagePaths = []
+    self.videoRemoteURL = nil
+    self.linkURL = payload.linkString
+    self.isPublic = payload.isPublic
+    self.isPremium = payload.isPremium
+    self.createdAt = Date()
+    self.updatedAt = Date()
+    self.authorTZ = TimeZone.current.identifier
+    self.dayKeyLocal = day.dayKeyLocal(in: TimeZone.current)
+    self.dayKeyUTC = Date().dayKeyUTC
+  }
+  
 }

@@ -24,6 +24,8 @@ final class MemoryModel {
   
   // Privacy
   var isPublic: Bool = false
+  // Premium
+  var isPremium: Bool = false
   
   // Timestamps
   var createdAt: Date
@@ -50,6 +52,7 @@ final class MemoryModel {
     videoRemoteURL: String? = nil,
     linkURL: String? = nil,
     isPublic: Bool = false,
+    isPremium: Bool = false,
     createdAt: Date = .now,
     updatedAt: Date = .now
   ) {
@@ -65,6 +68,7 @@ final class MemoryModel {
     self.videoRemoteURL = videoRemoteURL
     self.linkURL = linkURL
     self.isPublic = isPublic
+    self.isPremium = isPremium
     self.createdAt = createdAt
     self.updatedAt = updatedAt
     

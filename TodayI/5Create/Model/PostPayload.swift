@@ -10,6 +10,7 @@ import Foundation
 struct PostPayload {
   let mood: Mood
   let isPublic: Bool
+  let isPremium: Bool
   let text: String
   let images: [PickedImage]       // empty if not using photos
   let videoURL: URL?              // non-nil if posting a video

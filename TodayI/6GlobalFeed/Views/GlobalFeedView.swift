@@ -13,81 +13,133 @@ struct GlobalFeedView: View {
   var body: some View {
     List {
       Section {
-        // ── Non-sticky card living under the sticky header ──
-        MoodPieChart(slices: vm.moodSlices,
-                     total: vm.totalMoodsCount,
-                     tabSelection: $tabSelection)
+        MoodSummaryCard(
+          slices: vm.moodSlices,
+          total: vm.totalMoodsCount,
+          tabSelection: $tabSelection
+        )
         
-        // ── Feed ──
-        ForEach(vm.rows, id: \.id) { dto in
-          GlobalMemoryRow(dto: dto)                        // your desired gutter
-            .padding(.vertical, 8)
-            .listRowInsets(EdgeInsets())// remove List’s insets
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-            .onAppear {
-              if dto.id == vm.rows.suffix(5).first?.id {
-                Task { await vm.loadMore() }
-              }
-            }
-        }
+        FeedRows(
+          rows: vm.rows,
+          onNearEnd: { Task { await vm.loadMore() } }
+        )
         
-        // ── Footer states ──
-        if vm.isLoading {
-          HStack { Spacer(); ProgressView(); Spacer() }
-        } else if vm.reachedEnd {
-          HStack { Spacer(); Text("No more posts").foregroundStyle(.secondary); Spacer() }
-        }
+        FooterState(
+          isLoading: vm.isLoading,
+          reachedEnd: vm.reachedEnd
+        )
       } header: {
-        // ── Sticky header (pinned automatically) ──
-        GlassMoodFilter(vm: vm)
-          .padding(.vertical, 6)
-          .background(.ultraThinMaterial) // glassy look
+        GlobalFeedHeader(vm: vm)
       }
+      .listSectionSeparator(.hidden, edges: .all)
     }
     .contentMargins(.horizontal, 0, for: .scrollContent)
     .listStyle(.plain)
     .navigationTitle("Global")
     .navigationBarTitleDisplayMode(.inline)
-    .toolbar {
-      ToolbarItem(placement: .topBarTrailing) {
-        Menu {
-          Button("Load Firebase") {
-            vm.useTestData = false
-            Task { await vm.loadFirstPage() }
-          }
-          Button("Load Test Data") {
-            vm.useTestData = true
-            Task { await vm.loadFirstPage() }
-          }
-        } label: {
-          Label("Data Source", systemImage: "ellipsis.circle")
-        }
-      }
-      ToolbarItem(placement: .topBarTrailing) {
-        Button(entitlements.isPremium ? "Set Free" : "Set Premium") {
-          entitlements.isPremium.toggle()
-        }
-      }
-    }
+    .scrollContentBackground(.hidden)
+    .toolbar { dataSourceToolbar }
     .task { await vm.loadFirstPage() }
     .refreshable { await vm.loadFirstPage() }
   }
+  
+  // MARK: - Toolbar
+  
+  @ToolbarContentBuilder
+  private var dataSourceToolbar: some ToolbarContent {
+    ToolbarItem(placement: .topBarTrailing) {
+      Menu {
+        Button("Load Firebase") {
+          vm.useTestData = false
+          Task { await vm.loadFirstPage() }
+        }
+        Button("Load Test Data") {
+          vm.useTestData = true
+          Task { await vm.loadFirstPage() }
+        }
+      } label: {
+        Label("Data Source", systemImage: "ellipsis.circle")
+      }
+    }
+    ToolbarItem(placement: .topBarTrailing) {
+      Button(entitlements.isPremium ? "Set Free" : "Set Premium") {
+        entitlements.isPremium.toggle()
+      }
+    }
+  }
 }
 
-// Placeholder – replace with your real view
-private struct FutureView: View {
+// MARK: - Subviews
+
+private struct GlobalFeedHeader: View {
+  @ObservedObject var vm: GlobalFeedViewModel
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("Future View")
-        .font(.headline)
-      Text("This sits below the sticky filter and scrolls away with the feed.")
-        .foregroundStyle(.secondary)
-    }
-    .padding()
-    .background(
-      RoundedRectangle(cornerRadius: 16, style: .continuous)
-        .fill(Color(.secondarySystemBackground))
+    GlassMoodFilter(vm: vm)
+      .padding(.vertical, 6)
+      .background(.ultraThinMaterial)
+  }
+}
+
+private struct MoodSummaryCard: View {
+  let slices: [MoodSlice]
+  let total: Int
+  @Binding var tabSelection: AppTab
+  
+  var body: some View {
+    MoodPieChart(
+      slices: slices,
+      total: total,
+      title: "Today the world feels",
+      tabSelection: $tabSelection
     )
+  }
+}
+
+private struct FeedRows: View {
+  let rows: [MemoryDTO]
+  let onNearEnd: () -> Void
+  
+  var body: some View {
+    ForEach(rows, id: \.id) { dto in
+      GlobalMemoryRow(dto: dto)
+        .padding(.vertical, 8)
+        .listRowInsets(EdgeInsets())
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .onAppear {
+          // Trigger pagination when the first of the last 5 appears
+          if dto.id == rows.suffix(5).first?.id {
+            onNearEnd()
+          }
+        }
+    }
+  }
+}
+
+private struct FooterState: View {
+  let isLoading: Bool
+  let reachedEnd: Bool
+  
+  var body: some View {
+    Group {
+      if isLoading {
+        HStack { Spacer(); ProgressView(); Spacer() }
+          .listRowInsets(EdgeInsets())
+          .listRowSeparator(.hidden)
+          .listRowBackground(Color.clear)
+      } else if reachedEnd {
+        HStack {
+          Spacer()
+          Text("No more posts")
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 12)
+          Spacer()
+        }
+        .listRowInsets(EdgeInsets())
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+      }
+    }
   }
 }

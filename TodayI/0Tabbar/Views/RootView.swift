@@ -18,7 +18,7 @@ struct RootView: View {
         case .global:
           GlobalFeedView(
             tabSelection: $selection,
-            day: Calendar.current.date(from: DateComponents(year: 2025, month: 9, day: 16))!
+            day: Date()
           )
         case .notifications:
           Text("🔔 Notifications").font(.largeTitle.bold())

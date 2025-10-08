@@ -6,6 +6,7 @@ struct GlobalFeedPage {
 }
 
 enum GlobalFeedService {
+  
   static func fetchPublicMemories(
     for day: Date,
     pageSize: Int = 30,
@@ -47,6 +48,7 @@ enum GlobalFeedService {
           let dateTS = d["date"] as? Timestamp
     else { return nil }
     
+    let isPremium = d["isPremium"] as? Bool ?? false
     let date = dateTS.dateValue()
     return MemoryDTO(
       id: id,
@@ -59,6 +61,7 @@ enum GlobalFeedService {
       videoRemoteURL: d["videoRemoteURL"] as? String,
       linkURL: d["linkURL"] as? String,
       isPublic: isPublic,
+      isPremium: isPremium,
       createdAt: (d["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
       updatedAt: (d["updatedAt"] as? Timestamp)?.dateValue() ?? Date(),
       authorTZ: (d["authorTZ"] as? String) ?? TimeZone.current.identifier,
@@ -104,6 +107,7 @@ extension GlobalFeedService {
           videoRemoteURL: nil,
           linkURL: hasLink ? "https://example.com/\(idx)" : nil,
           isPublic: true,
+          isPremium: Bool.random(),
           createdAt: created,
           updatedAt: created,
           authorTZ: tzID,

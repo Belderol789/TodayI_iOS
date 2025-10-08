@@ -202,6 +202,9 @@ extension CreateMemoryView {
       Text(Date().formatted("MMM d, yyyy"))
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(minWidth: 90, alignment: .trailing) // optional: ensures consistent layout
     }
     .padding(.horizontal)
     .padding(.top, 4)

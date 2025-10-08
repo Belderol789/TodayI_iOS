@@ -15,7 +15,8 @@ struct CalendarView: View {
   
   var body: some View {
     NavigationStack {
-      CalendarShell(year: selectedYear, models: yearModels)
+      CalendarShell(year: selectedYear,
+                    models: yearModels)
         .id(refreshToken) // remount when token changes (optional)
         .toolbar {
           ToolbarItem(placement: .topBarTrailing) {

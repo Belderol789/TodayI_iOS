@@ -2,7 +2,6 @@ import SwiftUI
 
 struct MemoryRow: View {
   @Bindable var memory: MemoryModel
-  let isPremium: Bool
   var onMore: (() -> Void)? = nil
   var onTapImage: ((Int) -> Void)? = nil
   
@@ -12,6 +11,7 @@ struct MemoryRow: View {
   
   private var canEditPrivacy: Bool { auth.userID == memory.userID }
   private var timeString: String { DateFormatter.shortDateFormatter.string(from: memory.date) }
+  private var isPremium: Bool { memory.isPremium }
   
   var body: some View {
     let moodColor = memory.mood.adaptiveColor

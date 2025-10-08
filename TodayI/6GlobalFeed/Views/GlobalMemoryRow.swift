@@ -3,14 +3,13 @@ import SwiftUI
 struct GlobalMemoryRow: View {
   let dto: MemoryDTO
   @Environment(\.modelContext) private var context
-  @EnvironmentObject private var entitlements: EntitlementStore
   
   @State private var model: MemoryModel?
   
   var body: some View {
     Group {
       if let model {
-        MemoryRow(memory: model, isPremium: entitlements.isPremium)
+        MemoryRow(memory: model)
       } else {
         ProgressView().frame(height: 120)
       }
