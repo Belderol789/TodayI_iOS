@@ -82,6 +82,7 @@ extension TestManager {
         journalText: randomPrompt(for: mood),
         localImagePaths: [],
         remoteImagePaths: [],
+        isPremium: isPremium,
         createdAt: Date(),
         updatedAt: Date()
       )

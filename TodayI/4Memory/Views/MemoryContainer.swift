@@ -88,7 +88,7 @@ private extension MemoryContainer {
     } else {
       List {
         ForEach(memories, id: \.id) { mem in
-          MemoryRow(memory: mem, isPremium: entitlements.isPremium)
+          MemoryRow(memory: mem)
             .padding(.vertical, 8)
             .padding(.horizontal, 4)
             .listRowInsets(EdgeInsets())// remove List’s insets

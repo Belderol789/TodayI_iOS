@@ -61,12 +61,17 @@ struct CalendarView: View {
     
     do {
       let rows = try context.fetch(descriptor)
+      
       await MainActor.run {
-        self.yearModels = rows
+        // ✅ Set once: only assign if not yet initialized
+        // or if the current models are from a *different year*
+        if yearModels.isEmpty ||
+            (yearModels.first?.date.year ?? 0) != year {
+          yearModels = rows
+        }
       }
-      // print("📅 Loaded \(rows.count) DateModels for \(year)")
     } catch {
-      await MainActor.run { self.yearModels = [] }
+      await MainActor.run { yearModels = [] }
       print("Load failed:", error)
     }
   }

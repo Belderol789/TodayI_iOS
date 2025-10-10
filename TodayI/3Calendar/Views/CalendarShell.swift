@@ -12,14 +12,14 @@ struct CalendarShell: View {
   @Namespace private var zoomNS
   private let cal = Calendar.current
   
-  // CalendarShell.swift (only the changes)
   var body: some View {
     let insets = EdgeInsets(top: 8, leading: 16, bottom: 0, trailing: 16)
     
     VStack(spacing: 0) {
-      header                          // already uses .padding(.horizontal, 16)
+      header
       
-      ZStack {
+      // 🔹 Direct conditional instead of ZStack with opacity
+      if mode == .month {
         MonthPager(
           year: year,
           models: models,
@@ -28,10 +28,9 @@ struct CalendarShell: View {
           zoomNS: zoomNS
         )
         .id(year)
-        .opacity(mode == .month ? 1 : 0)
-        .allowsHitTesting(mode == .month)
-        .environment(\.calendarInsets, insets)   // ← inject shared inset
-        
+        .environment(\.calendarInsets, insets)
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
+      } else {
         YearGrid(
           year: year,
           models: models,
@@ -44,12 +43,11 @@ struct CalendarShell: View {
           },
           zoomNS: zoomNS
         )
-        .opacity(mode == .year ? 1 : 0)
-        .allowsHitTesting(mode == .year)
-        .environment(\.calendarInsets, insets) // optional, if you want the grid aligned too
+        .environment(\.calendarInsets, insets)
+        .transition(.opacity.combined(with: .move(edge: .top)))
       }
-      .animation(.spring(response: 0.5, dampingFraction: 0.85), value: mode)
     }
+    .animation(.spring(response: 0.5, dampingFraction: 0.85), value: mode)
     .onAppear { seedCurrentMonth() }
     .onChange(of: year) { _, _ in seedCurrentMonth() }
   }
@@ -66,32 +64,31 @@ struct CalendarShell: View {
         HStack(spacing: 6) {
           Text(year, format: .number.grouping(.never))
             .font(.system(size: 34, weight: .bold, design: .rounded))
-            .foregroundStyle(.primary)        // ✅ adapts to light/dark (label color)
+            .foregroundStyle(.primary)
           Image(systemName: "chevron.down")
             .font(.headline)
             .foregroundStyle(.secondary)
-            .rotationEffect(.degrees(mode == .year ? 180 : 0))   // flip up/down
+            .rotationEffect(.degrees(mode == .year ? 180 : 0))
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: mode)
         }
       }
-      .buttonStyle(.plain)                      // avoids default tint styling
+      .buttonStyle(.plain)
+      
       Spacer()
     }
     .padding(.horizontal, 16)
     .padding(.top, 8)
   }
   
-  // MARK: Seeding
+  // MARK: Seed current month
   
-  /// Choose the initial/current month for a given `year`.
-  /// If `year` is the current year, pick today's month; else pick January.
   private func seedCurrentMonth() {
     let today = Date()
     if cal.component(.year, from: today) == year {
       let m = cal.component(.month, from: today)
-      currentMonth = cal.date(from: DateComponents(year: year, month: m, day: 1))!
+      currentMonth = cal.date(from: DateComponents(year: year, month: m, day: 1))
     } else {
-      currentMonth = cal.date(from: DateComponents(year: year, month: 1, day: 1))!
+      currentMonth = cal.date(from: DateComponents(year: year, month: 1, day: 1))
     }
   }
 }

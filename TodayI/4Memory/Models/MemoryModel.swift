@@ -25,7 +25,7 @@ final class MemoryModel {
   // Privacy
   var isPublic: Bool = false
   // Premium
-  var isPremium: Bool = false
+  var isPremium: Bool
   
   // Timestamps
   var createdAt: Date
@@ -52,7 +52,7 @@ final class MemoryModel {
     videoRemoteURL: String? = nil,
     linkURL: String? = nil,
     isPublic: Bool = false,
-    isPremium: Bool = false,
+    isPremium: Bool,
     createdAt: Date = .now,
     updatedAt: Date = .now
   ) {
@@ -117,6 +117,7 @@ extension MemoryModel {
         videoRemoteURL: dto.videoRemoteURL,     // 👈
         linkURL: dto.linkURL,                   // 👈
         isPublic: dto.isPublic,
+        isPremium: dto.isPremium,
         createdAt: dto.createdAt,
         updatedAt: dto.updatedAt
       )
