@@ -7,6 +7,7 @@ struct MemoryDTO: Codable {
   let date: Date
   let mood: String
   let journalText: String
+  let likes: Int
   
   // media
   var remoteImagePaths: [String]
@@ -19,14 +20,12 @@ struct MemoryDTO: Codable {
   let updatedAt: Date
   
   let authorTZ: String
-  let dayKeyLocal: String
-  let dayKeyUTC: String?      // optional
+  let dayKey: String
   
   enum CodingKeys: String, CodingKey {
-    case id, username, userID, date, mood, journalText,
+    case id, username, userID, date, mood, journalText, likes,
          remoteImagePaths, videoRemoteURL, linkURL,
-         isPublic, isPremium, createdAt, updatedAt, authorTZ, dayKeyLocal,
-         dayKeyUTC
+         isPublic, isPremium, createdAt, updatedAt, authorTZ, dayKey
   }
 }
 
@@ -38,6 +37,7 @@ extension MemoryDTO {
     self.date = model.date
     self.mood = model.moodRaw
     self.journalText = model.journalText
+    self.likes = model.likes
     self.remoteImagePaths = model.remoteImagePaths
     self.videoRemoteURL = model.videoRemoteURL       // 👈
     self.linkURL = model.linkURL                     // 👈
@@ -47,8 +47,7 @@ extension MemoryDTO {
     self.updatedAt = model.updatedAt
     
     authorTZ = model.authorTZ
-    dayKeyLocal = model.dayKeyLocal
-    dayKeyUTC = model.dayKeyUTC
+    dayKey = model.dayKey
   }
   
   init(payload: PostPayload, userID: String, username: String, day: Date) {
@@ -58,6 +57,7 @@ extension MemoryDTO {
     self.date = day.startOfDay(in: TimeZone.current)
     self.mood = payload.mood.rawValue
     self.journalText = payload.text
+    self.likes = 0
     self.remoteImagePaths = []
     self.videoRemoteURL = nil
     self.linkURL = payload.linkString
@@ -66,8 +66,7 @@ extension MemoryDTO {
     self.createdAt = Date()
     self.updatedAt = Date()
     self.authorTZ = TimeZone.current.identifier
-    self.dayKeyLocal = day.dayKeyLocal(in: TimeZone.current)
-    self.dayKeyUTC = Date().dayKeyUTC
+    self.dayKey = Date().formattedDayKeyLocal()
   }
   
 }

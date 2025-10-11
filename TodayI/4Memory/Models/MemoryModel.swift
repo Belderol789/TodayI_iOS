@@ -10,10 +10,10 @@ final class MemoryModel {
   var username: String
   var date: Date
   var authorTZ: String           // e.g. "Asia/Manila"
-  var dayKeyLocal: String        // e.g. "2025-09-16"
-  var dayKeyUTC: String?         // only if you want a UTC feed later
+  var dayKey: String       // only if you want a UTC feed later
   private(set) var moodRaw: String
   var journalText: String
+  var likes: Int
   
   // Media (separated cleanly)
   var localImagePaths: [String]       // device file paths before upload
@@ -46,6 +46,7 @@ final class MemoryModel {
     date: Date,
     mood: Mood,
     journalText: String,
+    likes: Int,
     localImagePaths: [String] = [],
     remoteImagePaths: [String] = [],
     videoLocalPath: String? = nil,
@@ -62,6 +63,7 @@ final class MemoryModel {
     self.date = Calendar.current.startOfDay(for: date)
     self.moodRaw = mood.rawValue
     self.journalText = journalText
+    self.likes = likes
     self.localImagePaths = localImagePaths
     self.remoteImagePaths = remoteImagePaths
     self.videoLocalPath = videoLocalPath
@@ -73,8 +75,7 @@ final class MemoryModel {
     self.updatedAt = updatedAt
     
     self.authorTZ   = TimeZone.current.identifier   // at post time
-    self.dayKeyLocal = date.dayKeyLocal(in: .current)
-    self.dayKeyUTC   = date.dayKeyUTC               // optional
+    self.dayKey = Date().formattedDayKeyLocal()            // optional
   }
 }
 
@@ -100,8 +101,7 @@ extension MemoryModel {
       m.isPublic = dto.isPublic
       m.updatedAt = dto.updatedAt
       m.authorTZ = dto.authorTZ
-      m.dayKeyLocal = dto.dayKeyLocal
-      m.dayKeyUTC = dto.dayKeyUTC
+      m.dayKey = dto.dayKey
       return m
     } else {
       let m = MemoryModel(
@@ -111,6 +111,7 @@ extension MemoryModel {
         date: dto.date,
         mood: Mood(rawValue: dto.mood) ?? .neutral,
         journalText: dto.journalText,
+        likes: dto.likes,
         localImagePaths: [],
         remoteImagePaths: dto.remoteImagePaths,
         videoLocalPath: nil,                    // 👈 stays nil from DTO

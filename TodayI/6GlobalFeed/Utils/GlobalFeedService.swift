@@ -13,12 +13,12 @@ enum GlobalFeedService {
     after last: DocumentSnapshot? = nil,
     db: Firestore = .firestore()
   ) async throws -> GlobalFeedPage {
-    let dayKey = day.dayKeyUTC
+    
+    let dayKey = day.formattedDayKeyLocal()   // you chose local-only keys
     
     var q: Query = db.collectionGroup("memories")
       .whereField("isPublic", isEqualTo: true)
-      .whereField("dayKeyUTC", isEqualTo: dayKey)
-      .order(by: "createdAt", descending: true)
+      .whereField("dayKey", isEqualTo: dayKey)
       .limit(to: pageSize)
     
     if let last { q = q.start(afterDocument: last) }
@@ -35,6 +35,7 @@ enum GlobalFeedService {
       }
     }
     
+    print("Kemuel \(items.count) \(dayKey)")
     return GlobalFeedPage(items: items, lastSnapshot: snap.documents.last)
   }
   
@@ -44,6 +45,7 @@ enum GlobalFeedService {
           let username = d["username"] as? String,
           let mood = d["mood"] as? String,
           let journalText = d["journalText"] as? String,
+          let likes = d["likes"] as? Int,
           let isPublic = d["isPublic"] as? Bool,
           let dateTS = d["date"] as? Timestamp
     else { return nil }
@@ -57,6 +59,7 @@ enum GlobalFeedService {
       date: date,
       mood: mood,
       journalText: journalText,
+      likes: likes,
       remoteImagePaths: d["remoteImagePaths"] as? [String] ?? [],
       videoRemoteURL: d["videoRemoteURL"] as? String,
       linkURL: d["linkURL"] as? String,
@@ -65,11 +68,12 @@ enum GlobalFeedService {
       createdAt: (d["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
       updatedAt: (d["updatedAt"] as? Timestamp)?.dateValue() ?? Date(),
       authorTZ: (d["authorTZ"] as? String) ?? TimeZone.current.identifier,
-      dayKeyLocal: (d["dayKeyLocal"] as? String) ?? date.dayKeyLocal(in: .current),
-      dayKeyUTC: d["dayKeyUTC"] as? String
+      dayKey: (d["dayKeyLocal"] as? String) ?? date.formattedDayKeyLocal()
     )
   }
 }
+
+// MARK: - Test
 
 extension GlobalFeedService {
   static func generateTestPage(
@@ -85,8 +89,7 @@ extension GlobalFeedService {
     
     let cal = Calendar(identifier: .gregorian)
     let tzID = TimeZone.current.identifier
-    let dayKeyLocal = day.dayKeyLocal(in: .current)
-    let dayKeyUTC   = day.dayKeyUTC
+    let dayKey = day.formattedDayKeyLocal()
     
     for i in 0..<count {
       let idx = startIndex + i
@@ -103,6 +106,7 @@ extension GlobalFeedService {
           date: day,
           mood: moodStrings[idx % moodStrings.count],
           journalText: idx % 4 == 0 ? "Test post #\(idx) for \(day.formatted())" : "",
+          likes: 10,
           remoteImagePaths: hasImage ? ["https://picsum.photos/seed/\(idx)/800/600"] : [],
           videoRemoteURL: nil,
           linkURL: hasLink ? "https://example.com/\(idx)" : nil,
@@ -111,8 +115,7 @@ extension GlobalFeedService {
           createdAt: created,
           updatedAt: created,
           authorTZ: tzID,
-          dayKeyLocal: dayKeyLocal,
-          dayKeyUTC: dayKeyUTC
+          dayKey: dayKey
         )
       )
     }

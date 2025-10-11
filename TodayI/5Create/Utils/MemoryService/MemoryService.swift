@@ -15,44 +15,6 @@ enum MemoryUploadError: Error {
 
 struct MemoryService {
   
-  // MARK: - New helper: global per-day mood tally in top-level "moods/{dayKey}"
-  private static func incrementDailyMoodTally(for memory: MemoryModel,
-                                              db: Firestore = Firestore.firestore()) async throws {
-    // Normalize keys/timestamps
-    let dayKey = Self.dayKeyString(for: memory.date)
-    let startOfDay = Calendar.current.startOfDay(for: memory.date)
-    
-    // moods/{dayKey}
-    let moodsDoc  = db.collection("moods").document(dayKey)
-    let moodField = String(describing: memory.mood).lowercased() // e.g. "angry", "sad"
-    let incKey    = "tally.\(moodField)"                         // nested dict key
-    
-    _ = try await db.runTransaction { txn, errorPtr -> Any? in
-      let snap: DocumentSnapshot
-      do {
-        snap = try txn.getDocument(moodsDoc)
-      } catch {
-        errorPtr?.pointee = error as NSError
-        return nil
-      }
-      
-      if !snap.exists {
-        // First write — stamp base metadata; no need to pre-seed all moods
-        txn.setData([
-          "date": startOfDay,
-          "createdAt": FieldValue.serverTimestamp()
-        ], forDocument: moodsDoc, merge: true)
-      }
-      
-      txn.updateData([
-        incKey: FieldValue.increment(Int64(1)),
-        "updatedAt": FieldValue.serverTimestamp()
-      ], forDocument: moodsDoc)
-      
-      return nil
-    }
-  }
-  
   // MARK: - Existing API (unchanged behavior + single new call)
   static func postMemory(_ memory: MemoryModel, db: Firestore = Firestore.firestore()) async throws {
     LoggerManager.instance.logFirebaseCall()
@@ -62,7 +24,7 @@ struct MemoryService {
     let memRef   = userDoc.collection("memories").document(memory.id)
     
     // Normalize the day key for the DateModel doc id (UTC-safe)
-    let dayKey = Self.dayKeyString(for: memory.date)
+    let dayKey = Date().formattedDayKeyLocal()
     let dateRef = userDoc.collection("dates").document(dayKey)
     
     // --- Memory payload (omit local-only paths) ---
@@ -71,12 +33,13 @@ struct MemoryService {
       "userID": memory.userID,
       "username": memory.username,
       "date": memory.date,                    // author local day start instant
-      "dayKeyLocal": memory.dayKeyLocal,      // "yyyy-MM-dd" (author tz)
-      "dayKeyUTC": memory.dayKeyUTC as Any,   // optional
+      "dayKey": dayKey,
+      // optional
       "authorTZ": memory.authorTZ,
       
       "mood": memory.mood.rawValue,
       "journalText": memory.journalText,
+      "likes": memory.likes,
       "remoteImagePaths": memory.remoteImagePaths,
       "videoRemoteURL": memory.videoRemoteURL as Any,
       "linkURL": memory.linkURL as Any,
@@ -116,42 +79,6 @@ struct MemoryService {
     print("Rules preflight — usernameOK:", usernameOK,
           "moodOK:", moodOK, "imgsOK:", imgsOK, "linkOK:", linkOK, "videoOK:", videoOK)
   }
-  
-  /// yyyy-MM-dd (UTC) string to keep date docs stable across timezones.
-  private static func dayKeyString(for date: Date) -> String {
-    var utc = Calendar(identifier: .gregorian)
-    utc.timeZone = TimeZone(secondsFromGMT: 0)!
-    let comps = utc.dateComponents([.year, .month, .day], from: date)
-    let y = comps.year!, m = comps.month!, d = comps.day!
-    // zero-pad: 2025-09-14
-    return String(format: "%04d-%02d-%02d", y, m, d)
-  }
 }
 
-extension MemoryService {
-  /// Fetches all lightweight date entries for a user.
-  static func fetchDates(for userID: String, db: Firestore = Firestore.firestore()) async throws -> [DateDTO] {
-    LoggerManager.instance.logFirebaseCall()
-    let snapshot = try await db
-      .collection("users")
-      .document(userID)
-      .collection("dates")
-      .getDocuments()
-    
-    return snapshot.documents.compactMap { DateDTO(doc: $0) }
-  }
-  
-  /// Fetches all memories for a user on a given dayKeyLocal.
-  static func fetchMemories(for userID: String, dayKeyLocal: String, db: Firestore = Firestore.firestore()) async throws -> [MemoryDTO] {
-    LoggerManager.instance.logFirebaseCall()
-    let snapshot = try await db.collection("users").document(userID)
-      .collection("memories")
-      .whereField("dayKeyLocal", isEqualTo: dayKeyLocal)
-      .getDocuments()
-    
-    return snapshot.documents.compactMap { doc in
-      try? doc.data(as: MemoryDTO.self)   // Firestore Decodable support
-    }
-  }
-}
 

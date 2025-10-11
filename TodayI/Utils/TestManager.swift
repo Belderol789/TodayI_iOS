@@ -80,6 +80,7 @@ extension TestManager {
         date: key,
         mood: mood,
         journalText: randomPrompt(for: mood),
+        likes: 100,
         localImagePaths: [],
         remoteImagePaths: [],
         isPremium: isPremium,

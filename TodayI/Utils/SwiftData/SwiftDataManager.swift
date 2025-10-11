@@ -60,12 +60,10 @@ extension SwiftDataManager {
                                username: String,
                                day: Date) throws -> (MemoryModel, MemoryDTO, Date) {
     let authorTZ = TimeZone.current
-    let now = Date()
-    let memoryID = UUID().uuidString
     let dayStartLocal = day.startOfDay(in: authorTZ)
     
     // Initial DTO (remote fields empty for now)
-    var dto = MemoryDTO(payload: payload,
+    let dto = MemoryDTO(payload: payload,
                         userID: userID,
                         username: username,
                         day: day)

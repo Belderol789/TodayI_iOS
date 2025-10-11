@@ -36,9 +36,9 @@ struct MemoryContainer: View {
         let dayKey = day.formattedDayKeyLocal()   // make sure you have this helper
         
         // 1) Check if we already have at least one memory for that day (and user if available)
-        var predicate = #Predicate<MemoryModel> { $0.dayKeyLocal == dayKey }
+        var predicate = #Predicate<MemoryModel> { $0.dayKey == dayKey }
         if let uid = auth.userID {
-          predicate = #Predicate<MemoryModel> { $0.dayKeyLocal == dayKey && $0.userID == uid }
+          predicate = #Predicate<MemoryModel> { $0.dayKey == dayKey && $0.userID == uid }
         }
         
         var existsFetch = FetchDescriptor<MemoryModel>(predicate: predicate)

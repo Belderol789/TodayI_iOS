@@ -5,12 +5,12 @@ import FirebaseFirestore
 final class GlobalFeedViewModel: ObservableObject {
   // MARK: - Inputs / State
   @Published var day: Date
-  @Published var selectedMoods: Set<Mood> = []   // ← multiple moods
+  @Published var selectedMoods: Set<Mood> = []   // multiple mood filter
   @Published var useTestData: Bool = false
   
-  // Unfiltered source of truth
+  // Source of truth (unfiltered)
   @Published private(set) var allRows: [MemoryDTO] = []
-  // Filtered rows for the List
+  // Filtered rows for the list
   @Published private(set) var rows: [MemoryDTO] = []
   
   // Paging UI state
@@ -18,59 +18,133 @@ final class GlobalFeedViewModel: ObservableObject {
   @Published var reachedEnd = false
   @Published var errorText: String?
   
+  // Global tally (from Firestore moods/{dayKey}); fallback computed from allRows
+  @Published private(set) var globalMoodSlices: [MoodSlice] = []
+  @Published private(set) var globalMoodTotal: Int = 0
+  
   private var cursor: DocumentSnapshot?
   
+  // MARK: - Init
   init(day: Date) { self.day = day }
   
-  // MARK: - Loading
-  func loadFirstPage() async {
+  // MARK: - Public API
+  
+  /// Loads both the first page of the feed and the global mood tally for `day`.
+  func refresh() async {
     guard !isLoading else { return }
-    isLoading = true; errorText = nil; reachedEnd = false; cursor = nil
-    allRows = []; rows = []
+    isLoading = true
+    errorText = nil
+    reachedEnd = false
+    cursor = nil
+    allRows = []
+    rows = []
+    globalMoodSlices = []
+    globalMoodTotal = 0
     
     do {
       if useTestData {
+        // ---- Test data path ----
         let page = GlobalFeedService.generateTestPage(for: day, count: 100, startIndex: 0)
         self.allRows = page.items
         self.cursor = nil
         self.reachedEnd = true
+        
+        // Build a synthetic mood tally from test data
+        let counts = page.items.reduce(into: [Mood: Int]()) { dict, dto in
+          if let m = Mood(rawValue: dto.mood) {
+            dict[m, default: 0] += 1
+          }
+        }
+        updateGlobalTally(from: counts)
       } else {
-        let page = try await GlobalFeedService.fetchPublicMemories(for: day, pageSize: 30, after: nil)
+        // ---- Live Firestore path ----
+        async let feedPage = GlobalFeedService.fetchPublicMemories(for: day, pageSize: 30, after: nil)
+        async let tallyMap = MemoryService.fetchMoodTally(for: day)
+        
+        let page = try await feedPage
+        let counts = try await tallyMap
+        
         self.allRows = page.items
         self.cursor = page.lastSnapshot
         self.reachedEnd = page.items.isEmpty
+        updateGlobalTally(from: counts)
       }
+      
       applyFilter()
     } catch {
-      self.errorText = error.localizedDescription
+      errorText = error.localizedDescription
+      print("⚠️ GlobalFeedViewModel.refresh failed:", error)
     }
+    
     isLoading = false
   }
   
+  /// Backward-compatible alias for legacy calls.
+  func loadFirstPage() async { await refresh() }
+  
+  /// Paginates through additional feed pages.
   func loadMore() async {
-    guard !isLoading, !reachedEnd else { return }
-    isLoading = true; errorText = nil
+    guard !isLoading, !reachedEnd, !useTestData else { return }
+    isLoading = true
+    errorText = nil
     
     do {
-      if useTestData {
-        let start = allRows.count
-        let page = GlobalFeedService.generateTestPage(for: day, count: 30, startIndex: start)
-        self.allRows.append(contentsOf: page.items)
-        self.reachedEnd = allRows.count >= 100
-      } else {
-        let page = try await GlobalFeedService.fetchPublicMemories(for: day, pageSize: 30, after: cursor)
-        self.allRows.append(contentsOf: page.items)
-        self.cursor = page.lastSnapshot
-        self.reachedEnd = page.items.isEmpty
-      }
+      let page = try await GlobalFeedService.fetchPublicMemories(for: day, pageSize: 30, after: cursor)
+      self.allRows.append(contentsOf: page.items)
+      self.cursor = page.lastSnapshot
+      self.reachedEnd = page.items.isEmpty
       applyFilter()
     } catch {
       self.errorText = error.localizedDescription
+      print("⚠️ loadMore failed:", error)
     }
+    
     isLoading = false
   }
   
-  // MARK: - Filter controls (for GlassMoodFilter)
+  /// Reloads everything for a new selected day.
+  func setDay(_ newDay: Date) async {
+    guard day != newDay else { return }
+    day = newDay
+    await refresh()
+  }
+  
+  /// Fetches just the mood tally (used in GlobalFeedView .task)
+  func loadGlobalMoodTally() async {
+    // Test data path
+    if useTestData {
+      let counts = allRows.reduce(into: [Mood: Int]()) { dict, dto in
+        if let m = Mood(rawValue: dto.mood) {
+          dict[m, default: 0] += 1
+        }
+      }
+      updateGlobalTally(from: counts)
+      return
+    }
+    
+    do {
+      let counts = try await MemoryService.fetchMoodTally(for: day)
+      updateGlobalTally(from: counts)
+    } catch {
+      // Fallback to locally computed
+      let fallback = self.moodSlices
+      self.globalMoodSlices = fallback
+      self.globalMoodTotal = fallback.reduce(0) { $0 + $1.count }
+      print("⚠️ fetchMoodTally failed:", error)
+    }
+  }
+  
+  // MARK: - Helpers
+  
+  private func updateGlobalTally(from counts: [Mood: Int]) {
+    let slices = counts.map { MoodSlice(mood: $0.key, count: $0.value) }
+      .sorted { $0.count > $1.count }
+    globalMoodSlices = slices
+    globalMoodTotal = slices.reduce(0) { $0 + $1.count }
+  }
+  
+  // MARK: - Filtering
+  
   func toggleMood(_ mood: Mood) {
     if selectedMoods.contains(mood) {
       selectedMoods.remove(mood)
@@ -85,12 +159,10 @@ final class GlobalFeedViewModel: ObservableObject {
     applyFilter()
   }
   
-  // Disable a segment if there are 0 items for that mood
   func isMoodDisabled(_ mood: Mood) -> Bool {
     moodCounts[mood, default: 0] == 0
   }
   
-  // Percentage label for a mood out of the currently loaded (unfiltered) set
   func percentage(for mood: Mood) -> Int {
     let total = totalCount
     guard total > 0 else { return 0 }
@@ -100,7 +172,6 @@ final class GlobalFeedViewModel: ObservableObject {
   
   var totalCount: Int { allRows.count }
   
-  // MARK: - Internals
   private func applyFilter() {
     if selectedMoods.isEmpty {
       rows = allRows
@@ -112,10 +183,8 @@ final class GlobalFeedViewModel: ObservableObject {
     }
   }
   
-  // Distribution computed from the unfiltered list
   private var moodCounts: [Mood: Int] {
     var dict: [Mood: Int] = [:]
-    for m in Mood.allCases { dict[m] = 0 }
     for dto in allRows {
       if let m = Mood(rawValue: dto.mood) {
         dict[m, default: 0] += 1
@@ -125,13 +194,11 @@ final class GlobalFeedViewModel: ObservableObject {
   }
 }
 
-// MARK: - VM helper (no stored changes)
+// MARK: - Local fallback (derived from allRows)
 extension GlobalFeedViewModel {
   var moodSlices: [MoodSlice] {
     let counts = Dictionary(grouping: allRows, by: { Mood(rawValue: $0.mood) })
-      .mapValues { $0.count }
-    
-    // Include only moods that appear (or use allCases if you want zeros)
+      .compactMapValues { $0.count }
     return counts
       .map { MoodSlice(mood: $0.key!, count: $0.value) }
       .sorted { $0.count > $1.count }

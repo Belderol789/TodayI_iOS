@@ -13,9 +13,10 @@ struct GlobalFeedView: View {
   var body: some View {
     List {
       Section {
+        // Use Firestore tallies if available; fall back to local
         MoodSummaryCard(
-          slices: vm.moodSlices,
-          total: vm.totalMoodsCount,
+          slices: vm.globalMoodSlices.isEmpty ? vm.moodSlices : vm.globalMoodSlices,
+          total: vm.globalMoodTotal > 0 ? vm.globalMoodTotal : vm.totalMoodsCount,
           tabSelection: $tabSelection
         )
         
@@ -39,8 +40,9 @@ struct GlobalFeedView: View {
     .navigationBarTitleDisplayMode(.inline)
     .scrollContentBackground(.hidden)
     .toolbar { dataSourceToolbar }
-    .task { await vm.loadFirstPage() }
-    .refreshable { await vm.loadFirstPage() }
+    // Load feed + mood tally together
+    .task { await vm.refresh() }
+    .refreshable { await vm.refresh() }
   }
   
   // MARK: - Toolbar
@@ -51,11 +53,11 @@ struct GlobalFeedView: View {
       Menu {
         Button("Load Firebase") {
           vm.useTestData = false
-          Task { await vm.loadFirstPage() }
+          Task { await vm.refresh() }
         }
         Button("Load Test Data") {
           vm.useTestData = true
-          Task { await vm.loadFirstPage() }
+          Task { await vm.refresh() }
         }
       } label: {
         Label("Data Source", systemImage: "ellipsis.circle")
@@ -107,7 +109,6 @@ private struct FeedRows: View {
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .onAppear {
-          // Trigger pagination when the first of the last 5 appears
           if dto.id == rows.suffix(5).first?.id {
             onNearEnd()
           }
@@ -130,7 +131,7 @@ private struct FooterState: View {
       } else if reachedEnd {
         HStack {
           Spacer()
-          Text("No more posts")
+          Text("No posts yet")
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, 12)

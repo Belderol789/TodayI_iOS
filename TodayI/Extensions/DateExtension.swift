@@ -35,18 +35,7 @@ extension Date {
     let end = Calendar.gregorianLocal.date(byAdding: .day, value: 1, to: start)!
     return (start, end)
   }
-  
-  func dayKeyLocal(in tz: TimeZone = .current) -> String {
-    var cal = Calendar(identifier: .gregorian)
-    cal.timeZone = tz
-    let start = cal.startOfDay(for: self)
-    let fmt = DateFormatter()
-    fmt.calendar = cal
-    fmt.timeZone = tz
-    fmt.dateFormat = "yyyy-MM-dd"
-    return fmt.string(from: start)
-  }
-  
+
   func formattedDayKeyLocal(in tz: TimeZone = .current) -> String {
     var cal = Calendar(identifier: .gregorian)
     cal.timeZone = tz
@@ -54,18 +43,7 @@ extension Date {
     return String(format: "%04d-%02d-%02d", comps.year!, comps.month!, comps.day!)
   }
   
-  /// `"yyyy-MM-dd"` in UTC (for optional UTC/analytics modes)
-  var dayKeyUTC: String {
-    var cal = Calendar(identifier: .gregorian)
-    cal.timeZone = TimeZone(secondsFromGMT: 0)!
-    let start = cal.startOfDay(for: self)
-    let fmt = DateFormatter()
-    fmt.calendar = cal
-    fmt.timeZone = cal.timeZone
-    fmt.dateFormat = "yyyy-MM-dd"
-    return fmt.string(from: start)
-  }
-  
+
   /// Returns a full, localized description of the date (e.g. "Wednesday, September 3, 2025").
   var accessibilityLabel: String {
     let df = DateFormatter()
