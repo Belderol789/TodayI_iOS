@@ -9,6 +9,7 @@ struct MemoryRow: View {
   @Environment(\.modelContext) private var context
   @Environment(\.colorScheme) private var scheme
   @State private var hasLiked = false
+  @State private var isUpdatingPrivacy = false
   
   // MARK: - Derived
   private var canEditPrivacy: Bool { auth.userID == memory.userID }
@@ -22,6 +23,12 @@ struct MemoryRow: View {
       .padding(14)
       .frame(maxWidth: .infinity, alignment: .leading)
       .premiumMoodCard(color: moodColor, isPremium: isPremium, scheme: scheme)
+      .onAppear {
+        if memory.userID == auth.userID {
+          hasLiked = true
+          memory.likes = memory.likes == 0 ? 1 : memory.likes
+        }
+      }
   }
 }
 
@@ -45,7 +52,23 @@ private extension MemoryRow {
   var privacyBadgeRow: some View {
     Group {
       if canEditPrivacy {
-        HStack { Spacer(); PrivacyBadge(isPublic: $memory.isPublic) }
+        HStack {
+          Spacer()
+          PrivacyBadge(isPublic: $memory.isPublic)
+            .disabled(isUpdatingPrivacy) // temporarily lock toggle
+            .onChange(of: memory.isPublic) { _, newValue in
+              guard !isUpdatingPrivacy else { return }
+              isUpdatingPrivacy = true
+              Task {
+                do {
+                  try await MemoryService.updatePrivacy(for: memory, isPublic: newValue)
+                } catch {
+                  print("⚠️ Failed to update privacy:", error)
+                }
+                isUpdatingPrivacy = false
+              }
+            }
+        }
       }
     }
   }
@@ -219,24 +242,16 @@ private extension MemoryRow {
   }
   
   var commentButton: some View {
-    Group {
-      if isPremium {
-        Button {
-          // Comment action (hook later)
-        } label: {
-          Image(systemName: "text.bubble.fill")
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .background(Capsule().fill(moodColor.opacity(0.18)))
-            .foregroundStyle(moodColor)
-        }
-        .buttonStyle(.plain)
-      } else {
-        Button { } label: {
-          Image(systemName: "text.bubble")
-            .foregroundStyle(moodColor)
-        }
-        .buttonStyle(.plain)
-      }
+    NavigationLink {
+      CommentThreadView(memory: memory)
+    } label: {
+      Image(systemName: "text.bubble.fill")
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Capsule().fill(moodColor.opacity(0.18)))
+        .foregroundStyle(moodColor)
     }
+    .buttonStyle(.plain)
+    
   }
 }

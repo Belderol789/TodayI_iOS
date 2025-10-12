@@ -65,6 +65,12 @@ struct MemoryService {
     
     // NEW: bump global mood tally for that day in top-level "moods/{dayKey}"
     try await incrementDailyMoodTally(for: memory, db: db)
+    try await MemoryService.ensureCommentsHub(
+      memoryID: memory.id,
+      ownerID: memory.userID,
+      isPublic: memory.isPublic,
+      dayKey: dayKey
+    )
   }
   
   private static func assertMemoryPayload(_ m: MemoryModel) {
