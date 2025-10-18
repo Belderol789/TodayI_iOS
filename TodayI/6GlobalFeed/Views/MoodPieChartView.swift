@@ -14,8 +14,12 @@ struct MoodPieChart: View {
   
   var body: some View {
     VStack(spacing: 8) {
+      Text(Date().formatted("MMM d"))
+        .font(.headline.weight(.semibold))
+        .multilineTextAlignment(.center)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .center)
       Header(title: title)
-      
       ZStack {
         if total == 0 {
           EmptyState {
@@ -62,7 +66,7 @@ private struct Header: View {
   
   var body: some View {
     Text(title)
-      .font(.title3).fontWeight(.semibold)
+      .font(.title3).fontWeight(.bold)
       .multilineTextAlignment(.center)
       .foregroundStyle(.primary)
       .frame(maxWidth: .infinity, alignment: .center)

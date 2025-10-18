@@ -69,5 +69,34 @@ extension MemoryService {
       "updatedAt": FieldValue.serverTimestamp()
     ])
   }
-  
+}
+
+extension MemoryService {
+  /// Deletes a specific comment and decrements the count in its hub.
+  /// Path: comments/{memoryID}/comments/{commentID}
+  static func deleteComment(
+    memoryID: String,
+    commentID: String,
+    db: Firestore = .firestore()
+  ) async throws {
+    guard let uid = Auth.auth().currentUser?.uid else {
+      throw NSError(domain: "Auth", code: 401, userInfo: [NSLocalizedDescriptionKey: "Not signed in"])
+    }
+    
+    let commentRef = db
+      .collection("comments")
+      .document(memoryID)
+      .collection("comments")
+      .document(commentID)
+    
+    // Optional: sanity check it exists and is yours (helps with clearer client logs)
+    let snap = try await commentRef.getDocument()
+    guard let data = snap.data(),
+          let owner = data["userID"] as? String,
+          owner == uid else {
+      throw NSError(domain: "Rules", code: 403, userInfo: [NSLocalizedDescriptionKey: "Not the author or missing doc"])
+    }
+    
+    try await commentRef.delete()
+  }
 }

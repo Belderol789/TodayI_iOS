@@ -4,6 +4,10 @@ import FirebaseFirestore
 struct CommentThreadView: View {
   let memory: MemoryModel
   @StateObject private var vm: CommentThreadViewModel
+  @Environment(\.swiftDataManager) private var swiftManager
+  @EnvironmentObject private var auth: AuthStore
+  
+  @State private var blockedUserIDs: Set<String> = []
   
   init(memory: MemoryModel) {
     self.memory = memory
@@ -12,50 +16,115 @@ struct CommentThreadView: View {
   
   var body: some View {
     VStack(spacing: 0) {
-      // 🧠 MemoryRow at the top
-      ScrollViewReader { proxy in
-        ScrollView {
-          VStack(spacing: 16) {
-            // Show the post itself
-            MemoryRow(memory: memory)
-              .padding(.horizontal)
-              .padding(.top, 8)
-            
-            Divider()
-            
-            // Comments Section
-            if vm.isLoading {
-              ProgressView("Loading comments…")
-                .padding(.top, 40)
-            } else if vm.comments.isEmpty {
-              Text("No comments yet.")
-                .foregroundStyle(.secondary)
-                .padding(.top, 40)
-            } else {
-              ForEach(vm.comments) { comment in
-                CommentRow(comment: comment)
-                  .padding(.horizontal)
-                  .padding(.vertical, 4)
-              }
-            }
-          }
-        }
-      }
-      
+      scrollArea
       Divider()
-      
-      // Input bar at the bottom
       commentBox
     }
     .navigationTitle("Comments")
     .navigationBarTitleDisplayMode(.inline)
-    .task { await vm.loadComments() }
+    .task {
+      await vm.loadComments()
+      if let manager = swiftManager {
+        blockedUserIDs = Set(manager.fetchBlockedUsers())
+      }
+    }
+    .onChange(of: swiftManager?.fetchBlockedUsers() ?? []) { latest in
+      blockedUserIDs = Set(latest)
+    }
+  }
+}
+
+// MARK: - Subviews
+
+private extension CommentThreadView {
+  @ViewBuilder
+  var scrollArea: some View {
+    ScrollViewReader { _ in
+      ScrollView {
+        VStack(spacing: 16) {
+          MemoryRow(memory: memory)
+            .padding(.horizontal)
+            .padding(.top, 8)
+          
+          Divider()
+          
+          commentsSection
+        }
+      }
+    }
   }
   
-  private var commentBox: some View {
-    // MARK: - Comment Input Bar
+  @ViewBuilder
+  var commentsSection: some View {
+    if vm.isLoading {
+      ProgressView("Loading comments…")
+        .padding(.top, 40)
+    } else {
+      let visible = visibleComments
+      if visible.isEmpty {
+        Text("No comments yet.")
+          .foregroundStyle(.secondary)
+          .padding(.top, 40)
+      } else {
+        commentsList(visible)
+      }
+    }
+  }
+  
+  @ViewBuilder
+  func commentsList(_ comments: [CommentDTO]) -> some View {
+    ForEach(comments) { comment in
+      commentRow(for: comment)
+        .padding(.horizontal)
+        .padding(.vertical, 4)
+    }
+  }
+  
+  @ViewBuilder
+  func commentRow(for comment: CommentDTO) -> some View {
+    // Avoid force-unwrapping the manager; if missing, pass a stub or early-exit
+    if let manager = swiftManager {
+      CommentRow(
+        memoryID: memory.id,
+        comment: comment,
+        dataManager: manager,
+        auth: auth,
+        onDeleted: handleDeleted(id:),
+        onBlocked: handleBlocked(userID:)
+      )
+    } else {
+      EmptyView()
+    }
+  }
+}
+
+// MARK: - Actions
+
+private extension CommentThreadView {
+  func handleDeleted(id: String) {
+    if let idx = vm.comments.firstIndex(where: { $0.id == id }) {
+      vm.comments.remove(at: idx)
+    }
+  }
+  
+  func handleBlocked(userID: String) {
+    blockedUserIDs.insert(userID)
+  }
+}
+
+// MARK: - Derived
+
+private extension CommentThreadView {
+  var visibleComments: [CommentDTO] {
+    vm.comments.filter { !blockedUserIDs.contains($0.userID) }
+  }
+}
+
+// MARK: - Input Bar (unchanged from your version)
+
+private extension CommentThreadView {
+  var commentBox: some View {
     HStack(alignment: .center, spacing: 8) {
-      // Expanding TextEditor
       ZStack(alignment: .topLeading) {
         if vm.newComment.isEmpty {
           Text("Add a comment…")
@@ -65,13 +134,12 @@ struct CommentThreadView: View {
             .allowsHitTesting(false)
         }
         
-        // TextEditor that grows with content
         TextEditor(text: $vm.newComment)
           .scrollContentBackground(.hidden)
           .background(.clear)
           .padding(.vertical, 8)
           .padding(.horizontal, 8)
-          .frame(minHeight: 36, maxHeight: 120) // adjust as needed
+          .frame(minHeight: 36, maxHeight: 120)
           .clipShape(RoundedRectangle(cornerRadius: 12))
           .overlay(
             RoundedRectangle(cornerRadius: 12)
@@ -93,5 +161,4 @@ struct CommentThreadView: View {
     .padding(.vertical, 10)
     .background(.ultraThinMaterial)
   }
-  
 }
