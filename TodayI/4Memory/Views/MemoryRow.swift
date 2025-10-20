@@ -94,20 +94,8 @@ private extension MemoryRow {
       Text("TodayI felt")
         .font(.subheadline.bold())
         .foregroundStyle(.secondary)
-      
       moodChip
-      
       Spacer(minLength: 0)
-      
-      Menu {
-        Button("Edit") { /* hook up later */ }
-        Button("Delete", role: .destructive) { /* hook up later */ }
-      } label: {
-        Image(systemName: "ellipsis.circle")
-          .imageScale(.large)
-          .foregroundStyle(.secondary)
-      }
-      .simultaneousGesture(TapGesture().onEnded { onMore?() })
     }
     .padding(.vertical, 8)
     .padding(.horizontal, 12)
@@ -198,6 +186,7 @@ private extension MemoryRow {
     HStack(spacing: 16) {
       likeButton
       commentButton
+        .frame(width: 60)
       Spacer()
       PremiumPill(isPremium: isPremium)
     }
@@ -252,6 +241,5 @@ private extension MemoryRow {
         .foregroundStyle(moodColor)
     }
     .buttonStyle(.plain)
-    
   }
 }

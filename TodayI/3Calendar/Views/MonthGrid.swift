@@ -33,7 +33,7 @@ struct MonthGrid: View {
         return idx < gridDates.count ? idx : nil
       }
       let isDisabled: (Date) -> Bool = { date in
-        let key = date.startOfDay
+        let key = date.today
         let isPast = key < todayKey
         let hasModel = modelByDate[key] != nil
         return isPast && !hasModel
@@ -80,7 +80,7 @@ struct MonthGrid: View {
             if let date = dateOpt {
               let dayNum = cal.component(.day, from: date)
               let isToday = cal.isDateInToday(date)
-              let key = date.startOfDay
+              let key = date.today
               let hasModel = modelByDate[key] != nil
               let disabled = isDisabled(date)
               let showsGlow = (hoveredIndex == idx || isToday) && !disabled

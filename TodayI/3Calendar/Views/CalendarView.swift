@@ -49,24 +49,12 @@ struct CalendarView: View {
   
   // MARK: - Local year load (SwiftData only)
   private func loadYear(_ year: Int) async {
-    var cal = Calendar(identifier: .gregorian)
-    cal.timeZone = .current
-    let start = cal.date(from: DateComponents(year: year, month: 1, day: 1))!
-    let end   = cal.date(byAdding: .year, value: 1, to: start)!
-    
-    let descriptor = FetchDescriptor<DateModel>(
-      predicate: #Predicate { $0.date >= start && $0.date < end },
-      sortBy: [SortDescriptor(\.date, order: .forward)]
-    )
-    
+    guard let swiftManager else { return }
     do {
-      let rows = try context.fetch(descriptor)
-      
+      let rows = try swiftManager.fetchDateModels(inYear: year)
       await MainActor.run {
-        // ✅ Set once: only assign if not yet initialized
-        // or if the current models are from a *different year*
-        if yearModels.isEmpty ||
-            (yearModels.first?.date.year ?? 0) != year {
+        // Assign only if first time or switching years
+        if yearModels.isEmpty || (yearModels.first?.date.year ?? 0) != year {
           yearModels = rows
         }
       }

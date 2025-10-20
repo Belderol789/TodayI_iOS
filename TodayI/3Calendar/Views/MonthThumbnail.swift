@@ -29,7 +29,7 @@ struct MonthThumbnail: View {
       LazyVGrid(columns: cols, spacing: 2) {
         ForEach(gridDates.indices, id: \.self) { i in
           let d = gridDates[i]
-          let color = d.flatMap { colorByDate[$0.startOfDay] }
+          let color = d.flatMap { colorByDate[$0.today] }
           
           Circle()
             .fill(color ?? Color.gray.opacity(0.15))  // ← mood color per day

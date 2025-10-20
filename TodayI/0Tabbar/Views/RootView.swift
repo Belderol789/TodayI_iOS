@@ -10,7 +10,7 @@ struct RootView: View {
       ZStack {
         switch selection {
         case .home:
-          Text("🏠 Home").font(.largeTitle.bold())
+          HomeView()
         case .calendar:
           CalendarView() // your existing calendar
         case .create:

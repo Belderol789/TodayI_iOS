@@ -26,7 +26,7 @@ struct MemoryContainer: View {
       contentView
         .navigationTitle(titleText)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { toolbarContent }
+        .toolbar { }
     }
     .task {
       // Optional: show a spinner while we check/fetch

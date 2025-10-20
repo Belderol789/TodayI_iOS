@@ -16,7 +16,7 @@ final class MemoryModel {
   var likes: Int
   
   // Media (separated cleanly)
-  var localImagePaths: [String]       // device file paths before upload
+  var localImageNames: [String]       // device file paths before upload
   var remoteImagePaths: [String]      // Firebase Storage URLs after upload
   var videoLocalPath: String?         // device file path for trimmed video
   var videoRemoteURL: String?         // Firebase Storage URL for video
@@ -47,7 +47,7 @@ final class MemoryModel {
     mood: Mood,
     journalText: String,
     likes: Int,
-    localImagePaths: [String] = [],
+    localImageNames: [String] = [],
     remoteImagePaths: [String] = [],
     videoLocalPath: String? = nil,
     videoRemoteURL: String? = nil,
@@ -64,7 +64,7 @@ final class MemoryModel {
     self.moodRaw = mood.rawValue
     self.journalText = journalText
     self.likes = likes
-    self.localImagePaths = localImagePaths
+    self.localImageNames = localImageNames
     self.remoteImagePaths = remoteImagePaths
     self.videoLocalPath = videoLocalPath
     self.videoRemoteURL = videoRemoteURL
@@ -112,7 +112,7 @@ extension MemoryModel {
         mood: Mood(rawValue: dto.mood) ?? .neutral,
         journalText: dto.journalText,
         likes: dto.likes,
-        localImagePaths: [],
+        localImageNames: [],
         remoteImagePaths: dto.remoteImagePaths,
         videoLocalPath: nil,                    // 👈 stays nil from DTO
         videoRemoteURL: dto.videoRemoteURL,     // 👈
@@ -132,13 +132,15 @@ extension MemoryModel {
 extension MemoryModel {
   // Prefer local images; fall back to remotes
   var imageSources: [MediaSource] {
-    if !localImagePaths.isEmpty {
-      return localImagePaths.map { .localImage(path: $0) }
-    } else {
-      return remoteImagePaths
-        .compactMap(URL.init(string:))
-        .map { .remoteImage(url: $0) }
+    let validLocal = localImagePaths.filter { path in
+      // If it's an absolute path and exists, keep it
+      if FileManager.default.fileExists(atPath: path) { return true }
+      return false
     }
+    if !validLocal.isEmpty {
+      return validLocal.map { .localImage(path: $0) }
+    }
+    return remoteImagePaths.compactMap(URL.init(string:)).map { .remoteImage(url: $0) }
   }
   
   // Prefer local video; fall back to remote
@@ -150,5 +152,14 @@ extension MemoryModel {
       return .remoteVideo(url: u)
     }
     return nil
+  }
+  
+  @Transient
+  var localImagePaths: [String] {
+    localImageNames.compactMap { filename in
+      let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+        .appendingPathComponent("memories", isDirectory: true)
+      return dir?.appendingPathComponent(filename).path
+    }
   }
 }

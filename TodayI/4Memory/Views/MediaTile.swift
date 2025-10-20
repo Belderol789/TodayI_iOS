@@ -11,12 +11,9 @@ struct MediaTile: View {
   var body: some View {
     Group {
       switch source {
-        // Inside MediaTile
       case .localImage(let path):
         normalizedImage(
-          Image(path)                   // or LocalImageView(path: path)
-            .resizable()                // force resizable
-            .scaledToFill()             // fill the frame
+          FileImage(path: path, contentMode: .fill) // ✅ fill, no fixed frame
         )
         
       case .remoteImage(let url):
@@ -31,7 +28,7 @@ struct MediaTile: View {
             case .success(let img):
               img
                 .resizable()
-                .scaledToFill()     // ✅ ensures remote doesn’t expand to natural size
+                .scaledToFill() // ✅ fill container
             case .failure:
               placeholder
             @unknown default:
@@ -53,17 +50,14 @@ struct MediaTile: View {
   
   // MARK: - Normalizers
   
-  /// Ensures any image-like content fills width, has consistent height, and clips.
+  /// Ensures image-like content fills width, has consistent height, and clips.
   private func normalizedImage<Content: View>(_ content: Content) -> some View {
-    ZStack {
-      content
-    }
-    .frame(maxWidth: .infinity)       // fill horizontally
-    .frame(minHeight: minHeight,
-           maxHeight: 320)            // keep a sane vertical bound
-    .clipped()                        // prevent overflow
-    .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-    .onTapGesture { onTap?() }
+    ZStack { content }                       // content must be resizable (it is)
+      .frame(maxWidth: .infinity)            // fill horizontally
+      .frame(minHeight: minHeight)           // consistent height
+      .clipped()                             // crop overflow (for .fill)
+      .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+      .onTapGesture { onTap?() }
   }
   
   /// Ensures videos get the same footprint as images.
@@ -75,6 +69,8 @@ struct MediaTile: View {
     )
     .frame(maxWidth: .infinity)
     .frame(minHeight: minHeight)
+    .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    .onTapGesture { onTap?() }
   }
   
   private var placeholder: some View {
@@ -85,6 +81,22 @@ struct MediaTile: View {
         .scaledToFit()
         .padding(24)
         .foregroundStyle(.secondary)
+    }
+  }
+}
+
+// MARK: - Local file image loader
+private struct FileImage: View {
+  let path: String
+  var contentMode: ContentMode = .fill
+  
+  var body: some View {
+    if let ui = UIImage(contentsOfFile: path) {
+      Image(uiImage: ui)
+        .resizable()
+        .aspectRatio(contentMode: contentMode) // .fill by default
+    } else {
+      Color.secondary.opacity(0.1) // fallback
     }
   }
 }

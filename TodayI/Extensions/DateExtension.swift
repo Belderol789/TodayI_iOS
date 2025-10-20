@@ -20,7 +20,7 @@ extension Date {
     String(Calendar.current.component(.day, from: self))
   }
   
-  var startOfDay: Date {
+  var today: Date {
     Calendar.current.startOfDay(for: self)
   }
   

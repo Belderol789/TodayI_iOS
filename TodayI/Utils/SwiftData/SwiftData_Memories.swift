@@ -24,6 +24,12 @@ extension SwiftDataManager {
     let rows = try context.fetch(fetch)
     return store.isPremium ? rows : (rows.last.map { [$0] } ?? [])
   }
+  
+  func fetchAllMemories() throws -> [MemoryModel] {
+    let fetch = FetchDescriptor<MemoryModel>()
+    return try context.fetch(fetch)
+  }
+  
 }
 
 // MARK: - PostPayload
@@ -49,6 +55,8 @@ extension SwiftDataManager {
     return model
   }
   
+  
+  
   // MARK: - Local save (SwiftData)
   
   /// Saves to SwiftData immediately (images/videos to local cache, mood to DateModel, etc.)
@@ -71,9 +79,9 @@ extension SwiftDataManager {
     
     // Persist local images (offline cache)
     if !payload.images.isEmpty {
-      model.localImagePaths = try persistImagesToFiles(payload.images, dayKey: dayStartLocal)
+      model.localImageNames = try persistImagesToFiles(payload.images, dayKey: dayStartLocal)
     } else {
-      model.localImagePaths = []
+      model.localImageNames = []
     }
     
     // Persist local video (offline cache)
@@ -186,18 +194,17 @@ extension SwiftDataManager {
   private func persistImagesToFiles(_ picked: [PickedImage], dayKey: Date) throws -> [String] {
     let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
       .appendingPathComponent("memories", isDirectory: true)
-    
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     
-    var paths: [String] = []
+    var names: [String] = []
     for item in picked {
       guard let data = item.image.jpegData(compressionQuality: 0.85) else { continue }
       let name = "\(Int(dayKey.timeIntervalSince1970))-\(UUID().uuidString).jpg"
       let url = dir.appendingPathComponent(name)
       try data.write(to: url, options: .atomic)
-      paths.append(url.path)
+      names.append(name) // ✅ Just store name
     }
-    return paths
+    return names
   }
   
   private func persistVideoToFiles(_ originalURL: URL, dayKey: Date) throws -> String {
@@ -221,6 +228,7 @@ extension SwiftDataManager {
 
 // MARK: - MemoryDTO
 extension SwiftDataManager {
+  
   func importMemoriesIfNeeded(_ dtos: [MemoryDTO]) throws {
     for dto in dtos {
       // Build a typed fetch descriptor
@@ -232,20 +240,6 @@ extension SwiftDataManager {
       let existing: [MemoryModel] = try context.fetch(fetch)
       if existing.first == nil {
         _ = try MemoryModel.upsert(from: dto, in: context)
-      }
-    }
-    try context.save()
-  }
-  
-  func importDatesIfNeeded(_ dtos: [DateDTO]) throws {
-    for dto in dtos {
-      let fetch = FetchDescriptor<DateModel>(
-        predicate: #Predicate { $0.date == dto.date }
-      )
-      if try context.fetch(fetch).isEmpty {
-        let moods = dto.moodRaws.compactMap { Mood(rawValue: $0) }
-        let model = DateModel(date: dto.date, moods: moods)
-        context.insert(model)
       }
     }
     try context.save()
