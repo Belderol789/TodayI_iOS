@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9C54A1872EA7E81E00BE4D00 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9C54A1862EA7E81E00BE4D00 /* StoreKit.framework */; };
 		9C66581B2E6B2BC000354821 /* FirebaseAI in Frameworks */ = {isa = PBXBuildFile; productRef = 9C66581A2E6B2BC000354821 /* FirebaseAI */; };
 		9C66581D2E6B2BC000354821 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 9C66581C2E6B2BC000354821 /* FirebaseAnalytics */; };
 		9C66581F2E6B2BC000354821 /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9C66581E2E6B2BC000354821 /* FirebaseAnalyticsCore */; };
@@ -26,6 +27,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9C54A1862EA7E81E00BE4D00 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		9CBE3C572E68134D007D4772 /* TodayI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TodayI.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -56,6 +58,7 @@
 				9C6658332E6B2BC000354821 /* FirebaseFunctionsCombine-Community in Frameworks */,
 				9C6658272E6B2BC000354821 /* FirebaseAuthCombine-Community in Frameworks */,
 				9C66582B2E6B2BC000354821 /* FirebaseCrashlytics in Frameworks */,
+				9C54A1872EA7E81E00BE4D00 /* StoreKit.framework in Frameworks */,
 				9C6658292E6B2BC000354821 /* FirebaseCore in Frameworks */,
 				9C66581B2E6B2BC000354821 /* FirebaseAI in Frameworks */,
 			);
@@ -64,10 +67,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		9C54A1852EA7E81E00BE4D00 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				9C54A1862EA7E81E00BE4D00 /* StoreKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		9CBE3C4E2E68134D007D4772 = {
 			isa = PBXGroup;
 			children = (
 				9CBE3C592E68134D007D4772 /* TodayI */,
+				9C54A1852EA7E81E00BE4D00 /* Frameworks */,
 				9CBE3C582E68134D007D4772 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -303,12 +315,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TodayI/TodayI.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"TodayI/Preview Content\"";
 				DEVELOPMENT_TEAM = XUN95V9WDZ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = TodayI;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "TodayI needs permission to save images to your photo library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TodayI needs access to your photo library so you can attach memories.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -334,12 +348,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TodayI/TodayI.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"TodayI/Preview Content\"";
 				DEVELOPMENT_TEAM = XUN95V9WDZ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = TodayI;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "TodayI needs permission to save images to your photo library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TodayI needs access to your photo library so you can attach memories.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

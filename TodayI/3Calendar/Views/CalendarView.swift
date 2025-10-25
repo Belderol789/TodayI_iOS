@@ -12,6 +12,7 @@ struct CalendarView: View {
   @State private var refreshToken = UUID()
   @State private var isSyncing = false
   @State private var errorText: String?
+  @State private var showPremium = false
   
   var body: some View {
     NavigationStack {
@@ -19,17 +20,8 @@ struct CalendarView: View {
                     models: yearModels)
         .id(refreshToken) // remount when token changes (optional)
         .toolbar {
-          ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-              YearPicker(selectedYear: $selectedYear)
-            } label: {
-              Label("\(selectedYear)", systemImage: "calendar")
-            }
-          }
-          ToolbarItem(placement: .topBarTrailing) {
-            Button(entitlements.isPremium ? "Set Free" : "Set Premium") {
-              entitlements.isPremium.toggle()
-            }
+          PremiumPill(isPremium: entitlements.isPremium) {
+            showPremium = true        // 👈 trigger modal
           }
         }
     }
@@ -44,6 +36,13 @@ struct CalendarView: View {
     .refreshable {
       await forceRefreshDates()
       await loadYear(selectedYear)
+    }
+    .sheet(isPresented: $showPremium) {
+      PremiumView()
+        .presentationDetents([.large])                 // or [.fraction(0.9)]
+        .presentationDragIndicator(.visible)
+        .interactiveDismissDisabled(false)             // set to true if you want to force a choice
+        .presentationCornerRadius(20)                   // optional
     }
   }
   

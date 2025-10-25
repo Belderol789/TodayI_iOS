@@ -11,6 +11,7 @@ struct CreateMemoryView: View {
   @StateObject private var vm = CreateMemoryViewModel()
   
   @State private var showPreview = false
+  @State private var showPremium = false
   @State private var postedMemory: MemoryModel? = nil
   
   // MARK: - Body
@@ -22,12 +23,23 @@ struct CreateMemoryView: View {
       .navigationTitle("Create")
       .navigationBarTitleDisplayMode(.inline)
       .safeAreaInset(edge: .bottom) { postButton }     // ← single definition
-      .toolbar { premiumToggleButton }
+      .toolbar {
+        PremiumPill(isPremium: entitlements.isPremium) {
+          showPremium = true        // 👈 trigger modal
+        }
+      }
       .onAppear(perform: configureViewModel)
       .onChange(of: entitlements.isPremium) { _, new in vm.isPremium = new }
       .modifier(MediaPickers(vm: vm, entitlements: entitlements))
       .modifier(LinkAlert(vm: vm))
       .sheet(isPresented: $showPreview) { previewSheet }
+      .sheet(isPresented: $showPremium) {
+        PremiumView()
+          .presentationDetents([.large])                 // or [.fraction(0.9)]
+          .presentationDragIndicator(.visible)
+          .interactiveDismissDisabled(false)             // set to true if you want to force a choice
+          .presentationCornerRadius(20)                   // optional
+      }
     }
   }
   
@@ -62,7 +74,8 @@ struct CreateMemoryView: View {
         if let model = try swiftManager.savePostPayload(
           payload,
           userID: uid,
-          username: username
+          username: username,
+          authorPhotoURL: auth.photoURL
         ) as MemoryModel? {
           postedMemory = model
           showPreview = true

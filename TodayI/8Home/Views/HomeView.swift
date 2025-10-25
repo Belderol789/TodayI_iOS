@@ -1,10 +1,14 @@
 import SwiftUI
 
 struct HomeView: View {
+  
+  @EnvironmentObject private var entitlements: EntitlementStore
+  @EnvironmentObject private var auth: AuthStore
   @Environment(\.swiftDataManager) private var swiftManager
   @State private var memories: [MemoryModel] = []
-  @State private var navigateToCreate = false
   @State private var yearModels: [DateModel] = []
+  @State private var navigateToCreate = false
+  @State private var showSetting = false
   
   private var today: Date { Date().today }
   
@@ -14,7 +18,19 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 16) {
           
           // MARK: - Today
-          SectionTitleView(title: "Today's Memory", systemImage: "sun.max.fill")
+          HStack {
+            SectionTitleView(title: "Today's Memory", systemImage: "sun.max.fill")
+            Button {
+              showSetting = true
+              // Action here
+            } label: {
+              Label("Profile", systemImage: "person.crop.circle")
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+            }
+          }
           content
             .padding(.top, 4)
           
@@ -31,12 +47,22 @@ struct HomeView: View {
         CreateMemoryView()
       }
       .onAppear {
-        loadTodayMemories() // if sync
         Task {
           await loadYear(Date().year)
         }
       }
-      .navigationTitle("Today")
+      .onChange(of: auth.userID, { oldValue, newValue in
+        loadTodayMemories() // if sync
+      })
+      .sheet(isPresented: $showSetting) {
+        NavigationStack {
+          if auth.isRegisteredUser {
+            SettingsView()
+          } else {
+            AuthView()
+          }
+        }
+      }
     }
   }
 }
@@ -47,7 +73,7 @@ private extension HomeView {
   var content: some View {
     if memories.isEmpty {
       EmptyStateView(
-        message: "You don't have any memories yet",
+        message: "You don't have memories yet today",
         date: today,
         buttonTitle: "Create a Memory",
         onButtonTap: { navigateToCreate = true }
@@ -67,10 +93,11 @@ private extension HomeView {
 
 // MARK: - Load memories
 private extension HomeView {
+  
   func loadTodayMemories() {
     guard let swiftManager else { return }
     do {
-      memories = try swiftManager.loadMemories(for: Date())
+      memories = try swiftManager.loadMemories(for: Date(), userID: auth.userID ?? nil)
     } catch {
       print("❌ Failed to load memories: \(error.localizedDescription)")
       memories = []

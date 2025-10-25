@@ -1,19 +1,21 @@
 import SwiftUI
+import SwiftData
 
 struct MemoryRow: View {
   @Bindable var memory: MemoryModel
   var onMore: (() -> Void)? = nil
   var onTapImage: ((Int) -> Void)? = nil
+  var onBlockUser: ((String) -> Void)? = nil
   
   @EnvironmentObject private var auth: AuthStore
-  @Environment(\.modelContext) private var context
   @Environment(\.colorScheme) private var scheme
   @State private var hasLiked = false
   @State private var isUpdatingPrivacy = false
+  @State private var isBlocking = false
   
   // MARK: - Derived
   private var canEditPrivacy: Bool { auth.userID == memory.userID }
-  private var timeString: String { DateFormatter.shortDateFormatter.string(from: memory.date) }
+  private var timeString: String { DateFormatter.shortDateFormatter.string(from: memory.createdAt) }
   private var isPremium: Bool { memory.isPremium }
   private var moodColor: Color { memory.mood.adaptiveColor }
   
@@ -43,19 +45,20 @@ private extension MemoryRow {
       mediaSection
       actionRow
     }
+    .padding(.horizontal, 12)
   }
 }
 
 // MARK: - Subsections
 private extension MemoryRow {
-  // 0) Privacy badge (owner only)
+  // 0) Privacy badge (owner only) OR More menu (others)
   var privacyBadgeRow: some View {
     Group {
-      if canEditPrivacy {
-        HStack {
-          Spacer()
+      HStack {
+        Spacer()
+        if canEditPrivacy {
           PrivacyBadge(isPublic: $memory.isPublic)
-            .disabled(isUpdatingPrivacy) // temporarily lock toggle
+            .disabled(isUpdatingPrivacy)
             .onChange(of: memory.isPublic) { _, newValue in
               guard !isUpdatingPrivacy else { return }
               isUpdatingPrivacy = true
@@ -68,6 +71,27 @@ private extension MemoryRow {
                 isUpdatingPrivacy = false
               }
             }
+        } else {
+          Menu {
+            Button(role: .destructive) {
+              guard !isBlocking else { return }
+              isBlocking = true
+              Task { @MainActor in
+                defer { isBlocking = false }
+                onBlockUser?(memory.userID)            // ⬅️ instantly purge from UI
+              }
+            } label: {
+              Label("Block @\(memory.username)", systemImage: "hand.raised.fill")
+            }
+          } label: {
+            Image(systemName: "ellipsis.circle")
+              .imageScale(.large)
+              .symbolRenderingMode(.hierarchical)
+              .foregroundStyle(memory.mood.adaptiveColor)
+              .padding(.vertical, 4)
+          }
+          .disabled(isBlocking)
+          .animation(.default, value: isBlocking)
         }
       }
     }
@@ -76,12 +100,35 @@ private extension MemoryRow {
   // 2) Username + date
   var userDateRow: some View {
     HStack {
-      if isPremium {
+      if memory.isPremium,
+         let urlString = memory.remoteProfilePhotoURL,
+         let url = URL(string: urlString) {
+        AsyncImage(url: url) { phase in
+          switch phase {
+          case .success(let image):
+            image
+              .resizable()
+              .scaledToFill()
+              .frame(width: 20, height: 20)
+              .clipShape(Circle())
+          case .failure:
+            MoodIcon(mood: memory.mood, size: 20).opacity(0.9)
+          case .empty:
+            ProgressView()
+              .frame(width: 20, height: 20)
+          @unknown default:
+            MoodIcon(mood: memory.mood, size: 20).opacity(0.9)
+          }
+        }
+      } else {
         MoodIcon(mood: memory.mood, size: 20).opacity(0.9)
       }
+      
       Text("@\(memory.username)")
         .font(.subheadline.weight(.semibold))
+      
       Spacer()
+      
       Text(timeString)
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -154,28 +201,53 @@ private extension MemoryRow {
   }
   
   // 4) Media (video -> images -> link)
+  // MARK: - 4) Media (video → images → link)
   @ViewBuilder
   var mediaSection: some View {
+    let cornerRadius: CGFloat = 14
+    let cardPadding: CGFloat = 14
+    
     if let video = memory.videoSource {
-      MediaTile(source: video, cornerRadius: 14, minHeight: 220)
-        .frame(maxWidth: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: isPremium ? moodColor.opacity(0.12) : .clear, radius: isPremium ? 10 : 0, x: 0, y: 6)
+      // --- VIDEO TILE ---
+      Color.clear
+        .frame(height: 220) // reserve layout height
+        .overlay {
+          MediaTile(source: video, cornerRadius: cornerRadius, minHeight: 220)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(color: isPremium ? moodColor.opacity(0.12) : .clear,
+                    radius: isPremium ? 10 : 0, x: 0, y: 6)
+            .padding(.horizontal, -cardPadding) // visual bleed
+        }
+        .clipped() // ⛔ clamp any overflow to the row’s bounds
       
     } else if !memory.imageSources.isEmpty {
-      MediaBlock(sources: memory.imageSources, onTap: onTapImage)
-        .frame(maxWidth: .infinity)
-        .shadow(color: isPremium ? moodColor.opacity(0.12) : .clear, radius: isPremium ? 10 : 0, x: 0, y: 6)
+      // --- IMAGE BLOCK ---
+      // If your MediaBlock has dynamic height, replace 220 with that value.
+      Color.clear
+        .frame(height: 220)
+        .overlay {
+          MediaBlock(sources: memory.imageSources, onTap: onTapImage)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(color: isPremium ? moodColor.opacity(0.12) : .clear,
+                    radius: isPremium ? 10 : 0, x: 0, y: 6)
+            .padding(.horizontal, -cardPadding) // visual bleed
+        }
+        .clipped() // ⛔ clamp bleed so it can’t extend past the body
       
     } else if let urlString = memory.linkURL,
               !urlString.isEmpty,
               let url = URL(string: urlString) {
+      // --- LINK PREVIEW (no bleed needed) ---
       Link(destination: url) {
         LinkPreviewView(url: url)
           .frame(maxWidth: .infinity, alignment: .leading)
           .frame(height: 160)
-          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-          .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+          .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+          .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+          .shadow(color: isPremium ? moodColor.opacity(0.12) : .clear,
+                  radius: isPremium ? 10 : 0, x: 0, y: 6)
       }
       .buttonStyle(.plain)
     }

@@ -1,9 +1,23 @@
 import SwiftUI
+import SwiftData
 
 struct GlobalFeedView: View {
+  @EnvironmentObject private var entitlements: EntitlementStore
+  @EnvironmentObject private var auth: AuthStore
+  @Environment(\.swiftDataManager) private var swiftManager
+  
   @StateObject private var vm: GlobalFeedViewModel
   @Binding var tabSelection: AppTab
-  @EnvironmentObject private var entitlements: EntitlementStore
+  @State private var showPremium = false
+
+  // ⬇️ NEW: filter the rows you show
+  // GlobalFeedView
+  @Query private var blockedLists: [BlockedUserList]
+  private var blockedIDs: Set<String> { Set(blockedLists.first?.users ?? []) }
+  
+  private var visibleRows: [MemoryDTO] {
+    vm.rows.filter { !blockedIDs.contains($0.userID) }
+  }
   
   init(tabSelection: Binding<AppTab>, day: Date = Date()) {
     _vm = StateObject(wrappedValue: GlobalFeedViewModel(day: day))
@@ -13,16 +27,20 @@ struct GlobalFeedView: View {
   var body: some View {
     List {
       Section {
-        // Use Firestore tallies if available; fall back to local
         MoodSummaryCard(
           slices: vm.globalMoodSlices.isEmpty ? vm.moodSlices : vm.globalMoodSlices,
           total: vm.globalMoodTotal > 0 ? vm.globalMoodTotal : vm.totalMoodsCount,
           tabSelection: $tabSelection
         )
         
+        // ⬇️ pass the filtered rows + a closure to react to a block
         FeedRows(
-          rows: vm.rows,
-          onNearEnd: { Task { await vm.loadMore() } }
+          rows: visibleRows,
+          onNearEnd: { Task { await vm.loadMore() } },
+          onBlockUser: { userID in
+            // 1) instant UI update
+            swiftManager?.addBlockedUser(userID)
+          }
         )
         
         FooterState(
@@ -39,34 +57,27 @@ struct GlobalFeedView: View {
     .navigationTitle("Global")
     .navigationBarTitleDisplayMode(.inline)
     .scrollContentBackground(.hidden)
-    .toolbar { dataSourceToolbar }
-    // Load feed + mood tally together
-    .task { await vm.refresh() }
-    .refreshable { await vm.refresh() }
-  }
-  
-  // MARK: - Toolbar
-  
-  @ToolbarContentBuilder
-  private var dataSourceToolbar: some ToolbarContent {
-    ToolbarItem(placement: .topBarTrailing) {
-      Menu {
-        Button("Load Firebase") {
-          vm.useTestData = false
-          Task { await vm.refresh() }
-        }
-        Button("Load Test Data") {
-          vm.useTestData = true
-          Task { await vm.refresh() }
-        }
-      } label: {
-        Label("Data Source", systemImage: "ellipsis.circle")
+    .toolbar {
+      PremiumPill(isPremium: entitlements.isPremium) {
+        showPremium = true
+      }
+      Button("Test Feed") {
+        vm.useTestData = true
+        Task { await vm.refresh() }
       }
     }
-    ToolbarItem(placement: .topBarTrailing) {
-      Button(entitlements.isPremium ? "Set Free" : "Set Premium") {
-        entitlements.isPremium.toggle()
-      }
+    // load feed + mood tally + blocked list
+    .task {
+    }
+    .refreshable {
+      await vm.refresh()
+    }
+    .sheet(isPresented: $showPremium) {
+      PremiumView()
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .interactiveDismissDisabled(false)
+        .presentationCornerRadius(20)
     }
   }
 }
@@ -100,11 +111,12 @@ private struct MoodSummaryCard: View {
 private struct FeedRows: View {
   let rows: [MemoryDTO]
   let onNearEnd: () -> Void
+  let onBlockUser: (String) -> Void
   
   var body: some View {
     ForEach(rows, id: \.id) { dto in
-      GlobalMemoryRow(dto: dto)
-        .padding(.vertical, 8)
+      GlobalMemoryRow(dto: dto, onBlockUser: onBlockUser)
+        .padding(8)
         .listRowInsets(EdgeInsets())
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)

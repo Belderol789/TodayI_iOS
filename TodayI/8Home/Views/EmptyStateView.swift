@@ -8,12 +8,12 @@ struct EmptyStateView: View {
   
   var body: some View {
     VStack(spacing: 12) {
-      Text(formattedDate)
-        .font(.subheadline)
-        .foregroundColor(.secondary)
       Text(message)
         .font(.headline)
         .multilineTextAlignment(.center)
+      Text(formattedDate)
+        .font(.subheadline)
+        .foregroundColor(.secondary)
         .padding(.horizontal)
       Button(action: onButtonTap) {
         Text(buttonTitle)

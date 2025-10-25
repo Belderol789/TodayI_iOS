@@ -21,7 +21,7 @@ struct RootView: View {
             day: Date()
           )
         case .notifications:
-          Text("🔔 Notifications").font(.largeTitle.bold())
+          NotificationView()
         }
       }
       .navigationBarTitleDisplayMode(.inline)

@@ -3,13 +3,14 @@ import SwiftUI
 struct GlobalMemoryRow: View {
   let dto: MemoryDTO
   @Environment(\.modelContext) private var context
-  
   @State private var model: MemoryModel?
+  
+  var onBlockUser: ((String) -> Void)?   // ⬅️ NEW
   
   var body: some View {
     Group {
       if let model {
-        MemoryRow(memory: model)
+        MemoryRow(memory: model, onBlockUser: onBlockUser)
       } else {
         ProgressView().frame(height: 120)
       }

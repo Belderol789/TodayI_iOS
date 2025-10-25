@@ -12,12 +12,24 @@ import Foundation
 extension SwiftDataManager {
   /// Load memories for a given date.
   /// Premium => all; Free => only the latest
-  func loadMemories(for date: Date) throws -> [MemoryModel] {
+  func loadMemories(for date: Date, userID: String?) throws -> [MemoryModel] {
     let cal = Calendar.current
     let key = cal.startOfDay(for: date)
     
+    let predicate: Predicate<MemoryModel>
+    
+    if let id = userID, !id.isEmpty {
+      predicate = #Predicate {
+        $0.date == key && $0.userID == id
+      }
+    } else {
+      predicate = #Predicate {
+        $0.date == key
+      }
+    }
+    
     let fetch = FetchDescriptor<MemoryModel>(
-      predicate: #Predicate { $0.date == key },
+      predicate: predicate,
       sortBy: [SortDescriptor(\.createdAt, order: .forward)]
     )
     
@@ -39,9 +51,10 @@ extension SwiftDataManager {
   func savePostPayload(_ payload: PostPayload,
                        userID: String,
                        username: String,
+                       authorPhotoURL: String?,
                        for day: Date = .now) throws -> MemoryModel {
     // 1) Save locally (SwiftData) first
-    let (model, dto, dayStartLocal) = try saveToSwiftData(payload, userID: userID, username: username, day: day)
+    let (model, dto, dayStartLocal) = try saveToSwiftData(payload, userID: userID, username: username, authorPhotoURL: authorPhotoURL, day: day)
     
     // 2) Kick off background upload to Firebase (private)
     Task {
@@ -64,6 +77,7 @@ extension SwiftDataManager {
   private func saveToSwiftData(_ payload: PostPayload,
                                userID: String,
                                username: String,
+                               authorPhotoURL: String?,
                                day: Date) throws -> (MemoryModel, MemoryDTO, Date) {
     let authorTZ = TimeZone.current
     let dayStartLocal = day.startOfDay(in: authorTZ)
@@ -72,6 +86,7 @@ extension SwiftDataManager {
     let dto = MemoryDTO(payload: payload,
                         userID: userID,
                         username: username,
+                        authorPhotoURL: authorPhotoURL,
                         day: day)
     
     // Upsert into SwiftData

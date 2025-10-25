@@ -18,7 +18,15 @@ struct CommentThreadView: View {
     VStack(spacing: 0) {
       scrollArea
       Divider()
-      commentBox
+      Group {
+        if auth.isGuest {
+          AuthRequiredView {
+            // later: present SignUpView() or upgrade flow
+          }
+        } else {
+          commentBox
+        }
+      }
     }
     .navigationTitle("Comments")
     .navigationBarTitleDisplayMode(.inline)
@@ -28,7 +36,7 @@ struct CommentThreadView: View {
         blockedUserIDs = Set(manager.fetchBlockedUsers())
       }
     }
-    .onChange(of: swiftManager?.fetchBlockedUsers() ?? []) { latest in
+    .onChange(of: swiftManager?.fetchBlockedUsers() ?? []) { _, latest in
       blockedUserIDs = Set(latest)
     }
   }

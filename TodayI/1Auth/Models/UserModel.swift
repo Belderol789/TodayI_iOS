@@ -8,6 +8,7 @@ final class UserModel {
   var email: String?
   var isAnonymous: Bool
   var photoURL: String?
+  var localPhotoPath: String? // ✅ NEW: Local cached version
   var createdAt: Date
   var updatedAt: Date
   
@@ -25,5 +26,18 @@ final class UserModel {
     self.photoURL = photoURL
     self.createdAt = createdAt
     self.updatedAt = updatedAt
+  }
+}
+
+extension UserModel {
+  @Transient
+  var resolvedPhotoURL: URL? {
+    if let local = localPhotoPath {
+      return URL(fileURLWithPath: local)
+    }
+    if let remote = photoURL {
+      return URL(string: remote)
+    }
+    return nil
   }
 }

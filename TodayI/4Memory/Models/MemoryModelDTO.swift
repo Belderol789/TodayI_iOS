@@ -11,8 +11,11 @@ struct MemoryDTO: Codable {
   
   // media
   var remoteImagePaths: [String]
-  var videoRemoteURL: String?      // 👈 NEW
-  var linkURL: String?             // 👈 NEW
+  var videoRemoteURL: String?
+  var linkURL: String?
+  
+  // ✅ New
+  var authorPhotoURL: String?   // Remote URL only
   
   let isPublic: Bool
   let isPremium: Bool
@@ -25,6 +28,7 @@ struct MemoryDTO: Codable {
   enum CodingKeys: String, CodingKey {
     case id, username, userID, date, mood, journalText, likes,
          remoteImagePaths, videoRemoteURL, linkURL,
+         authorPhotoURL,     // ✅ included here
          isPublic, isPremium, createdAt, updatedAt, authorTZ, dayKey
   }
 }
@@ -39,21 +43,22 @@ extension MemoryDTO {
     self.journalText = model.journalText
     self.likes = model.likes
     self.remoteImagePaths = model.remoteImagePaths
-    self.videoRemoteURL = model.videoRemoteURL       // 👈
-    self.linkURL = model.linkURL                     // 👈
+    self.videoRemoteURL = model.videoRemoteURL
+    self.linkURL = model.linkURL
+    self.authorPhotoURL = model.remoteProfilePhotoURL   // ✅ only remote version
     self.isPublic = model.isPublic
     self.isPremium = model.isPremium
     self.createdAt = model.createdAt
     self.updatedAt = model.updatedAt
-    
-    authorTZ = model.authorTZ
-    dayKey = model.dayKey
+    self.authorTZ = model.authorTZ
+    self.dayKey = model.dayKey
   }
   
-  init(payload: PostPayload, userID: String, username: String, day: Date) {
+  init(payload: PostPayload, userID: String, username: String, authorPhotoURL: String?, day: Date) {
     self.id = UUID().uuidString
     self.username = username
     self.userID = userID
+    self.authorPhotoURL = authorPhotoURL  // or pass current user's photoURL if available
     self.date = day.startOfDay(in: TimeZone.current)
     self.mood = payload.mood.rawValue
     self.journalText = payload.text

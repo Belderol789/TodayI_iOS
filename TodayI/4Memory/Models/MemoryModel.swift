@@ -5,26 +5,30 @@ import SwiftData
 final class MemoryModel {
   // Identity
   @Attribute(.unique) var id: String
-  
-  var userID: String                  // who owns this memory
+  var userID: String
   var username: String
+  
+  // NEW: Profile Photo (Optional)
+  var remoteProfilePhotoURL: String?     // ✅ URL from Firestore/DTO
+  var localProfilePhotoPath: String?     // ✅ Optional cached image path
+  
   var date: Date
-  var authorTZ: String           // e.g. "Asia/Manila"
-  var dayKey: String       // only if you want a UTC feed later
+  var authorTZ: String
+  var dayKey: String
   private(set) var moodRaw: String
+  
   var journalText: String
   var likes: Int
   
-  // Media (separated cleanly)
-  var localImageNames: [String]       // device file paths before upload
-  var remoteImagePaths: [String]      // Firebase Storage URLs after upload
-  var videoLocalPath: String?         // device file path for trimmed video
-  var videoRemoteURL: String?         // Firebase Storage URL for video
-  var linkURL: String?                // external website link
+  // Media
+  var localImageNames: [String]
+  var remoteImagePaths: [String]
+  var videoLocalPath: String?
+  var videoRemoteURL: String?
+  var linkURL: String?
   
-  // Privacy
+  // Privacy / Premium
   var isPublic: Bool = false
-  // Premium
   var isPremium: Bool
   
   // Timestamps
@@ -43,6 +47,8 @@ final class MemoryModel {
     id: String = UUID().uuidString,
     userID: String,
     username: String,
+    remoteProfilePhotoURL: String? = nil,
+    localProfilePhotoPath: String? = nil,
     date: Date,
     mood: Mood,
     journalText: String,
@@ -60,6 +66,8 @@ final class MemoryModel {
     self.id = id
     self.userID = userID
     self.username = username
+    self.remoteProfilePhotoURL = remoteProfilePhotoURL
+    self.localProfilePhotoPath = localProfilePhotoPath
     self.date = Calendar.current.startOfDay(for: date)
     self.moodRaw = mood.rawValue
     self.journalText = journalText
@@ -73,9 +81,8 @@ final class MemoryModel {
     self.isPremium = isPremium
     self.createdAt = createdAt
     self.updatedAt = updatedAt
-    
-    self.authorTZ   = TimeZone.current.identifier   // at post time
-    self.dayKey = Date().formattedDayKeyLocal()            // optional
+    self.authorTZ = TimeZone.current.identifier
+    self.dayKey = Date().formattedDayKeyLocal()
   }
 }
 
@@ -130,12 +137,23 @@ extension MemoryModel {
 
 // MARK: - Helpers
 extension MemoryModel {
-  // Prefer local images; fall back to remotes
+  
+  /// ✅ Cleaned helper: Choose local profile photo first, else remote
+  @Transient
+  var authorProfilePhotoURL: URL? {
+    if let local = localProfilePhotoPath {
+      return URL(fileURLWithPath: local)
+    }
+    if let remote = remoteProfilePhotoURL {
+      return URL(string: remote)
+    }
+    return nil
+  }
+  
+  /// Prefer local memory images; fallback to remotes
   var imageSources: [MediaSource] {
-    let validLocal = localImagePaths.filter { path in
-      // If it's an absolute path and exists, keep it
-      if FileManager.default.fileExists(atPath: path) { return true }
-      return false
+    let validLocal = localImagePaths.filter {
+      FileManager.default.fileExists(atPath: $0)
     }
     if !validLocal.isEmpty {
       return validLocal.map { .localImage(path: $0) }
@@ -143,7 +161,8 @@ extension MemoryModel {
     return remoteImagePaths.compactMap(URL.init(string:)).map { .remoteImage(url: $0) }
   }
   
-  // Prefer local video; fall back to remote
+  /// Prefer local video; fallback to remote
+  @Transient
   var videoSource: MediaSource? {
     if let path = videoLocalPath, FileManager.default.fileExists(atPath: path) {
       return .localVideo(path: path)
@@ -154,12 +173,17 @@ extension MemoryModel {
     return nil
   }
   
+  /// Generates resolved local filepaths for images
   @Transient
   var localImagePaths: [String] {
     localImageNames.compactMap { filename in
-      let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+      FileManager.default
+        .urls(for: .documentDirectory, in: .userDomainMask).first?
         .appendingPathComponent("memories", isDirectory: true)
-      return dir?.appendingPathComponent(filename).path
+        .appendingPathComponent(filename)
+        .path
     }
   }
 }
+
+

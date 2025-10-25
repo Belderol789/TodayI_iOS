@@ -23,6 +23,24 @@ struct FirebaseStorageManager {
     return try await ref.downloadURL()
   }
   
+  static func uploadProfilePhoto(_ image: UIImage, userID: String) async throws -> URL {
+    LoggerManager.instance.logFirebaseCall()
+    
+    guard let data = image.jpegData(compressionQuality: 0.85) else {
+      throw NSError(
+        domain: "FirebaseStorageManager",
+        code: 1,
+        userInfo: [NSLocalizedDescriptionKey: "Failed to convert image to JPEG."]
+      )
+    }
+    
+    let ref = storage.reference()
+      .child("users/\(userID)/profile/profile.jpg")
+    
+    _ = try await ref.putDataAsync(data, metadata: nil)
+    return try await ref.downloadURL()
+  }
+  
   /// Uploads a video file and returns the download URL
   static func uploadVideo(fileURL: URL,
                           userID: String,
