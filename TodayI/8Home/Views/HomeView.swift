@@ -49,6 +49,7 @@ struct HomeView: View {
       .onAppear {
         Task {
           await loadYear(Date().year)
+          loadTodayMemories()
         }
       }
       .onChange(of: auth.userID, { oldValue, newValue in

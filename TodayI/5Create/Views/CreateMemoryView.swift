@@ -75,7 +75,7 @@ struct CreateMemoryView: View {
           payload,
           userID: uid,
           username: username,
-          authorPhotoURL: auth.photoURL
+          remoteProfilePhotoURL: auth.photoURL
         ) as MemoryModel? {
           postedMemory = model
           showPreview = true

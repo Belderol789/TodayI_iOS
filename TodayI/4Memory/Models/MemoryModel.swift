@@ -100,6 +100,7 @@ extension MemoryModel {
       m.username = dto.username
       m.userID = dto.userID
       m.date = dto.date
+      m.remoteProfilePhotoURL = dto.remoteProfilePhotoURL
       m.mood = Mood(rawValue: dto.mood) ?? .neutral
       m.journalText = dto.journalText
       m.remoteImagePaths = dto.remoteImagePaths
@@ -115,6 +116,7 @@ extension MemoryModel {
         id: dto.id,
         userID: dto.userID,
         username: dto.username,
+        remoteProfilePhotoURL: dto.remoteProfilePhotoURL,
         date: dto.date,
         mood: Mood(rawValue: dto.mood) ?? .neutral,
         journalText: dto.journalText,

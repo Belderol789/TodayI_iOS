@@ -109,7 +109,7 @@ private extension MemoryRow {
             image
               .resizable()
               .scaledToFill()
-              .frame(width: 20, height: 20)
+              .frame(width: 32, height: 32)
               .clipShape(Circle())
           case .failure:
             MoodIcon(mood: memory.mood, size: 20).opacity(0.9)

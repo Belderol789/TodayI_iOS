@@ -51,18 +51,19 @@ extension SwiftDataManager {
   func savePostPayload(_ payload: PostPayload,
                        userID: String,
                        username: String,
-                       authorPhotoURL: String?,
+                       remoteProfilePhotoURL: String?,
                        for day: Date = .now) throws -> MemoryModel {
     // 1) Save locally (SwiftData) first
-    let (model, dto, dayStartLocal) = try saveToSwiftData(payload, userID: userID, username: username, authorPhotoURL: authorPhotoURL, day: day)
+    let (model, dto, dayStartLocal) = try saveToSwiftData(payload, userID: userID, username: username, remoteProfilePhotoURL: remoteProfilePhotoURL, day: day)
     
     // 2) Kick off background upload to Firebase (private)
     Task {
-      await uploadToFirebase(dto: dto,
-                             payload: payload,
-                             model: model,
-                             userID: userID,
-                             dayStartLocal: dayStartLocal)
+      await FirebaseFirestoreManager.uploadToFirebase(context: context,
+                                                      dto: dto,
+                                                      payload: payload,
+                                                      model: model,
+                                                      userID: userID,
+                                                      dayStartLocal: dayStartLocal)
     }
     
     return model
@@ -77,7 +78,7 @@ extension SwiftDataManager {
   private func saveToSwiftData(_ payload: PostPayload,
                                userID: String,
                                username: String,
-                               authorPhotoURL: String?,
+                               remoteProfilePhotoURL: String?,
                                day: Date) throws -> (MemoryModel, MemoryDTO, Date) {
     let authorTZ = TimeZone.current
     let dayStartLocal = day.startOfDay(in: authorTZ)
@@ -86,7 +87,7 @@ extension SwiftDataManager {
     let dto = MemoryDTO(payload: payload,
                         userID: userID,
                         username: username,
-                        authorPhotoURL: authorPhotoURL,
+                        remoteProfilePhotoURL: remoteProfilePhotoURL,
                         day: day)
     
     // Upsert into SwiftData
@@ -127,83 +128,7 @@ extension SwiftDataManager {
     
     return (model, dto, dayStartLocal)
   }
-  
-  // MARK: - Firebase sync (private)
-  
-  /// Uploads media to Firebase Storage, updates the local model with remote URLs,
-  /// and posts to Firestore. Runs on a background Task from the caller.
-  private func uploadToFirebase(dto: MemoryDTO,
-                                payload: PostPayload,
-                                model: MemoryModel,
-                                userID: String,
-                                dayStartLocal: Date) async {
-    var dto = dto // we’ll mutate remote fields
-    let memoryID = dto.id
-    
-    do {
-      print("🟦 Starting upload task for memoryID: \(memoryID)")
-      
-      var remoteImages: [String] = []
-      
-      // Upload images
-      for (i, img) in payload.images.enumerated() {
-        print("📤 Uploading image \(i + 1)/\(payload.images.count) for userID: \(userID)")
-        let url = try await FirebaseStorageManager.uploadImage(
-          img.image,
-          userID: userID,
-          memoryID: memoryID,
-          index: i
-        )
-        print("✅ Image \(i + 1) uploaded: \(url.absoluteString)")
-        remoteImages.append(url.absoluteString)
-      }
-      
-      // Upload video (if any)
-      var videoURLString: String?
-      if let videoURL = payload.videoURL {
-        print("📤 Uploading video for userID: \(userID), file: \(videoURL.lastPathComponent)")
-        let url = try await FirebaseStorageManager.uploadVideo(
-          fileURL: videoURL,
-          userID: userID,
-          memoryID: memoryID
-        )
-        videoURLString = url.absoluteString
-        print("✅ Video uploaded: \(url.absoluteString)")
-      } else {
-        print("ℹ️ No video to upload")
-      }
-      
-      // Finalize DTO with remote fields
-      dto.remoteImagePaths = remoteImages
-      dto.videoRemoteURL = videoURLString
-      dto.linkURL = payload.linkString
-      print("🟩 Final DTO prepared with \(remoteImages.count) images, video: \(videoURLString ?? "none"), link: \(payload.linkString ?? "none")")
-      
-      // Update local model with remote fields
-      await MainActor.run {
-        model.remoteImagePaths = remoteImages
-        if let v = videoURLString { model.videoRemoteURL = v }
-        if let l = payload.linkString { model.linkURL = l }
-        model.updatedAt = Date()
-        do {
-          try context.save()
-          print("💾 Local SwiftData updated successfully")
-        } catch {
-          print("⚠️ Failed to save SwiftData update: \(error)")
-        }
-      }
-      
-      // Push to Firestore
-      print("📤 Posting memory to Firestore for userID: \(userID)")
-      try await MemoryService.postMemory(model)
-      print("✅ Post synced to Firestore with remote URLs")
-      
-    } catch {
-      print("❌ Failed in upload task: \(error)")
-    }
-  }
-  
-  
+
   // MARK: - Helpers
   /// Writes UIImages to app's temporary dir as JPEG and returns file paths.
   private func persistImagesToFiles(_ picked: [PickedImage], dayKey: Date) throws -> [String] {

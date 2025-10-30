@@ -32,11 +32,10 @@ struct MemoryService {
       "id": memory.id,
       "userID": memory.userID,
       "username": memory.username,
-      "date": memory.date,                    // author local day start instant
+      "remoteProfilePhotoURL": memory.remoteProfilePhotoURL ?? "",
+      "date": Timestamp(date: memory.date),    // ✅ FIXED
       "dayKey": dayKey,
-      // optional
       "authorTZ": memory.authorTZ,
-      
       "mood": memory.mood.rawValue,
       "journalText": memory.journalText,
       "likes": memory.likes,
@@ -44,11 +43,12 @@ struct MemoryService {
       "videoRemoteURL": memory.videoRemoteURL as Any,
       "linkURL": memory.linkURL as Any,
       "isPublic": memory.isPublic,
-      
-      // prefer server timestamps for consistency in global queries
+      "isPremium": memory.isPremium,          // ✅ SAFETY ADD
       "createdAt": FieldValue.serverTimestamp(),
       "updatedAt": FieldValue.serverTimestamp()
     ]
+    
+    print("📄 Attempting to write memData:", memData)
     
     // --- DateModel payload (server-merge, add mood) ---
     let startOfDay = Calendar.current.startOfDay(for: memory.date)
@@ -62,8 +62,8 @@ struct MemoryService {
     // Write memory first, then upsert the date entry
     try await memRef.setData(memData, merge: true)
     try await dateRef.setData(dateData, merge: true)
-    
-    // NEW: bump global mood tally for that day in top-level "moods/{dayKey}"
+//    
+//    // NEW: bump global mood tally for that day in top-level "moods/{dayKey}"
     try await incrementDailyMoodTally(for: memory, db: db)
     try await MemoryService.ensureCommentsHub(
       memoryID: memory.id,

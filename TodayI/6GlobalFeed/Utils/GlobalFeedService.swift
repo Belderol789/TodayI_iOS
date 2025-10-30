@@ -49,7 +49,8 @@ enum GlobalFeedService {
           let isPublic = d["isPublic"] as? Bool,
           let dateTS = d["date"] as? Timestamp
     else { return nil }
-    
+    let profilePhotoURL = d["remoteProfilePhotoURL"] as? String
+    print("Kemuel photo \(profilePhotoURL)")
     let isPremium = d["isPremium"] as? Bool ?? false
     let date = dateTS.dateValue()
     return MemoryDTO(
@@ -63,6 +64,7 @@ enum GlobalFeedService {
       remoteImagePaths: d["remoteImagePaths"] as? [String] ?? [],
       videoRemoteURL: d["videoRemoteURL"] as? String,
       linkURL: d["linkURL"] as? String,
+      remoteProfilePhotoURL: profilePhotoURL,
       isPublic: isPublic,
       isPremium: isPremium,
       createdAt: (d["createdAt"] as? Timestamp)?.dateValue() ?? Date(),

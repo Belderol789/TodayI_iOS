@@ -68,6 +68,7 @@ struct GlobalFeedView: View {
     }
     // load feed + mood tally + blocked list
     .task {
+      await vm.refresh()
     }
     .refreshable {
       await vm.refresh()
