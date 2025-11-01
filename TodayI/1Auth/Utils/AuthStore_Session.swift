@@ -34,6 +34,7 @@ extension AuthStore {
       Task { @MainActor in
         if let user {
           await self.loadOrCreateProfile(for: user)
+          NotificationManager.shared.subscribeUserTopic(uid: user.uid)
         } else {
           // Only create anon user when we *know* no session is present
           do {
@@ -53,6 +54,7 @@ extension AuthStore {
     } catch {
       print("Sign out failed:", error)
     }
+    NotificationManager.shared.unsubscribePreviousUserTopicIfNeeded()
     await ensureSignedIn() // creates a fresh anonymous user
   }
 }

@@ -9,7 +9,7 @@ struct HomeView: View {
   @State private var yearModels: [DateModel] = []
   @State private var navigateToCreate = false
   @State private var showSetting = false
-  
+
   private var today: Date { Date().today }
   
   var body: some View {
@@ -43,6 +43,19 @@ struct HomeView: View {
           YearMoodBarsView(models: yearModels)
         }
       }
+      .toolbar(content: {
+        Button("Test notification in 2 min") {
+          let date = Calendar.current.date(byAdding: .minute, value: 2, to: Date())!
+          Task {
+            try? await NotificationManager.shared.scheduleOneTime(
+              on: date,
+              id: "test-now",
+              title: "Test",
+              body: "This should appear in about 2 minutes."
+            )
+          }
+        }
+      })
       .navigationDestination(isPresented: $navigateToCreate) {
         CreateMemoryView()
       }

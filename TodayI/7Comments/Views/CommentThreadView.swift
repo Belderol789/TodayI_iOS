@@ -156,7 +156,7 @@ private extension CommentThreadView {
       }
       
       Button {
-        Task { await vm.postComment() }
+        Task { await vm.postComment(username: auth.username) }
       } label: {
         Image(systemName: "paperplane.fill")
           .font(.system(size: 18, weight: .semibold))

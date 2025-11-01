@@ -34,7 +34,7 @@ final class CommentThreadViewModel: ObservableObject {
     }
   }
   
-  func postComment() async {
+  func postComment(username: String?) async {
     let trimmed = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return }
     
@@ -43,7 +43,7 @@ final class CommentThreadViewModel: ObservableObject {
       return
     }
     
-    let username = Auth.auth().currentUser?.displayName ?? "Anonymous"
+    let username = username ?? Auth.auth().currentUser?.displayName ?? "Anonymous"
     let commentData: [String: Any] = [
       "userID": uid,
       "username": username,
