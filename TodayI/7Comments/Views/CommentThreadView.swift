@@ -7,6 +7,7 @@ struct CommentThreadView: View {
   @Environment(\.swiftDataManager) private var swiftManager
   @EnvironmentObject private var auth: AuthStore
   
+  @State private var showSetting = false
   @State private var blockedUserIDs: Set<String> = []
   
   init(memory: MemoryModel) {
@@ -21,7 +22,7 @@ struct CommentThreadView: View {
       Group {
         if auth.isGuest {
           AuthRequiredView {
-            // later: present SignUpView() or upgrade flow
+            showSetting = true
           }
         } else {
           commentBox
@@ -38,6 +39,11 @@ struct CommentThreadView: View {
     }
     .onChange(of: swiftManager?.fetchBlockedUsers() ?? []) { _, latest in
       blockedUserIDs = Set(latest)
+    }
+    .sheet(isPresented: $showSetting) {
+      NavigationStack {
+        AuthView()
+      }
     }
   }
 }

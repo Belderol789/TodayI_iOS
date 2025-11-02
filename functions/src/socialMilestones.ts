@@ -68,6 +68,20 @@ export const onCommentCreated = onDocumentCreated(
     // Mark as notified (idempotent)
     await memRef.set({ [`${F_NOTIF_CMT}.${hit}`]: true }, { merge: true });
 
+    // Minimal inbox record (deduped by deterministic ID)
+    await admin.firestore()
+    .collection("users").doc(ownerID)
+    .collection("notifications")
+    .doc(`comment_${memoryId}_${hit}`)
+    .set({
+      type: "comment_milestone",
+      postId: memoryId,
+      milestone: hit,
+      deeplink: `todayi://post/${memoryId}`,
+      read: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
     // Push
     await sendToOwner(ownerID, {
       notification: {
@@ -107,6 +121,19 @@ export const onMemoryLikesUpdated = onDocumentUpdated(
 
     const memRef = memoryRef(ownerId, memoryId);
     await memRef.set({ [`${F_NOTIF_LIKE}.${hit}`]: true }, { merge: true });
+
+    await admin.firestore()
+      .collection("users").doc(ownerId)
+      .collection("notifications")
+      .doc(`like_${memoryId}_${hit}`)
+      .set({
+        type: "like_milestone",
+        postId: memoryId,
+        milestone: hit,
+        deeplink: `todayi://post/${memoryId}`,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
 
     await sendToOwner(ownerId, {
       notification: {
