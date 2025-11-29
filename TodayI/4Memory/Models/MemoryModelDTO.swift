@@ -18,7 +18,7 @@ struct MemoryDTO: Codable {
   var remoteProfilePhotoURL: String?   // Remote URL only
   
   let isPublic: Bool
-  let isPremium: Bool
+  let isPremium: Bool?
   let createdAt: Date
   let updatedAt: Date
   

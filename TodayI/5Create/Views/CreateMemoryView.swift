@@ -39,6 +39,7 @@ struct CreateMemoryView: View {
           .presentationDragIndicator(.visible)
           .interactiveDismissDisabled(false)             // set to true if you want to force a choice
           .presentationCornerRadius(20)                   // optional
+          .preferredColorScheme(.dark) 
       }
     }
   }

@@ -18,6 +18,17 @@ struct TodayIApp: App {
   @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
   
   init() {
+  
+    // Ensure Application Support directory exists
+    do {
+      let urls = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+      if let appSupportURL = urls.first {
+        try FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
+      }
+    } catch {
+      print("Failed to ensure Application Support directory:", error)
+    }
+    
     try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback, options: [])
     try? AVAudioSession.sharedInstance().setActive(true)
     // Create one shared container
@@ -45,52 +56,29 @@ struct TodayIApp: App {
         .environmentObject(iapStore)
         .environment(\.swiftDataManager, manager)
         .task {
-          await store.refresh()
-          store.observeUpdates()
+          store.observeUpdates()   // existing
+          
+          // 🔥 1. Try activating a trial if this is first launch
+          let activated = await FirebaseFirestoreManager.activateDeviceTrialIfNeeded()
+          print("Trial activation result: \(activated)")
+          
+          // 🔍 2. Check if trial is still valid
+          let isTrialPremium = await FirebaseFirestoreManager.checkDeviceTrialPremium()
+          print("Trial active? \(isTrialPremium)")
+          
+          // 🎁 3. Merge boot trial into premium status
+          // If user SUBSCRIBED, entitlements.isPremium = true already overrides this
+          if isTrialPremium && store.isPremium == false {
+            store.isPremium = true
+            print("🎉 Trial premium unlocked!")
+          }
         }
         .onAppear {
           Task {
-            await NotificationManager.shared.configure() // requests auth + UIApplication.shared.registerForRemoteNotifications()
+            await NotificationManager.shared.configure()
           }
-          store.observeUpdates()
         }
     }
-    .modelContainer(container) // Use the same container
+    .modelContainer(container)
   }
 }
-
-/*
- 
- // Call this once on launch (e.g., .task in your RootView)
- func debugIAP() {
- Task {
- print("Bundle ID:", Bundle.main.bundleIdentifier ?? "nil")
- print("Product IDs:", IAP.monthlyID, IAP.yearlyID)
- 
- do {
- let products = try await Product.products(for: [IAP.monthlyID, IAP.yearlyID])
- print("Loaded products count:", products.count)
- for p in products {
- print("•", p.id, p.displayName, p.price.formatted(.currency(code: p.priceFormatStyle.currencyCode)))
- if let sp = p.subscription?.subscriptionPeriod {
- print("  period:", sp.unit, sp.value)
- }
- }
- } catch {
- print("❌ Product load failed:", error)
- }
- 
- // Check StoreKit entitlement stream reachable
- var sawEntitlement = false
- for await ent in StoreKit.Transaction.currentEntitlements {
- sawEntitlement = true
- print("Entitlement result:", ent)
- break
- }
- if !sawEntitlement {
- print("⚠️ No entitlement stream results (might be fine if none purchased yet).")
- }
- }
- }
- 
- */

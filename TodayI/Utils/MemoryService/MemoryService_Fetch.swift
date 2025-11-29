@@ -21,15 +21,30 @@ extension MemoryService {
   }
   
   /// Fetches all memories for a user on a given dayKeyLocal.
-  static func fetchMemories(for userID: String, dayKeyLocal: String, db: Firestore = Firestore.firestore()) async throws -> [MemoryDTO] {
+  static func fetchMemories(for userID: String,
+                            dayKeyLocal: String,
+                            db: Firestore = Firestore.firestore()) async throws -> [MemoryDTO] {
     LoggerManager.instance.logFirebaseCall()
-    let snapshot = try await db.collection("users").document(userID)
+    
+    let snapshot = try await db.collection("users")
+      .document(userID)
       .collection("memories")
-      .whereField("dayKeyLocal", isEqualTo: dayKeyLocal)
+      .whereField("dayKey", isEqualTo: dayKeyLocal)
       .getDocuments()
     
-    return snapshot.documents.compactMap { doc in
-      try? doc.data(as: MemoryDTO.self)   // Firestore Decodable support
+    print("Existing documents: \(snapshot.documents.count)")
+    
+    let items: [MemoryDTO] = snapshot.documents.compactMap { doc in
+      do {
+        let dto = try doc.data(as: MemoryDTO.self)
+        return dto
+      } catch {
+        print("❌ Decode error for doc \(doc.documentID):", error)
+        return nil
+      }
     }
+    
+    print("MemoryDTO items fetched \(items.count)")
+    return items   // ← REQUIRED
   }
 }

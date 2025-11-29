@@ -61,10 +61,6 @@ struct GlobalFeedView: View {
       PremiumPill(isPremium: entitlements.isPremium) {
         showPremium = true
       }
-      Button("Test Feed") {
-        vm.useTestData = true
-        Task { await vm.refresh() }
-      }
     }
     // load feed + mood tally + blocked list
     .task {
@@ -79,6 +75,7 @@ struct GlobalFeedView: View {
         .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(false)
         .presentationCornerRadius(20)
+        .preferredColorScheme(.dark)
     }
   }
 }

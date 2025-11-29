@@ -100,6 +100,7 @@ extension MemoryModel {
       m.username = dto.username
       m.userID = dto.userID
       m.date = dto.date
+      m.dayKey = dto.dayKey
       m.remoteProfilePhotoURL = dto.remoteProfilePhotoURL
       m.mood = Mood(rawValue: dto.mood) ?? .neutral
       m.journalText = dto.journalText
@@ -109,7 +110,6 @@ extension MemoryModel {
       m.isPublic = dto.isPublic
       m.updatedAt = dto.updatedAt
       m.authorTZ = dto.authorTZ
-      m.dayKey = dto.dayKey
       return m
     } else {
       let m = MemoryModel(
@@ -127,7 +127,7 @@ extension MemoryModel {
         videoRemoteURL: dto.videoRemoteURL,     // 👈
         linkURL: dto.linkURL,                   // 👈
         isPublic: dto.isPublic,
-        isPremium: dto.isPremium,
+        isPremium: dto.isPremium ?? false,
         createdAt: dto.createdAt,
         updatedAt: dto.updatedAt
       )

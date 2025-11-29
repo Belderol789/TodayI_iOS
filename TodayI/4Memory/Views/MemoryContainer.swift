@@ -3,8 +3,8 @@ import SwiftData
 
 /// Modal that displays all memories for a given calendar day.
 struct MemoryContainer: View {
-  let day: Date
   
+  let day: Date
   @Environment(\.dismiss) private var dismiss
   @Environment(\.modelContext) private var context
   @EnvironmentObject private var entitlements: EntitlementStore
@@ -15,6 +15,10 @@ struct MemoryContainer: View {
   @State private var memories: [MemoryModel] = []
   @State private var isLoading = false
   @State private var errorText: String?
+  
+  private var dayKey: String {
+    day.formattedDayKeyLocal()   // make sure you have this helper
+  }
   
   // Keep the heavy formatter out of `body`
   private var titleText: String {
@@ -33,7 +37,6 @@ struct MemoryContainer: View {
       await MainActor.run { isLoading = true; errorText = nil }
       
       do {
-        let dayKey = day.formattedDayKeyLocal()   // make sure you have this helper
         
         // 1) Check if we already have at least one memory for that day (and user if available)
         var predicate = #Predicate<MemoryModel> { $0.dayKey == dayKey }
@@ -52,7 +55,7 @@ struct MemoryContainer: View {
         }
         
         // 3) Reload from SwiftData for display
-        await load()
+        await load(dayKey: dayKey)
       } catch {
         await MainActor.run {
           self.errorText = error.localizedDescription
@@ -61,7 +64,7 @@ struct MemoryContainer: View {
       }
     }
     .onChange(of: entitlements.isPremium) { _, _ in
-      Task { await load() }
+      Task { await load(dayKey: dayKey) }
     }
   }
 }
@@ -98,7 +101,7 @@ private extension MemoryContainer {
       }
       .contentMargins(.horizontal, 0, for: .scrollContent)
       .listStyle(.plain)
-      .refreshable { await load() }
+      .refreshable { await load(dayKey: dayKey) }
     }
   }
   
@@ -113,7 +116,7 @@ private extension MemoryContainer {
           Task {
             do {
               try await clearThisDay()
-              await load()
+              await load(dayKey: dayKey)
             } catch {
               self.errorText = error.localizedDescription
             }
@@ -126,37 +129,27 @@ private extension MemoryContainer {
 
 // MARK: - Data
 private extension MemoryContainer {
-  func load() async {
+  func load(dayKey: String) async {
     await MainActor.run {
       isLoading = true
       errorText = nil
     }
+    
     do {
-      // ✅ Use viewer's local timezone for day bounds
-      var cal = Calendar(identifier: .gregorian)
-      cal.timeZone = .current
-      let start = cal.startOfDay(for: day)
-      let end   = cal.date(byAdding: .day, value: 1, to: start)!
+      var predicate = #Predicate<MemoryModel> { $0.dayKey == dayKey }
       
-      // Base predicate: rows whose saved "author-local midnight instant" falls in [start, end)
-      var predicate = #Predicate<MemoryModel> { $0.date >= start && $0.date < end }
       if let uid = auth.userID {
-        predicate = #Predicate<MemoryModel> { $0.userID == uid && $0.date >= start && $0.date < end }
+        predicate = #Predicate<MemoryModel> { $0.userID == uid && $0.dayKey == dayKey }
       }
       
       var fetch = FetchDescriptor<MemoryModel>(predicate: predicate)
       
       if entitlements.isPremium {
-        // Premium: show all (oldest → newest, or flip if you prefer)
         fetch.sortBy = [SortDescriptor(\.createdAt, order: .forward)]
       } else {
-        // Free: only the latest
         fetch.sortBy = [SortDescriptor(\.createdAt, order: .reverse)]
         fetch.fetchLimit = 1
       }
-      
-      // (optional) quick debug
-      // print("🔎 Query day range:", start, "→", end, "uid:", auth.userID ?? "nil", "premium:", entitlements.isPremium)
       
       let items = try context.fetch(fetch)
       
@@ -164,6 +157,7 @@ private extension MemoryContainer {
         self.memories = items
         self.isLoading = false
       }
+      
     } catch {
       await MainActor.run {
         self.errorText = error.localizedDescription

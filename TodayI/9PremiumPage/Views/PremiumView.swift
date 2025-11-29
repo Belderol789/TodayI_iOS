@@ -111,16 +111,17 @@ struct PremiumView: View {
   
   var pricingButtons: some View {
     VStack(spacing: 12) {
-      if let m = iap.monthly {
-        Button("Start Monthly – \(m.priceString)") {
-          Task { await iap.buy(m) }
-        }
+
+      SubscriptionButton(product: iap.monthly,
+                         isYearly: false,
+                         debugPriceOverride: nil) {
+        Task { await iap.buy(iap.monthly!) }
       }
-      if let y = iap.yearly {
-        let savings = savingsCopy(monthly: iap.monthly, yearly: iap.yearly)
-        Button("Start Yearly – \(y.priceString)\(savings.map { " (\($0))" } ?? "")") {
-          Task { await iap.buy(y) }
-        }
+      
+      SubscriptionButton(product: iap.yearly,
+                         isYearly: true,
+                         debugPriceOverride: nil) {
+        Task { await iap.buy(iap.yearly!) }
       }
       
       Button("Restore Purchases") {
@@ -135,27 +136,32 @@ struct PremiumView: View {
       
       // ── DEBUG ONLY CONTROLS ─────────────────────────────────────────────
 #if DEBUG
-      Divider().padding(.top, 8).opacity(0.2)
-      
-      HStack(spacing: 12) {
-        Button {
-          entitlements.isPremium = true
-        } label: {
-          Label("Debug: Grant Premium", systemImage: "wand.and.stars")
-        }
-        .buttonStyle(.borderedProminent)
-        
-        Button {
-          entitlements.isPremium = false
-        } label: {
-          Label("Revoke", systemImage: "xmark.circle")
-        }
-        .buttonStyle(.bordered)
-      }
-      .font(.footnote.weight(.semibold))
+//      Divider().padding(.top, 8).opacity(0.2)
+//      
+//      debugPremium
 #endif
       // ───────────────────────────────────────────────────────────────────
     }
+    .padding()
+  }
+  
+  var debugPremium: some View {
+    HStack(spacing: 12) {
+      Button {
+        entitlements.isPremium = true
+      } label: {
+        Label("Debug: Grant Premium", systemImage: "wand.and.stars")
+      }
+      .buttonStyle(.borderedProminent)
+      
+      Button {
+        entitlements.isPremium = false
+      } label: {
+        Label("Revoke", systemImage: "xmark.circle")
+      }
+      .buttonStyle(.bordered)
+    }
+    .font(.footnote.weight(.semibold))
   }
   
   // MARK: - Helpers

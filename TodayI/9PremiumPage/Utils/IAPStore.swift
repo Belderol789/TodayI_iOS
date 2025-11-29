@@ -11,63 +11,115 @@ final class IAPStore: ObservableObject {
   
   init(entitlements: EntitlementStore) {
     self.entitlements = entitlements
+    print("🛒 IAPStore.init()")
+    
     Task {
-      await refreshProducts()
+      await refreshProducts(reason: "init")
     }
   }
   
-  func refreshProducts() async {
+  // MARK: - Refresh products
+  func refreshProducts(reason: String = "manual") async {
+    print("\n🔄 IAPStore.refreshProducts(reason: \(reason))")
+    
     isLoading = true
     defer { isLoading = false }
+    
+    let ids = [IAP.monthlyID, IAP.yearlyID]
+    print("🔍 Requesting products for:", ids)
+    
     do {
-      let ids = [IAP.monthlyID, IAP.yearlyID]
       let products = try await Product.products(for: ids)
+      print("📦 StoreKit returned \(products.count) products.")
+      
+      if products.isEmpty {
+        print("⚠️ StoreKit returned EMPTY product list!")
+        print("   → Check product IDs EXACTLY match App Store Connect")
+        print("   → Check sandbox account logged in")
+        print("   → Check physical device, not simulator")
+      }
+      
+      monthly = nil
+      yearly = nil
+      
       for p in products {
+        print("   • StoreKit product:", p.id)
         switch p.id {
-        case IAP.monthlyID: monthly = p
-        case IAP.yearlyID:  yearly  = p
-        default: break
+        case IAP.monthlyID:
+          print("     ✅ Matched monthly product")
+          monthly = p
+        case IAP.yearlyID:
+          print("     ✅ Matched yearly product")
+          yearly = p
+        default:
+          print("     ⚠️ Unrecognized product:", p.id)
         }
       }
+      
+      if monthly == nil { print("⚠️ monthly is STILL nil!") }
+      if yearly  == nil { print("⚠️ yearly is STILL nil!") }
+      
     } catch {
       errorMessage = "Failed to load products: \(error)"
+      print("❌ Product load error:", error)
     }
   }
   
+  // MARK: - Purchase
   func buy(_ product: Product) async {
+    print("\n🧾 IAPStore.buy(\(product.id))")
+    
     isLoading = true
     defer { isLoading = false }
+    
     do {
       let result = try await product.purchase()
+      print("🛒 Purchase result:", result)
+      
       switch result {
       case .success(let verification):
         if case .verified(let transaction) = verification {
+          print("   ✅ PURCHASE VERIFIED for:", transaction.productID)
           await transaction.finish()
-          await entitlements.refresh()  // ← update entitlement truth
+          await entitlements.refresh(reason: "after purchase")
+        } else {
+          print("   ⚠️ Purchase UNVERIFIED!")
         }
-      case .userCancelled, .pending:
-        break
+        
+      case .userCancelled:
+        print("   🚫 Purchase cancelled by user")
+        
+      case .pending:
+        print("   ⏳ Purchase pending")
+        
       @unknown default:
-        break
+        print("   ❓ UNKNOWN purchase result")
       }
+      
     } catch {
       errorMessage = "Purchase failed: \(error)"
+      print("❌ Purchase failed:", error)
     }
   }
   
+  // MARK: - Restore
   func restore() async {
+    print("\n🔁 IAPStore.restore() – calling AppStore.sync()")
+    
     isLoading = true
     defer { isLoading = false }
+    
     do {
       try await AppStore.sync()
-      await entitlements.refresh()
+      print("   ✅ AppStore.sync() succeeded")
+      await entitlements.refresh(reason: "restore")
     } catch {
       errorMessage = "Restore failed: \(error)"
+      print("❌ Restore failed:", error)
     }
   }
 }
 
-// Price helpers
 extension Product {
   var priceString: String {
     price.formatted(.currency(code: priceFormatStyle.currencyCode))
@@ -82,5 +134,8 @@ extension Product {
     @unknown default:     return 0
     }
   }
-  var priceDouble: Double { NSDecimalNumber(decimal: price).doubleValue }
+  
+  var priceDouble: Double {
+    NSDecimalNumber(decimal: price).doubleValue
+  }
 }
