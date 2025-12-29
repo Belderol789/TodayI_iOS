@@ -35,7 +35,6 @@ enum GlobalFeedService {
       }
     }
     
-    print("Kemuel \(items.count) \(dayKey)")
     return GlobalFeedPage(items: items, lastSnapshot: snap.documents.last)
   }
   
@@ -50,7 +49,6 @@ enum GlobalFeedService {
           let dateTS = d["date"] as? Timestamp
     else { return nil }
     let profilePhotoURL = d["remoteProfilePhotoURL"] as? String
-    print("Kemuel photo \(profilePhotoURL)")
     let isPremium = d["isPremium"] as? Bool ?? false
     let date = dateTS.dateValue()
     return MemoryDTO(

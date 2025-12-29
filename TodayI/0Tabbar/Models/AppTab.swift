@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum AppTab: String, CaseIterable, Identifiable {
-  case home, calendar, create, global, notifications
+  case home, calendar, create, notifications, global
   
   var id: String { rawValue }
   var systemImage: String {

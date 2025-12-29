@@ -9,7 +9,7 @@ private struct TitleSizeKey: PreferenceKey {
 }
 
 struct MainMoodView: View {
-  let models: [DateModel]
+  @Binding var models: [DateModel]
   var year: Int? = nil
   
   // Layout

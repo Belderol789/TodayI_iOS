@@ -6,24 +6,88 @@ enum SeedStrategy {
   case cycle
   case stableRandom
   case random
+  case sadOctober
 }
 
 @MainActor
 final class TestManager {
   // Shared helpers available to both
-  fileprivate static func pickMood(for date: Date,
-                                   index: Int,
-                                   strategy: SeedStrategy,
-                                   calendar: Calendar) -> Mood {
-    let all = Mood.allCases
+  fileprivate static func pickMood(
+    for date: Date,
+    index: Int,
+    strategy: SeedStrategy,
+    calendar: Calendar
+  ) -> Mood {
+    
+    func weightedPick(_ weights: [(Mood, Int)]) -> Mood {
+      let total = weights.reduce(0) { $0 + $1.1 }
+      var roll = Int.random(in: 1...max(total, 1))
+      for (mood, w) in weights {
+        roll -= w
+        if roll <= 0 { return mood }
+      }
+      return weights.first?.0 ?? .neutral
+    }
+    
     switch strategy {
     case .cycle:
-      return all[index % all.count]
+      return Mood.allCases[index % Mood.allCases.count]
+      
     case .stableRandom:
       let ord = calendar.ordinality(of: .day, in: .year, for: date) ?? index
-      return all[(ord - 1) % all.count]
+      return Mood.allCases[(ord - 1) % Mood.allCases.count]
+      
     case .random:
-      return all.randomElement()!
+      return Mood.allCases.randomElement()!
+      
+    case .sadOctober:
+      let month = calendar.component(.month, from: date)
+      
+      // Baseline: mostly believable everyday moods
+      var base: [(Mood, Int)] = [
+        (.neutral, 38),
+        (.happy,   22),
+        (.sad,     20),
+        (.angry,   12),
+        (.surprise, 4),
+        (.fear,     3),
+        (.disgust,  1)
+      ]
+      
+      // October: tilt sad + neutral a bit, but keep variety
+      if month == 10 {
+        base = [
+          (.neutral, 40),
+          (.sad,     60),
+          (.angry,   12)
+        ]
+      }
+      
+      if month == 11 {
+        base = [
+          (.neutral, 50),
+          (.sad,     30),
+          (.happy,   12),
+          (.angry,   12),
+          (.surprise, 3),
+          (.fear,     2),
+          (.disgust,  1)
+        ]
+      }
+      
+      if month == 12 {
+        base = [
+          (.neutral, 50),
+          (.sad,     30),
+          (.happy,   12),
+          (.angry,   12),
+          (.surprise, 3),
+          (.fear,     2),
+          (.disgust,  1)
+        ]
+      }
+      
+      return weightedPick(base)
     }
   }
   
@@ -43,6 +107,35 @@ final class TestManager {
 // MARK: - MemoryModel Debug Helpers
 #if DEBUG
 extension TestManager {
+  
+  // Seeds (optionally clears) and returns DateModels for the whole year.
+  static func loadYearModels(
+    _ year: Int,
+    in context: ModelContext,
+    strategy: SeedStrategy = .cycle,
+    replaceExisting: Bool = false
+  ) throws -> [DateModel] {
+    
+    if replaceExisting {
+      try clearYear(year, in: context)
+    }
+    
+    try seedYear(year, in: context, strategy: strategy)
+    
+    let cal = Calendar.current
+    let start = cal.date(from: DateComponents(year: year, month: 1, day: 1))!
+    let end   = cal.date(from: DateComponents(year: year + 1, month: 1, day: 1))!
+    
+    let fd = FetchDescriptor<DateModel>(
+      predicate: #Predicate { $0.date >= start && $0.date < end },
+      sortBy: [SortDescriptor(\.date, order: .forward)]
+    )
+    let rows = try context.fetch(fd)
+    rows.forEach { _ = $0.moodRaws }   // ✅ materialize
+    return rows
+  }
+  
+  
   @discardableResult
   static func seedMemories(
     on day: Date,
@@ -137,24 +230,38 @@ extension TestManager {
 // MARK: - DateModel Debug Helpers
 #if DEBUG
 extension TestManager {
-  static func seedYear(_ year: Int,
-                       in context: ModelContext,
-                       strategy: SeedStrategy = .cycle) throws {
-    let cal   = Calendar.current
+  static func seedYear(
+    _ year: Int,
+    in context: ModelContext,
+    strategy: SeedStrategy = .cycle
+  ) throws {
+    let cal = Calendar.current
+    
     let start = cal.date(from: DateComponents(year: year, month: 1, day: 1))!
-    let end   = cal.date(from: DateComponents(year: year + 1, month: 1, day: 1))!
+    
+    // 👇 Cap at today if this is the current year
+    let today = cal.startOfDay(for: Date())
+    let yearEnd = cal.date(from: DateComponents(year: year + 1, month: 1, day: 1))!
+    let end = (year == cal.component(.year, from: today)) ? min(today, yearEnd) : yearEnd
     
     let existing = try context.fetch(
-      FetchDescriptor<DateModel>(predicate: #Predicate { $0.date >= start && $0.date < end })
+      FetchDescriptor<DateModel>(
+        predicate: #Predicate { $0.date >= start && $0.date < end }
+      )
     )
+    
     var byDate: [Date: DateModel] =
-    Dictionary(uniqueKeysWithValues: existing.map { (cal.startOfDay(for: $0.date), $0) })
+    Dictionary(uniqueKeysWithValues: existing.map {
+      (cal.startOfDay(for: $0.date), $0)
+    })
     
     var day = start
     var idx = 0
+    
     while day < end {
       let key  = cal.startOfDay(for: day)
       let mood = pickMood(for: day, index: idx, strategy: strategy, calendar: cal)
+      
       if let model = byDate[key] {
         model.moods = [mood]
       } else {
@@ -162,9 +269,11 @@ extension TestManager {
         context.insert(model)
         byDate[key] = model
       }
+      
       idx += 1
       day = cal.date(byAdding: .day, value: 1, to: day)!
     }
+    
     try context.save()
   }
   

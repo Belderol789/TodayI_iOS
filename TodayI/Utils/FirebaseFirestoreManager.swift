@@ -11,38 +11,46 @@ import FirebaseInstallations
 
 struct FirebaseFirestoreManager {
   
-  // Trial methods
-  // MARK: - Device Trial Setup
+  // MARK: - Device Trial Setup (Transaction)
   static func activateDeviceTrialIfNeeded() async -> Bool {
     do {
-      // 1. Get unique device installation ID
-      let installID = try await Installations.installations().installationID()
+      let trialDays = 10
+      let deviceTrialID = TrialDeviceID.getOrCreate()
       
       let db = Firestore.firestore()
-      let ref = db.collection("trialDevices").document(installID)
+      let ref = db.collection("trialDevices").document(deviceTrialID)
       
-      // 2. Check if trial already exists
-      let snap = try await ref.getDocument()
-      if snap.exists {
-        print("🟡 Trial already exists for device: \(installID)")
-        return false  // no activation happened
+      let result = try await db.runTransaction { transaction, errorPointer -> Any? in
+        do {
+          let snap = try transaction.getDocument(ref)
+          
+          if snap.exists {
+            return false
+          }
+          
+          transaction.setData([
+            "startAt": FieldValue.serverTimestamp(),
+            "trialDays": trialDays,
+            "trialSource": "first_open"
+          ], forDocument: ref)
+          
+          return true
+        } catch {
+          // 👇 This is REQUIRED — you cannot throw
+          errorPointer?.pointee = error as NSError
+          return nil
+        }
       }
       
-      // 3. Create new trial doc using server timestamp
-      let expiresAt = Calendar.current.date(
-        byAdding: .day,
-        value: 30,
-        to: Date()
-      )
+      let didCreate = (result as? Bool) ?? false
       
-      try await ref.setData([
-        "startAt": FieldValue.serverTimestamp(),
-        "expiresAt": expiresAt ?? Date().addingTimeInterval(60 * 60 * 24 * 30),
-        "trialSource": "first_open",
-      ])
+      if didCreate {
+        print("🟢 Activated new \(trialDays)-day trial for device: \(deviceTrialID)")
+      } else {
+        print("🟡 Trial already exists for device: \(deviceTrialID)")
+      }
       
-      print("🟢 Activated new 30-day trial for device: \(installID)")
-      return true
+      return didCreate
       
     } catch {
       print("❌ Failed to activate device trial: \(error)")
@@ -50,39 +58,48 @@ struct FirebaseFirestoreManager {
     }
   }
   
-  
-  // MARK: - Check Trial Status
+  // MARK: - Check Trial Status (Server-start-based)
   static func checkDeviceTrialPremium() async -> Bool {
     do {
-      let installID = try await Installations.installations().installationID()
-      let db = Firestore.firestore()
-      let ref = db.collection("trialDevices").document(installID)
+      let deviceTrialID = TrialDeviceID.getOrCreate()
       
-      // 1. Load document
+      let db = Firestore.firestore()
+      let ref = db.collection("trialDevices").document(deviceTrialID)
+      
       let snap = try await ref.getDocument()
       guard let data = snap.data() else {
         print("ℹ️ No trial document found.")
         return false
       }
       
-      // 2. Read expiration
-      guard let expiresTS = data["expiresAt"] as? Timestamp else {
-        print("⚠️ No expiresAt found in trial doc.")
+      // Prefer server-based startAt; allow Date fallback for safety
+      let startAt: Date
+      if let startTS = data["startAt"] as? Timestamp {
+        startAt = startTS.dateValue()
+      } else if let startDate = data["startAt"] as? Date {
+        startAt = startDate
+      } else {
+        // This can happen immediately after creation because serverTimestamp may not be resolved yet.
+        print("⚠️ startAt not available yet.")
         return false
       }
       
-      let expiresAt = expiresTS.dateValue()
-      let now = Date()
+      let trialDays = data["trialDays"] as? Int ?? 10
       
-      // 3. Compare server-based expiration
+      let expiresAt = Calendar.current.date(byAdding: .day, value: trialDays, to: startAt)
+      ?? startAt.addingTimeInterval(TimeInterval(60 * 60 * 24 * trialDays))
+      
+      let now: Date = Date()
       let isPremiumTrial = now < expiresAt
       
       print("""
-                  🔍 Trial Check
-                  • now: \(now)
-                  • expires: \(expiresAt)
-                  • isPremiumTrial: \(isPremiumTrial)
-                  """)
+            🔍 Trial Check
+            • now: \(now)
+            • start: \(startAt)
+            • expires: \(expiresAt)
+            • trialDays: \(trialDays)
+            • isPremiumTrial: \(isPremiumTrial)
+            """)
       
       return isPremiumTrial
       

@@ -27,6 +27,7 @@ final class AuthStore: ObservableObject {
     self.context = context
     Task {
       startListening()
+      await ensureSignedIn()
     }
   }
   

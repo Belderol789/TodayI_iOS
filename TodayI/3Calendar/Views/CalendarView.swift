@@ -2,10 +2,14 @@ import SwiftUI
 import SwiftData
 
 struct CalendarView: View {
+  
   @Environment(\.modelContext) private var context
   @Environment(\.swiftDataManager) private var swiftManager
   @EnvironmentObject private var auth: AuthStore
   @EnvironmentObject var entitlements: EntitlementStore
+  @Environment(\.scenePhase) private var scenePhase
+  
+  @Binding var tabSelection: AppTab
   
   @State private var selectedYear = Calendar.current.component(.year, from: Date())
   @State private var yearModels: [DateModel] = []
@@ -14,36 +18,139 @@ struct CalendarView: View {
   @State private var errorText: String?
   @State private var showPremium = false
   
+  // Face ID gating
+  @State private var isUnlocked = false
+  @State private var isAuthenticating = false
+  @State private var lockError: String?
+  
+#if DEBUG
+  @State private var useTestData = true
+#endif
+  
+  init(tabSelection: Binding<AppTab>) {
+    _tabSelection = tabSelection
+  }
+  
   var body: some View {
     NavigationStack {
-      CalendarShell(year: selectedYear,
-                    models: yearModels)
-        .id(refreshToken) // remount when token changes (optional)
+      ZStack {
+        CalendarShell(year: selectedYear,
+                      models: yearModels,
+                      tabSelection: $tabSelection)
+        .id(refreshToken)
         .toolbar {
           PremiumPill(isPremium: entitlements.isPremium) {
-            showPremium = true        // 👈 trigger modal
+            showPremium = true
           }
         }
+        .disabled(!isUnlocked)
+        
+        if !isUnlocked {
+          Color.black.opacity(0.65)
+            .ignoresSafeArea()
+            .overlay(alignment: .center) {
+              VStack(spacing: 12) {
+                Text("Locked")
+                  .font(.headline)
+                  .foregroundStyle(.white)
+                
+                if let lockError {
+                  Text(lockError)
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.9))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                } else {
+                  Text("Use Face ID to view your calendar.")
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.9))
+                }
+                
+                Button {
+                  Task { await unlockWithFaceID() }
+                } label: {
+                  HStack(spacing: 8) {
+                    if isAuthenticating { ProgressView() }
+                    Text(isAuthenticating ? "Checking..." : "Unlock with Face ID")
+                  }
+                  .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(.white)
+                .foregroundStyle(.black)
+                .disabled(isAuthenticating)
+                .padding(.horizontal, 24)
+              }
+            }
+        }
+      }
     }
-    // Seed dates whenever user changes, then load the current year locally
-    .task(id: auth.userID) {
+    // Re-lock in background (optional)
+    .onChange(of: scenePhase) { _, newPhase in
+      if newPhase == .background {
+        isUnlocked = false
+      } else if newPhase == .active, !isUnlocked {
+        Task { await unlockWithFaceID() }
+      }
+    }
+    
+    // ✅ This is the key fix: rerun when unlock changes too
+    .task(id: "\(auth.userID ?? "nil")-\(isUnlocked)") {
+      guard isUnlocked else { return }
       await seedDatesIfNeeded()
       await loadYear(selectedYear)
     }
+    
     .onChange(of: selectedYear) { _, new in
+      guard isUnlocked else { return }
       Task { await loadYear(new) }
     }
+    
     .refreshable {
+      guard isUnlocked else { return }
       await forceRefreshDates()
       await loadYear(selectedYear)
     }
+    
     .sheet(isPresented: $showPremium) {
       PremiumView()
-        .presentationDetents([.large])                 // or [.fraction(0.9)]
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .interactiveDismissDisabled(false)             // set to true if you want to force a choice
-        .presentationCornerRadius(20)                   // optional
-        .preferredColorScheme(.dark) 
+        .interactiveDismissDisabled(false)
+        .presentationCornerRadius(20)
+        .preferredColorScheme(.dark)
+    }
+    
+    // Prompt Face ID on first appearance
+    .task {
+      if !isUnlocked {
+        await unlockWithFaceID()
+      }
+    }
+  }
+  
+  // MARK: - Face ID
+  private func unlockWithFaceID() async {
+    guard !isAuthenticating else { return }
+    await MainActor.run {
+      isAuthenticating = true
+      lockError = nil
+    }
+    
+    do {
+      try await BiometricAuth.authenticate(reason: "Unlock your TodayI calendar.")
+      await MainActor.run {
+        isUnlocked = true
+        isAuthenticating = false
+        lockError = nil
+      }
+    } catch {
+      await MainActor.run {
+        isUnlocked = false
+        isAuthenticating = false
+        lockError = error.localizedDescription
+      }
     }
   }
   
@@ -52,8 +159,11 @@ struct CalendarView: View {
     guard let swiftManager else { return }
     do {
       let rows = try swiftManager.fetchDateModels(inYear: year)
+      
+      // ✅ resolve SwiftData faults BEFORE putting into @State
+      rows.forEach { _ = $0.moodRaws }
+      
       await MainActor.run {
-        // Assign only if first time or switching years
         if yearModels.isEmpty || (yearModels.first?.date.year ?? 0) != year {
           yearModels = rows
         }
@@ -75,8 +185,8 @@ struct CalendarView: View {
       guard existing.isEmpty else { return }
       
       isSyncing = true; errorText = nil
-      let dtos = try await MemoryService.fetchDates(for: uid)         // [DateDTO]
-      try swiftManager?.importDatesIfNeeded(dtos)                       // upsert to SwiftData
+      let dtos = try await MemoryService.fetchDates(for: uid) // [DateDTO]
+      try swiftManager?.importDatesIfNeeded(dtos)             // upsert to SwiftData
       isSyncing = false
     } catch {
       isSyncing = false

@@ -3,14 +3,14 @@ import StoreKit
 import Security
 
 enum IAP {
-  // ⚠️ Make sure these EXACTLY match App Store Connect
+  // Make sure these EXACTLY match App Store Connect
   static let monthlyID = "com.kuzostudiosph.TodayI.premium.monthly"
   static let yearlyID  = "com.kuzostudiosph.TodayI.premium.yearly"
 }
 
 struct Entitlement: Codable, Equatable {
   let productId: String
-  let expiresAt: Date?   // nil for lifetime/non-consumable
+  let expiresAt: Date?   // nil for lifetime/non-consumable (or unknown)
 }
 
 @MainActor
@@ -21,17 +21,22 @@ final class EntitlementStore: ObservableObject {
   private let cacheService = "entitlements.v1"
   private let cacheAccount = "current"
   
+  private var updatesTask: Task<Void, Never>?
+  
   // MARK: - Init
   
   init() {
-    print("🧩 EntitlementStore.init()")
+    print("EntitlementStore.init()")
     
-    if let cached = try? loadFromKeychain() {
-      print("🔑 Loaded cached entitlements from Keychain: \(cached.map { $0.productId })")
+    if let cached = try? loadFromKeychainOptional() {
+      print("Loaded cached entitlements from Keychain: \(cached.map { $0.productId })")
       self.active = cached
     } else {
-      print("🔑 No cached entitlements found in Keychain")
+      print("No cached entitlements found in Keychain")
     }
+    
+    // Derive isPremium from cached immediately
+    self.isPremium = self.active.contains { $0.productId == IAP.monthlyID || $0.productId == IAP.yearlyID }
     
     // Bootstrap current status on launch
     Task {
@@ -39,22 +44,38 @@ final class EntitlementStore: ObservableObject {
     }
   }
   
+  deinit {
+    updatesTask?.cancel()
+  }
+  
   // MARK: - StoreKit updates
   
-  /// Call once during app startup (e.g., in App.init())
+  /// Call once during app startup (e.g., in App.init()).
   func observeUpdates() {
-    print("👂 EntitlementStore.observeUpdates() – starting StoreKit.Transaction.updates stream")
+    guard updatesTask == nil else {
+      print("EntitlementStore.observeUpdates(): already observing")
+      return
+    }
     
-    Task.detached { [weak self] in
+    print("EntitlementStore.observeUpdates(): starting Transaction.updates stream")
+    
+    updatesTask = Task { [weak self] in
+      guard let self else { return }
+      
       for await update in StoreKit.Transaction.updates {
-        guard let self else { continue }
+        guard !Task.isCancelled else { break }
+        
         switch update {
         case .verified(let t):
-          print("📬 StoreKit update: verified transaction for product \(t.productID) (type: \(t.productType.rawValue))")
+          print("StoreKit update: verified transaction \(t.productID) (type: \(t.productType.rawValue))")
+          // Recommended: finish once you've processed entitlement delivery.
+          await t.finish()
+          
         case .unverified(let t, let error):
-          print("⚠️ StoreKit update: UNVERIFIED transaction \(t.productID), error: \(String(describing: error))")
+          print("StoreKit update: UNVERIFIED transaction \(t.productID), error: \(String(describing: error))")
         }
-        await self.refresh(reason: "StoreKit.Transaction.updates")
+        
+        await self.refresh(reason: "Transaction.updates")
       }
     }
   }
@@ -63,19 +84,18 @@ final class EntitlementStore: ObservableObject {
   
   /// Re-scan StoreKit current entitlements and cache result.
   func refresh(reason: String = "manual") async {
-    print("🔄 EntitlementStore.refresh(reason: \(reason)) at \(Date())")
+    print("EntitlementStore.refresh(reason: \(reason)) at \(Date())")
     
     var result: [Entitlement] = []
+    var countScanned = 0
     
     do {
-      var countScanned = 0
-      
       for await ent in StoreKit.Transaction.currentEntitlements {
         countScanned += 1
         
         switch ent {
         case .unverified(let t, let error):
-          print("⚠️ currentEntitlements: UNVERIFIED transaction for product \(t.productID). error: \(String(describing: error))")
+          print("currentEntitlements: UNVERIFIED \(t.productID). error: \(String(describing: error))")
           continue
           
         case .verified(let t):
@@ -85,77 +105,75 @@ final class EntitlementStore: ObservableObject {
           let rev  = t.revocationDate
           
           print("""
-          🔍 currentEntitlement:
-            • productID: \(pid)
-            • type: \(type.rawValue)
-            • expiration: \(String(describing: exp))
-            • revokedAt: \(String(describing: rev))
+          currentEntitlement:
+            productID: \(pid)
+            type: \(type.rawValue)
+            expiration: \(String(describing: exp))
+            revokedAt: \(String(describing: rev))
           """)
           
           // Ignore revoked
           guard rev == nil else {
-            print("   ↪︎ Skipping \(pid) because it is revoked")
+            print("Skipping \(pid) because it is revoked")
             continue
           }
           
+          // IMPORTANT: Transaction.currentEntitlements already represents what Apple considers currently entitled.
+          // So we generally trust it and treat it as active.
+          
           switch type {
           case .autoRenewable:
-            if let exp = exp, exp > Date() {
-              print("   ✅ Active auto-renewable subscription: \(pid) (expires at \(exp))")
-              result.append(Entitlement(productId: pid, expiresAt: exp))
-            } else {
-              print("   🚫 Auto-renewable \(pid) has expired or missing expiration")
-            }
+            // Keep expiration if provided (useful for UI/debug), but do not gate entitlement on exp > now.
+            result.append(Entitlement(productId: pid, expiresAt: exp))
             
           case .nonConsumable:
-            print("   ✅ Non-consumable entitlement: \(pid)")
             result.append(Entitlement(productId: pid, expiresAt: nil))
             
           case .nonRenewable:
-            if let exp = exp, exp > Date() {
-              print("   ✅ Active non-renewable: \(pid) (expires at \(exp))")
+            // Non-renewables should have an expiration. Be defensive:
+            if let exp, exp > Date() {
               result.append(Entitlement(productId: pid, expiresAt: exp))
             } else {
-              print("   ✅ Non-renewable (no expiration or already expired): \(pid)")
-              result.append(Entitlement(productId: pid, expiresAt: nil))
+              // If exp is missing or already expired, do NOT treat it as lifetime.
+              print("Non-renewable \(pid) missing/expired expiration; not adding as active")
             }
             
           default:
-            print("   ℹ️ Ignoring product type \(type.rawValue) for \(pid)")
+            print("Ignoring product type \(type.rawValue) for \(pid)")
           }
         }
       }
       
-      print("📊 Scanned \(countScanned) currentEntitlements; built \(result.count) active entitlements")
+      print("Scanned \(countScanned) currentEntitlements; built \(result.count) active entitlements")
       
       // Normalize ordering for stable equality
       result.sort { $0.productId < $1.productId }
       
+      // Update active + cache only if changed
       if result != active {
-        print("💾 Active entitlements changed. Old: \(active.map { $0.productId }), New: \(result.map { $0.productId })")
+        print("Active entitlements changed. Old: \(active.map { $0.productId }), New: \(result.map { $0.productId })")
         active = result
         do {
           try cacheToKeychain(result)
-          print("🔐 Cached entitlements to Keychain")
+          print("Cached entitlements to Keychain")
         } catch {
-          print("⚠️ Failed to cache entitlements to Keychain:", error)
+          print("Failed to cache entitlements to Keychain: \(error)")
         }
       } else {
-        print("ℹ️ Active entitlements unchanged")
+        print("Active entitlements unchanged")
       }
       
-      // Decide premium: any active sub of our group
-      let oldPremium = isPremium
-      isPremium = active.contains { $0.productId == IAP.monthlyID || $0.productId == IAP.yearlyID }
-      
-      if isPremium != oldPremium {
-        print("🏅 isPremium changed: \(oldPremium) → \(isPremium)")
+      // Always recompute premium from the latest scan result (not from prior cached state).
+      let newPremium = active.contains { $0.productId == IAP.monthlyID || $0.productId == IAP.yearlyID }
+      if newPremium != isPremium {
+        print("isPremium changed: \(isPremium) -> \(newPremium)")
+        isPremium = newPremium
       } else {
-        print("ℹ️ isPremium stays:", isPremium)
+        print("isPremium stays: \(isPremium)")
       }
       
     } catch {
-      print("❌ Error while iterating currentEntitlements:", error)
+      print("Error while iterating currentEntitlements: \(error)")
     }
   }
   
@@ -163,18 +181,21 @@ final class EntitlementStore: ObservableObject {
   
   private func cacheToKeychain(_ ents: [Entitlement]) throws {
     let data = try JSONEncoder().encode(ents)
-    print("🧾 Encoding entitlements for Keychain:", ents.map { $0.productId })
+    print("Encoding entitlements for Keychain: \(ents.map { $0.productId })")
     try Keychain.save(service: cacheService, account: cacheAccount, data: data)
   }
   
-  private func loadFromKeychain() throws -> [Entitlement] {
-    print("🔎 Trying to load entitlements from Keychain (service: \(cacheService), account: \(cacheAccount))")
+  /// Returns nil if there is no cache entry.
+  private func loadFromKeychainOptional() throws -> [Entitlement]? {
+    print("Trying to load entitlements from Keychain (service: \(cacheService), account: \(cacheAccount))")
+    
     guard let data = try Keychain.load(service: cacheService, account: cacheAccount) else {
-      print("   ↪︎ No data found in Keychain")
-      return []
+      print("No data found in Keychain")
+      return nil
     }
+    
     let decoded = try JSONDecoder().decode([Entitlement].self, from: data)
-    print("   ↪︎ Decoded entitlements from Keychain:", decoded.map { $0.productId })
+    print("Decoded entitlements from Keychain: \(decoded.map { $0.productId })")
     return decoded
   }
 }

@@ -132,11 +132,19 @@ struct AuthView: View {
           }
           .padding(.vertical, 4)
           
-          SignInWithAppleButton(onRequest: configureAppleRequest,
-                                onCompletion: handleAppleCompletion)
-          .signInWithAppleButtonStyle(scheme == .dark ? .white : .black)
-          .frame(height: 50)
-          .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+          ZStack {
+            SignInWithAppleButton(onRequest: configureAppleRequest,
+                                  onCompletion: handleAppleCompletion)
+            .signInWithAppleButtonStyle(scheme == .dark ? .white : .black)
+            .frame(height: 50)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .allowsHitTesting(!isLoading)
+            .opacity(isLoading ? 0.7 : 1)
+            
+            if isLoading {
+              ProgressView()
+            }
+          }
           
           Text("By continuing you agree to the Terms & Privacy Policy.")
             .font(.caption2)
@@ -155,6 +163,9 @@ struct AuthView: View {
         Spacer(minLength: 0)
       }
       .padding(.vertical)
+    }
+    .onAppear {
+      mode = .signup
     }
   }
 }
@@ -175,6 +186,9 @@ private extension AuthView {
         _ = try await Auth.auth().signIn(withEmail: email, password: password)
       }
     } catch {
+      let ns = error as NSError
+      let code = AuthErrorCode(rawValue: ns.code)
+      print("Email flow failed:", code as Any, ns)
       await MainActor.run { errorMessage = error.localizedDescription }
     }
     await MainActor.run { isLoading = false }
@@ -189,7 +203,7 @@ private extension AuthView {
     currentNonce = nonce
     request.nonce = sha256(nonce)
   }
-
+  
   func handleAppleCompletion(_ result: Result<ASAuthorization, Error>) {
     switch result {
     case .failure(let err):
@@ -217,63 +231,32 @@ private extension AuthView {
       let suggestedEmail = appleIDCredential.email
       
       Task {
-        await auth.signInOrLinkWithApple(credential)
-        await MainActor.run { currentNonce = nil }
+        await MainActor.run { isLoading = true; errorMessage = nil }
+        defer {
+          Task { @MainActor in
+            isLoading = false
+            currentNonce = nil
+          }
+        }
         
-        // if you want to set a nicer username on first run:
-        if let name = suggestedName, !name.isEmpty {
-          await auth.updateUsername(name)
-        }
-        // If you want to persist the returned email into Firestore (optional):
-        if let e = suggestedEmail, let uid = auth.userID {
-          try? await Firestore.firestore().collection("users").document(uid)
-            .updateData(["email": e, "updatedAt": FieldValue.serverTimestamp()])
+        do {
+          await auth.signInOrLinkWithApple(credential)
+          
+          // if you want to set a nicer username on first run:
+          if let name = suggestedName, !name.isEmpty {
+            await auth.updateUsername(name)
+          }
+          
+          // If you want to persist the returned email into Firestore (optional):
+          if let e = suggestedEmail, let uid = auth.userID {
+            try await Firestore.firestore().collection("users").document(uid)
+              .updateData(["email": e, "updatedAt": FieldValue.serverTimestamp()])
+          }
+        } catch {
+          await MainActor.run { errorMessage = error.localizedDescription }
         }
       }
     }
   }
 }
 
-// MARK: - Input style modifier
-private struct AuthInputStyle: ViewModifier {
-  func body(content: Content) -> some View {
-    content
-      .padding()
-      .background(Color(.secondarySystemBackground))
-      .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-  }
-}
-
-private extension View {
-  func authInputStyle() -> some View {
-    self.modifier(AuthInputStyle())
-  }
-}
-
-// MARK: - Nonce helpers (unchanged)
-private func randomNonceString(length: Int = 32) -> String {
-  precondition(length > 0)
-  let charset = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
-  var result = ""
-  var remaining = length
-  
-  while remaining > 0 {
-    var randoms = [UInt8](repeating: 0, count: 16)
-    let status = SecRandomCopyBytes(kSecRandomDefault, randoms.count, &randoms)
-    if status != errSecSuccess { fatalError("Unable to generate nonce.") }
-    randoms.forEach { rand in
-      if remaining == 0 { return }
-      if rand < charset.count {
-        result.append(charset[Int(rand)])
-        remaining -= 1
-      }
-    }
-  }
-  return result
-}
-
-private func sha256(_ input: String) -> String {
-  let inputData = Data(input.utf8)
-  let hashed = SHA256.hash(data: inputData)
-  return hashed.compactMap { String(format: "%02x", $0) }.joined()
-}

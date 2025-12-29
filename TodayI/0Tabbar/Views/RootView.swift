@@ -12,7 +12,7 @@ struct RootView: View {
         case .home:
           HomeView()
         case .calendar:
-          CalendarView() // your existing calendar
+          CalendarView(tabSelection: $selection) // your existing calendar
         case .create:
           CreateMemoryView()
         case .global:

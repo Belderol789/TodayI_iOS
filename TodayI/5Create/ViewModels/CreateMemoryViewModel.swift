@@ -33,6 +33,7 @@ final class CreateMemoryViewModel: ObservableObject {
   private var loopObserver: NSObjectProtocol?
   @Published private(set) var pendingVideoURL: URL? = nil
   @Published private(set) var videoThumbnail: UIImage? = nil
+  @Published var isProcessingVideo = false
   
   // Link
   @Published var linkString: String? = nil
@@ -54,7 +55,7 @@ final class CreateMemoryViewModel: ObservableObject {
   
   // MARK: - Derived
   var canPost: Bool {
-    selectedMood != nil && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    selectedMood != nil && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isProcessingVideo
   }
   
   // MARK: - Intents (called by the View)
@@ -128,32 +129,38 @@ final class CreateMemoryViewModel: ObservableObject {
     galleryItems = []
   }
   
+  @MainActor
   func handleVideoSelectionChange() async {
     guard let item = videoItem else { return }
-    defer { videoItem = nil; presentVideoPicker = false }
+    
+    isProcessingVideo = true
+    presentVideoPicker = false
+    
+    defer {
+      isProcessingVideo = false
+      videoItem = nil
+    }
     
     do {
       clearImages()
-      // 1) Import as a FILE using your PickedMovie
+      
+      // 1) Import as file
       guard var url = try await item.loadTransferable(type: PickedMovie.self)?.url else { return }
       
-      // 2) Check duration
+      // 2) Check duration / trim
       let asset = AVURLAsset(url: url)
       let duration = try await asset.load(.duration).seconds
       if duration > 30.0 {
-        url = try await exportFirst30SecondsMp4(from: asset) // overwrite with trimmed
+        url = try await exportFirst30SecondsMp4(from: asset)
       }
       
-      // 3) Generate a thumbnail for UI
-      if let thumb = await generateVideoThumbnail(from: url) {
-        self.videoThumbnail = thumb
-      }
+      // 3) Thumbnail (safe on main because we're @MainActor)
+      videoThumbnail = await generateVideoThumbnail(from: url)
       
       // 4) Assign once
-      DispatchQueue.main.async {
-        self.pendingVideoURL = url
-        self.configurePlayer(with: url, autoplay: true, loop: true, muted: false)
-      }
+      pendingVideoURL = url
+      configurePlayer(with: url, autoplay: true, loop: true, muted: false)
+      
     } catch {
       print("Video import failed: \(error)")
     }

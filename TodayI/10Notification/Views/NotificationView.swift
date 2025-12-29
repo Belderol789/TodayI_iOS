@@ -158,11 +158,11 @@ struct NotificationView: View {
   private func refreshAndListen() {
     Task {
       await refreshOnce(forceReload: true)
-      startListening()
+      startNotificationListening()
     }
   }
   
-  private func startListening() {
+  private func startNotificationListening() {
     guard !auth.isGuest, let uid = Auth.auth().currentUser?.uid else { return }
     stopListening()
     listener = NotificationManager.shared.listenUserInbox(

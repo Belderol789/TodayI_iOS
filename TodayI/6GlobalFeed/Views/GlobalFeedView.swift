@@ -141,7 +141,7 @@ private struct FooterState: View {
       } else if reachedEnd {
         HStack {
           Spacer()
-          Text("No posts yet")
+          Text("No more posts")
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, 12)

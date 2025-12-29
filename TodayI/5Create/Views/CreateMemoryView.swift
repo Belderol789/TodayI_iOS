@@ -8,6 +8,7 @@ struct CreateMemoryView: View {
   @Environment(\.swiftDataManager) private var swiftManager
   @Environment(\.dismiss) private var dismiss
   @Environment(\.openURL) private var openURL
+  @Environment(\.colorScheme) private var scheme
   @StateObject private var vm = CreateMemoryViewModel()
   
   @State private var showPreview = false
@@ -106,17 +107,23 @@ struct CreateMemoryView: View {
       } label: {
         Text("Post")
           .font(.headline.bold())
+          .foregroundColor(vm.canPost ? .white : .secondary)
           .padding(.horizontal, 24)
           .padding(.vertical, 12)
           .background(
             Capsule()
-              .fill((vm.selectedMood?.adaptiveColor ?? .secondary)
-                .opacity(vm.canPost ? 1.0 : 0.4))
+              .fill(vm.selectedMood?.adaptiveColor ?? .primary)
+              .opacity(vm.canPost ? 1.0 : 0.35)
           )
-          .foregroundStyle(Color(.systemBackground))
-          .shadow(color: .black.opacity(0.18), radius: 1, x: 0, y: 1)
+          .shadow(
+            color: vm.canPost ? .black.opacity(0.25) : .clear,
+            radius: 2,
+            x: 0,
+            y: 2
+          )
       }
       .disabled(!vm.canPost)
+      
       Spacer(minLength: 0)
     }
     .padding(.horizontal, 16)
@@ -180,15 +187,20 @@ struct CreateMemoryView: View {
           } else {
             HStack(spacing: 8) {
               Text("Select mood")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.headline.weight(.semibold))
+                .foregroundColor(scheme == .dark ? .black : .white)
+              
               Image(systemName: "chevron.down")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(scheme == .dark ? .black : .white)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 8)
-            .background(.thinMaterial, in: Capsule())
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+              Capsule()
+                .fill(scheme == .dark ? Color.white : Color.black)
+            )
+            .shadow(color: .black.opacity(0.25), radius: 2, x: 0, y: 2)
           }
         }
         .frame(minWidth: 160, alignment: .leading) // prevent shrinking
@@ -210,38 +222,57 @@ struct CreateMemoryView: View {
   
   private var videoSection: some View {
     Group {
-      if let player = vm.videoPlayer {
+      if vm.isProcessingVideo || vm.videoPlayer != nil {
         ZStack {
-          VideoPlayer(player: player)
+          RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(Color(.secondarySystemBackground))
             .frame(height: 180)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .onAppear { player.play() }
-            .onDisappear { player.pause() }
           
-          // Close in top-left
-          VStack {
-            HStack {
-              Button {
-                vm.clearVideo()
-              } label: {
-                Image(systemName: "xmark.circle.fill")
-                  .font(.title3)
-                  .symbolRenderingMode(.hierarchical)
-                  .foregroundStyle(.primary)
-                  .padding(8)
-                  .background(.thinMaterial, in: Circle())
-                  .contentShape(Circle())
+          if let player = vm.videoPlayer {
+            VideoPlayer(player: player)
+              .frame(height: 180)
+              .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+              .onAppear { player.play() }
+              .onDisappear { player.pause() }
+          }
+          
+          if vm.isProcessingVideo {
+            VStack(spacing: 8) {
+              ProgressView()
+                .progressViewStyle(.circular)
+              
+              Text("Processing video…")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            .transition(.opacity)
+          }
+          
+          // Close button (only when ready)
+          if vm.videoPlayer != nil {
+            VStack {
+              HStack {
+                Button {
+                  vm.clearVideo()
+                } label: {
+                  Image(systemName: "xmark.circle.fill")
+                    .font(.title3)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.primary)
+                    .padding(8)
+                    .background(.thinMaterial, in: Circle())
+                }
+                .padding(.leading, 8)
+                .padding(.top, 8)
+                
+                Spacer()
               }
-              .buttonStyle(.plain)
-              .padding(.leading, 8)
-              .padding(.top, 8)
               Spacer()
             }
-            Spacer()
           }
-          .allowsHitTesting(true)
         }
         .padding(.horizontal)
+        .animation(.easeInOut, value: vm.isProcessingVideo)
       }
     }
   }
@@ -303,9 +334,7 @@ struct CreateMemoryView: View {
     HStack {
       PrivacyBadge(isPublic: $vm.isPublic)
       Spacer()
-      if entitlements.isPremium {
-        PremiumPill(isPremium: true)
-      } else {
+      if !entitlements.isPremium {
         Text("\(vm.remaining) left")
           .font(.caption)
           .foregroundStyle(vm.remaining < 20 ? .orange : .secondary)

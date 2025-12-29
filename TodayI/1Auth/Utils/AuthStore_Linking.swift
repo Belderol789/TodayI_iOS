@@ -13,10 +13,13 @@ extension AuthStore {
   // Email/Password example:
   
   func linkEmailPassword(email: String, password: String) async throws {
-    guard let user = Auth.auth().currentUser else { return }
+    guard let user = Auth.auth().currentUser else {
+      throw NSError(domain: "AuthStore", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "No active session. Please try again."])
+    }
     let cred = EmailAuthProvider.credential(withEmail: email, password: password)
-    let result = try await user.link(with: cred) // <— uid stays the same
-    await loadOrCreateProfile(for: result.user)  // refresh local+remote
+    let result = try await user.link(with: cred)
+    await loadOrCreateProfile(for: result.user)
   }
   
   func upgradeWithEmailPassword(_ email: String, password: String) async throws {

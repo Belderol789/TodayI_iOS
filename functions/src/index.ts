@@ -1,6 +1,10 @@
 // src/index.ts
 import * as admin from "firebase-admin";
-admin.initializeApp();
+
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
 export { sendDaily8pmByTZ } from "./dailyByTz";
+export { dailyWorldMood } from "./dailyWorldMood";
 export { onCommentCreated, onMemoryLikesUpdated } from "./socialMilestones";

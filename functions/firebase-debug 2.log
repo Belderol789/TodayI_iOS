@@ -1,0 +1,16 @@
+[debug] [2025-12-28T08:34:23.924Z] ----------------------------------------------------------------------
+[debug] [2025-12-28T08:34:23.925Z] Command:       /Users/kemuelclydebelderol/.nvm/versions/node/v22.21.0/bin/node /Users/kemuelclydebelderol/.nvm/versions/node/v22.21.0/bin/firebase deploy --only functions
+[debug] [2025-12-28T08:34:23.925Z] CLI Version:   15.1.0
+[debug] [2025-12-28T08:34:23.925Z] Platform:      darwin
+[debug] [2025-12-28T08:34:23.925Z] Node Version:  v22.21.0
+[debug] [2025-12-28T08:34:23.926Z] Time:          Sun Dec 28 2025 16:34:23 GMT+0800 (Philippine Standard Time)
+[debug] [2025-12-28T08:34:23.926Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-12-28T08:34:24.748Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-12-28T08:34:24.748Z] > authorizing via signed-in user (kemuelclyd@gmail.com)
+[debug] [2025-12-28T08:34:24.748Z] [iam] checking project todayi-f2951 for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2025-12-28T08:34:24.748Z] Checked if tokens are valid: true, expires at: 1766913552577
+[debug] [2025-12-28T08:34:24.748Z] Checked if tokens are valid: true, expires at: 1766913552577
+[debug] [2025-12-28T08:34:24.749Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/todayi-f2951:testIamPermissions [none]
+[debug] [2025-12-28T08:34:24.749Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/todayi-f2951:testIamPermissions x-goog-quota-user=projects/todayi-f2951
+[debug] [2025-12-28T08:34:24.749Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/todayi-f2951:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}

@@ -9,6 +9,8 @@ struct CalendarShell: View {
   @State private var mode: CalendarMode = .month
   @State private var currentMonth: Date? = nil
   
+  @Binding var tabSelection: AppTab
+  
   @Namespace private var zoomNS
   private let cal = Calendar.current
   
@@ -24,6 +26,7 @@ struct CalendarShell: View {
           year: year,
           models: models,
           currentMonth: $currentMonth,
+          tabSelection: $tabSelection,
           mode: mode,
           zoomNS: zoomNS
         )

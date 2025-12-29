@@ -11,6 +11,7 @@ extension MemoryService {
   /// Fetches all lightweight date entries for a user.
   static func fetchDates(for userID: String, db: Firestore = Firestore.firestore()) async throws -> [DateDTO] {
     LoggerManager.instance.logFirebaseCall()
+    print("Kem Fetch dates \(userID)")
     let snapshot = try await db
       .collection("users")
       .document(userID)
@@ -25,7 +26,7 @@ extension MemoryService {
                             dayKeyLocal: String,
                             db: Firestore = Firestore.firestore()) async throws -> [MemoryDTO] {
     LoggerManager.instance.logFirebaseCall()
-    
+    print("Kem Fetch memories \(userID)")
     let snapshot = try await db.collection("users")
       .document(userID)
       .collection("memories")

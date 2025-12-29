@@ -1,0 +1,77 @@
+[debug] [2025-12-28T08:36:07.346Z] ----------------------------------------------------------------------
+[debug] [2025-12-28T08:36:07.351Z] Command:       /Users/kemuelclydebelderol/.nvm/versions/node/v22.21.0/bin/node /Users/kemuelclydebelderol/.nvm/versions/node/v22.21.0/bin/firebase deploy --only functions
+[debug] [2025-12-28T08:36:07.351Z] CLI Version:   15.1.0
+[debug] [2025-12-28T08:36:07.351Z] Platform:      darwin
+[debug] [2025-12-28T08:36:07.351Z] Node Version:  v22.21.0
+[debug] [2025-12-28T08:36:07.351Z] Time:          Sun Dec 28 2025 16:36:07 GMT+0800 (Philippine Standard Time)
+[debug] [2025-12-28T08:36:07.351Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-12-28T08:36:08.055Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-12-28T08:36:08.055Z] > authorizing via signed-in user (kemuelclyd@gmail.com)
+[debug] [2025-12-28T08:36:08.055Z] [iam] checking project todayi-f2951 for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2025-12-28T08:36:08.055Z] Checked if tokens are valid: true, expires at: 1766913552577
+[debug] [2025-12-28T08:36:08.055Z] Checked if tokens are valid: true, expires at: 1766913552577
+[debug] [2025-12-28T08:36:08.056Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/todayi-f2951:testIamPermissions [none]
+[debug] [2025-12-28T08:36:08.056Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/todayi-f2951:testIamPermissions x-goog-quota-user=projects/todayi-f2951
+[debug] [2025-12-28T08:36:08.056Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/todayi-f2951:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2025-12-28T08:36:09.239Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/todayi-f2951:testIamPermissions 200
+[debug] [2025-12-28T08:36:09.240Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/todayi-f2951:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2025-12-28T08:36:09.240Z] Checked if tokens are valid: true, expires at: 1766913552577
+[debug] [2025-12-28T08:36:09.240Z] Checked if tokens are valid: true, expires at: 1766913552577
+[debug] [2025-12-28T08:36:09.240Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/todayi-f2951/serviceAccounts/todayi-f2951@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2025-12-28T08:36:09.240Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/todayi-f2951/serviceAccounts/todayi-f2951@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2025-12-28T08:36:10.461Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/todayi-f2951/serviceAccounts/todayi-f2951@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2025-12-28T08:36:10.462Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/todayi-f2951/serviceAccounts/todayi-f2951@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'todayi-f2951'...
+[info] 
+[info] i  deploying functions 
+[debug] [2025-12-28T08:36:10.466Z] Checked if tokens are valid: true, expires at: 1766913552577
+[debug] [2025-12-28T08:36:10.466Z] Checked if tokens are valid: true, expires at: 1766913552577
+[debug] [2025-12-28T08:36:10.467Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/todayi-f2951 [none]
+[debug] [2025-12-28T08:36:10.734Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/todayi-f2951 200
+[debug] [2025-12-28T08:36:10.734Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/todayi-f2951 {"projectNumber":"462416224688","projectId":"todayi-f2951","lifecycleState":"ACTIVE","name":"TodayI","labels":{"firebase":"enabled"},"createTime":"2024-01-22T17:31:12.706404Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2025-12-28T08:36:10.737Z] Checked if tokens are valid: true, expires at: 1766913552577
+[debug] [2025-12-28T08:36:10.737Z] Checked if tokens are valid: true, expires at: 1766913552577
+[debug] [2025-12-28T08:36:10.738Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/todayi-f2951/adminSdkConfig [none]
+[debug] [2025-12-28T08:36:14.592Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/todayi-f2951/adminSdkConfig 200
+[debug] [2025-12-28T08:36:14.592Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/todayi-f2951/adminSdkConfig {"projectId":"todayi-f2951","storageBucket":"todayi-f2951.appspot.com","locationId":"us-central"}
+[debug] [2025-12-28T08:36:14.593Z] Checked if tokens are valid: true, expires at: 1766913552577
+[debug] [2025-12-28T08:36:14.593Z] Checked if tokens are valid: true, expires at: 1766913552577
+[debug] [2025-12-28T08:36:14.594Z] >>> [apiv2][query] GET https://runtimeconfig.googleapis.com/v1beta1/projects/todayi-f2951/configs [none]
+[debug] [2025-12-28T08:36:15.984Z] <<< [apiv2][status] GET https://runtimeconfig.googleapis.com/v1beta1/projects/todayi-f2951/configs 200
+[debug] [2025-12-28T08:36:15.985Z] <<< [apiv2][body] GET https://runtimeconfig.googleapis.com/v1beta1/projects/todayi-f2951/configs {}
+[debug] [2025-12-28T08:36:15.988Z] Validating nodejs source
+[debug] [2025-12-28T08:36:16.610Z] > [functions] package.json contents: {
+  "name": "functions",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^7.0.2"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.1.0",
+    "typescript": "^5.7.3"
+  },
+  "private": true
+}
+[debug] [2025-12-28T08:36:16.610Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[debug] [2025-12-28T08:36:16.611Z] Could not find functions.yaml. Must use http discovery
+[debug] [2025-12-28T08:36:16.617Z] Found firebase-functions binary at '/Users/kemuelclydebelderol/Desktop/TodayI/functions/node_modules/.bin/firebase-functions'

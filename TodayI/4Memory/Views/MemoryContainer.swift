@@ -12,6 +12,9 @@ struct MemoryContainer: View {
   @Environment(\.swiftDataManager) private var swiftManager
   @Environment(\.colorScheme) private var scheme
   
+  @Binding var tabSelection: AppTab
+  private var today: Date { Date().today }
+  
   @State private var memories: [MemoryModel] = []
   @State private var isLoading = false
   @State private var errorText: String?
@@ -83,11 +86,28 @@ private extension MemoryContainer {
         description: Text(errorText)
       )
     } else if memories.isEmpty {
-      ContentUnavailableView(
-        "No memories",
-        systemImage: "book.closed",
-        description: Text(day.formatted(date: .abbreviated, time: .omitted))
-      )
+      VStack {
+        ContentUnavailableView(
+          "No memories",
+          systemImage: "book.closed",
+          description: Text(day.formatted(date: .abbreviated, time: .omitted))
+        )
+        if day == today {
+          EmptyStateView(
+            message: "You don't have memories yet today",
+            date: today,
+            buttonTitle: "Create a Memory",
+            onButtonTap: {
+              dismiss()
+              DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                tabSelection = .create
+              }
+            }
+          )
+        }
+        Spacer()
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) // ✅ key
     } else {
       List {
         ForEach(memories, id: \.id) { mem in

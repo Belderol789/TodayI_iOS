@@ -3,7 +3,7 @@ import Charts
 
 struct YearMoodBarsView: View {
   /// Pass in the already-fetched DateModels for the year
-  let models: [DateModel]
+  @Binding var models: [DateModel]
   /// Optional year label for the header (purely cosmetic)
   var year: Int? = nil
   

@@ -19,7 +19,6 @@ struct PlaceholderTextEditor: View {
       
       TextEditor(text: $text)
         .font(.body)                       // <- ensure consistent text metrics
-        .foregroundColor(.primary)         // <- explicit text color
         .scrollContentBackground(.hidden)  // <- hide UIKit bg
         .background(Color.clear)           // <- keep editor itself clear
         .padding(.horizontal, 8)
@@ -30,6 +29,10 @@ struct PlaceholderTextEditor: View {
         .opacity(0.999)                    // <- tiny hack to avoid caching glitch
     }
     .frame(minHeight: minHeight, maxHeight: maxHeight)
+    .onAppear {
+      UITextView.appearance().textColor = UIColor.label
+      UITextView.appearance().tintColor = UIColor.label
+    }
     .background(                           // <- your rounded container bg
       RoundedRectangle(cornerRadius: 12, style: .continuous)
         .fill(Color(.secondarySystemBackground))

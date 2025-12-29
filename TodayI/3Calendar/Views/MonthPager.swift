@@ -6,6 +6,7 @@ struct MonthPager: View {
   @Environment(\.colorScheme) private var scheme
   @EnvironmentObject var entitlements: EntitlementStore
   @Binding var currentMonth: Date?
+  @Binding var tabSelection: AppTab
   let mode: CalendarMode
   let zoomNS: Namespace.ID
   
@@ -97,7 +98,7 @@ struct MonthPager: View {
   private var memorySheet: some View {
     if let day = presentedDay {
       // EntitlementStore is expected via .environmentObject higher up
-      MemoryContainer(day: day)
+      MemoryContainer(day: day, tabSelection: $tabSelection)
     }
   }
   
