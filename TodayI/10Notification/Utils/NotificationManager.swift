@@ -42,12 +42,19 @@ final class NotificationManager: NSObject {
   
   private func subscribeToTimezoneTopicIfNeeded() {
     let seconds = TimeZone.current.secondsFromGMT()
-    let hours = seconds / 3600 // whole-hour offsets
+    let hours = seconds / 3600
     let signPrefix = hours >= 0 ? "p" : "m"
     let absH = abs(hours)
-    let topic = "daily8pm_tz_\(signPrefix)\(String(format: "%02d", absH))" // e.g., daily8pm_tz_p08
+    let tz = "\(signPrefix)\(String(format: "%02d", absH))" // p08, m05, etc.
     
-    let key = "lastTZTopic"
+    // Existing daily topic
+    subscribe(topic: "daily8pm_tz_\(tz)", key: "lastTZTopic_daily8pm")
+    
+    // ✅ NEW: world mood topic (matches your Cloud Function)
+    subscribe(topic: "worldmood_6pm_tz_\(tz)", key: "lastTZTopic_worldmood6pm")
+  }
+  
+  private func subscribe(topic: String, key: String) {
     let last = UserDefaults.standard.string(forKey: key)
     
     if last != topic {
@@ -57,9 +64,9 @@ final class NotificationManager: NSObject {
         }
       }
       Messaging.messaging().subscribe(toTopic: topic) { err in
-        if let err = err { print("Subscribe TZ failed:", err) }
+        if let err = err { print("Subscribe failed:", err) }
         else {
-          print("Subscribed TZ topic:", topic)
+          print("Subscribed topic:", topic)
           UserDefaults.standard.set(topic, forKey: key)
         }
       }

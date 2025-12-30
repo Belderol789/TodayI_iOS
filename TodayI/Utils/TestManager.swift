@@ -304,3 +304,149 @@ extension TestManager {
   }
 }
 #endif
+
+@MainActor
+enum TestDataFactory {
+  
+  // MARK: - Date Models (Calendar / History)
+  
+  static func makeYearDateModels(
+    year: Int,
+    strategy: SeedStrategy = .cycle,
+    calendar: Calendar = .current
+  ) -> [DateModel] {
+    
+    let start = calendar.date(from: DateComponents(year: year, month: 1, day: 1))!
+    let today = calendar.startOfDay(for: Date())
+    let yearEnd = calendar.date(from: DateComponents(year: year + 1, month: 1, day: 1))!
+    let end = (year == calendar.component(.year, from: today)) ? min(today, yearEnd) : yearEnd
+    
+    var models: [DateModel] = []
+    var day = start
+    var idx = 0
+    
+    while day < end {
+      let key = calendar.startOfDay(for: day)
+      let mood = TestManager.pickMood(
+        for: key,
+        index: idx,
+        strategy: strategy,
+        calendar: calendar
+      )
+      
+      models.append(
+        DateModel(
+          date: key,
+          moods: [mood]
+        )
+      )
+      
+      idx += 1
+      day = calendar.date(byAdding: .day, value: 1, to: day)!
+    }
+    
+    return models.sorted { $0.date < $1.date }
+  }
+  
+  // MARK: - Memories (Daily Detail / Feed)
+  
+  static func makeMemories(
+    for day: Date,
+    isPremium: Bool,
+    username: String = "tester",
+    userID: String = "debug-user",
+    strategy: SeedStrategy = .random,
+    calendar: Calendar = .current
+  ) -> [MemoryModel] {
+    
+    let key = calendar.startOfDay(for: day)
+    let count = isPremium ? Int.random(in: 2...5) : 1
+    
+    return (0..<count).map { idx in
+      let mood = TestManager.pickMood(
+        for: key,
+        index: idx,
+        strategy: strategy,
+        calendar: calendar
+      )
+      
+      return MemoryModel(
+        id: UUID().uuidString,
+        userID: userID,
+        username: username,
+        date: key,
+        mood: mood,
+        journalText: TestManager.randomPrompt(for: mood),
+        likes: 100,
+        localImageNames: [],
+        remoteImagePaths: [],
+        isPremium: isPremium,
+        createdAt: Date(),
+        updatedAt: Date()
+      )
+    }
+  }
+  
+  static func makeTodayMemories(
+    isPremium: Bool,
+    username: String = "tester",
+    userID: String = "debug-user",
+    strategy: SeedStrategy = .random
+  ) -> [MemoryModel] {
+    makeMemories(
+      for: Date(),
+      isPremium: isPremium,
+      username: username,
+      userID: userID,
+      strategy: strategy
+    )
+  }
+  
+  /// Generates a "global feed" style list: many posts across multiple days and users.
+  static func makeGlobalFeedMemories(
+    for day: Date,
+    count: Int = 24,
+    daysBack: Int = 7,
+    userCount: Int = 8,
+    isPremium: Bool = true,
+    strategy: SeedStrategy = .stableRandom,
+    calendar: Calendar = .current
+  ) -> [MemoryModel] {
+    
+    let dayKey = calendar.startOfDay(for: day)
+    var results: [MemoryModel] = []
+    results.reserveCapacity(count)
+    
+    for i in 0..<count {
+      let offsetDays = i % max(daysBack, 1)
+      let postDay = calendar.date(byAdding: .day, value: -offsetDays, to: dayKey) ?? dayKey
+      
+      let u = i % max(userCount, 1)
+      let username = "user\(u + 1)"
+      let userID = "debug-user-\(u + 1)"
+      
+      // Generate a few memories for that day, then pick one to simulate a feed post
+      let candidates = makeMemories(
+        for: postDay,
+        isPremium: isPremium,
+        username: username,
+        userID: userID,
+        strategy: strategy,
+        calendar: calendar
+      )
+      
+      if let chosen = candidates.randomElement() {
+        // Make timestamps feel like a feed (newer posts are more recent)
+        let minutesAgo = i * Int.random(in: 3...12)
+        chosen.createdAt = Date().addingTimeInterval(TimeInterval(-minutesAgo * 60))
+        chosen.updatedAt = chosen.createdAt
+        
+        results.append(chosen)
+      }
+    }
+    
+    // Newest first
+    return results.sorted { $0.createdAt > $1.createdAt }
+  }
+  
+}
