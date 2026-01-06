@@ -11,10 +11,10 @@ struct HomeView: View {
   @State private var yearModels: [DateModel] = []
   @State private var navigateToCreate = false
   @State private var showSetting = false
-
+  
   private var today: Date { Date().today }
   private var dayKey: String {
-    today.formattedDayKeyLocal()   // make sure you have this helper
+    today.formattedDayKeyLocal()
   }
   
   var body: some View {
@@ -23,11 +23,17 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 16) {
           
           // MARK: - Today
-          HStack {
+          HStack(alignment: .center) {
             SectionTitleView(title: "Today's Memory", systemImage: "sun.max.fill")
+            // Override accessibility so VO doesn’t read the icon name or internal structure
+              .accessibilityElement(children: .ignore)
+              .accessibilityLabel("Today's Memory")
+              .accessibilityAddTraits(.isHeader)
+            
+            Spacer()
+            
             Button {
               showSetting = true
-              // Action here
             } label: {
               Label("Profile", systemImage: "person.crop.circle")
                 .padding(.horizontal, 12)
@@ -35,21 +41,46 @@ struct HomeView: View {
                 .background(.ultraThinMaterial)
                 .clipShape(Capsule())
             }
+            // Make it speak like a real action
+            .accessibilityLabel(auth.isRegisteredUser ? "Profile" : "Sign in or profile")
+            .accessibilityHint("Opens settings.")
+            .accessibilityAddTraits(.isButton)
           }
+          
           content
             .padding(.top, 4)
+          // Treat the dynamic content as its own “section” for VO navigation
+            .accessibilityElement(children: .contain)
           
           InsetDivider()
+          // Divider is purely visual
+            .accessibilityHidden(true)
           
           // MARK: - Yearly Mood Breakdown
           SectionTitleView(title: "Dominant Mood", systemImage: "face.smiling")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Dominant Mood")
+            .accessibilityAddTraits(.isHeader)
+          
           MainMoodView(models: $yearModels)
+          // If MainMoodView is visual-heavy, you can provide a summary label at the parent.
+          // Adjust this later based on how MainMoodView behaves in VO.
+            .accessibilityHint("Shows your most common mood for the year.")
+          
           SectionTitleView(title: "Yearly Mood Breakdown", systemImage: "chart.bar")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Yearly Mood Breakdown")
+            .accessibilityAddTraits(.isHeader)
+          
           YearMoodBarsView(models: $yearModels)
+            .accessibilityHint("Shows mood distribution by month.")
         }
+        .padding(.horizontal)
       }
+      .accessibilityLabel("Home")
       .navigationDestination(isPresented: $navigateToCreate) {
         CreateMemoryView()
+          .accessibilityLabel("Create a Memory")
       }
       .onAppear {
         Task {
@@ -66,8 +97,10 @@ struct HomeView: View {
         NavigationStack {
           if auth.isRegisteredUser {
             SettingsView()
+              .accessibilityLabel("Settings")
           } else {
             AuthView()
+              .accessibilityLabel("Sign In")
           }
         }
       }
@@ -86,15 +119,25 @@ private extension HomeView {
         buttonTitle: "Create a Memory",
         onButtonTap: { navigateToCreate = true }
       )
+      // Make the empty state read nicely as one message + action
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel("No memories yet today.")
+      .accessibilityHint("Create a memory to add your first entry for today.")
     } else if let randomMemory = memories.randomElement() {
-      VStack {
+      VStack(alignment: .leading, spacing: 8) {
         Text(randomMemory.date.formatted("MMM d, yyyy"))
           .font(.subheadline)
           .foregroundColor(.secondary)
+          .accessibilityLabel("Date \(randomMemory.date.formatted(.dateTime.month(.abbreviated).day().year()))")
+        
         MemoryRow(memory: randomMemory)
       }
+      // Prefer a single coherent read: date first, then the row content
+      .accessibilityElement(children: .contain)
+      .accessibilityHint("Random memory from today.")
     } else {
       EmptyView()
+        .accessibilityHidden(true)
     }
   }
 }
@@ -104,7 +147,6 @@ private extension HomeView {
   
   func loadTodayMemories() async {
     do {
-      // 1) Check if we already have at least one memory for that day (and user if available)
       var predicate = #Predicate<MemoryModel> { $0.dayKey == dayKey }
       if let uid = auth.userID {
         predicate = #Predicate<MemoryModel> { $0.dayKey == dayKey && $0.userID == uid }
@@ -114,19 +156,17 @@ private extension HomeView {
       existsFetch.fetchLimit = 1
       let existing = try context.fetch(existsFetch)
       
-      // 2) If none locally, fetch from Firestore and import into SwiftData
       if existing.isEmpty, let uid = auth.userID {
         let dtos = try await MemoryService.fetchMemories(for: uid, dayKeyLocal: dayKey)
         try swiftManager?.importMemoriesIfNeeded(dtos)
       }
       
-      // 3) Reload from SwiftData for display
       await load(dayKey: dayKey)
     } catch {
       print("Error loading today's memories")
     }
   }
-
+  
   func loadYear(_ year: Int) async {
     guard let swiftManager else { return }
     do {
@@ -139,7 +179,6 @@ private extension HomeView {
   }
   
   func load(dayKey: String) async {
-
     do {
       var predicate = #Predicate<MemoryModel> { $0.dayKey == dayKey }
       
@@ -161,10 +200,8 @@ private extension HomeView {
       await MainActor.run {
         self.memories = items
       }
-      
     } catch {
       print("Error loading today's memories")
     }
   }
-  
 }

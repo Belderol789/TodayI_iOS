@@ -18,16 +18,18 @@ struct AuthView: View {
   @State private var errorMessage: String?
   @State private var currentNonce: String?
   
-  // Basic validation checks
+  private let privacyURL = URL(string: "https://github.com/KuzoStudiosPH/TodayI/wiki/Privacy-Policy")!
+  private let appleTermsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+  
+  // ✅ Optional VoiceOver focus (helps when showing errors)
+  @AccessibilityFocusState private var focusError: Bool
+  
   private var emailLooksValid: Bool { email.contains("@") && email.contains(".") && email.count > 5 }
   private var passwordLooksValid: Bool { password.count >= 6 }
-  private var canSubmit: Bool {
-    emailLooksValid && passwordLooksValid && !isLoading
-  }
+  private var canSubmit: Bool { emailLooksValid && passwordLooksValid && !isLoading }
   
   var body: some View {
     ZStack {
-      // Background gradient
       LinearGradient(
         colors: scheme == .dark
         ? [.black, Color(.systemGray6).opacity(0.06)]
@@ -35,18 +37,22 @@ struct AuthView: View {
         startPoint: .topLeading, endPoint: .bottomTrailing
       )
       .ignoresSafeArea()
+      .accessibilityHidden(true) // decorative
       
       VStack(spacing: 20) {
         VStack(spacing: 8) {
           Text("Welcome to TodayI")
             .font(.largeTitle.weight(.bold))
             .tracking(0.5)
+            .accessibilityAddTraits(.isHeader)
           
           Text(mode == .signup ? "Create your account" : "Welcome back")
             .font(.subheadline)
             .foregroundStyle(.secondary)
         }
         .padding(.top, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Welcome to TodayI. \(mode == .signup ? "Create your account." : "Welcome back.")")
         
         // Picker for login / signup
         Picker("", selection: $mode) {
@@ -56,12 +62,15 @@ struct AuthView: View {
         }
         .pickerStyle(.segmented)
         .padding(.horizontal)
+        .accessibilityLabel("Authentication mode")
+        .accessibilityHint("Choose Sign Up or Log In.")
         
         VStack(spacing: 16) {
           // Error message if any
           if let msg = errorMessage {
             HStack {
               Image(systemName: "exclamationmark.triangle.fill")
+                .accessibilityHidden(true)
               Text(msg).font(.footnote)
               Spacer()
             }
@@ -69,6 +78,13 @@ struct AuthView: View {
             .padding(10)
             .background(Capsule().fill(.red.gradient))
             .transition(.opacity.combined(with: .move(edge: .top)))
+            
+            // ✅ Make errors announced like an alert
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Error. \(msg)")
+            .accessibilityAddTraits(.isStaticText)
+            .accessibilityAddTraits(.isModal) // helps keep focus here briefly
+            .accessibilityFocused($focusError)
           }
           
           // Email input
@@ -76,7 +92,14 @@ struct AuthView: View {
             .keyboardType(.emailAddress)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
+            .textContentType(.username) // better than none; helps AutoFill
             .authInputStyle()
+            .disabled(isLoading)
+          
+          // ✅ Don’t rely on placeholder for VO
+            .accessibilityLabel("Email")
+            .accessibilityHint("Enter your email address.")
+            .accessibilityValue(email.isEmpty ? "Empty" : email)
           
           // Password input with eye icon toggle
           HStack {
@@ -88,6 +111,10 @@ struct AuthView: View {
               }
             }
             .textContentType(.password)
+            .disabled(isLoading)
+            .accessibilityLabel("Password")
+            .accessibilityHint("Minimum 6 characters.")
+            .accessibilityValue(password.isEmpty ? "Empty" : "\(password.count) characters")
             
             Button {
               revealPassword.toggle()
@@ -95,6 +122,12 @@ struct AuthView: View {
               Image(systemName: revealPassword ? "eye.slash.fill" : "eye.fill")
                 .foregroundColor(.secondary)
             }
+            .disabled(isLoading)
+            
+            // ✅ Make the eye toggle understandable
+            .accessibilityLabel(revealPassword ? "Hide password" : "Show password")
+            .accessibilityValue(revealPassword ? "Shown" : "Hidden")
+            .accessibilityHint("Toggles password visibility.")
           }
           .authInputStyle()
           
@@ -113,6 +146,12 @@ struct AuthView: View {
           .disabled(!canSubmit)
           .opacity(canSubmit ? 1 : 0.6)
           
+          // ✅ Loading + intent
+          .accessibilityLabel(mode == .signup ? "Create account" : "Log in")
+          .accessibilityHint(isLoading ? "Please wait." : "Submits your email and password.")
+          .accessibilityValue(isLoading ? "In progress" : "")
+          .accessibilityAddTraits(.isButton)
+          
           Button {
             withAnimation(.spring) {
               mode = (mode == .signup ? .login : .signup)
@@ -124,6 +163,8 @@ struct AuthView: View {
             .font(.footnote.weight(.semibold))
           }
           .buttonStyle(.plain)
+          .disabled(isLoading)
+          .accessibilityHint("Switches between Sign Up and Log In.")
           
           HStack {
             Rectangle().fill(.secondary.opacity(0.2)).frame(height: 1)
@@ -131,6 +172,8 @@ struct AuthView: View {
             Rectangle().fill(.secondary.opacity(0.2)).frame(height: 1)
           }
           .padding(.vertical, 4)
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel("Or")
           
           ZStack {
             SignInWithAppleButton(onRequest: configureAppleRequest,
@@ -140,23 +183,23 @@ struct AuthView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .allowsHitTesting(!isLoading)
             .opacity(isLoading ? 0.7 : 1)
+            .accessibilityLabel("Continue with Apple")
+            .accessibilityHint(isLoading ? "Please wait." : "Signs in with your Apple ID.")
             
             if isLoading {
               ProgressView()
+                .accessibilityLabel("Signing in")
             }
           }
-          
-          Text("By continuing you agree to the Terms & Privacy Policy.")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-            .padding(.top, 6)
+          .accessibilityElement(children: .contain)
+          legalLinks
         }
         .padding(20)
         .background(
           RoundedRectangle(cornerRadius: 20, style: .continuous)
             .fill(.ultraThinMaterial)
             .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10)
+            .accessibilityHidden(true) // decorative card
         )
         .padding(.horizontal)
         
@@ -167,7 +210,38 @@ struct AuthView: View {
     .onAppear {
       mode = .signup
     }
+    // ✅ If an error appears, move VO focus to it
+    .onChange(of: errorMessage) { _, newValue in
+      if newValue != nil {
+        focusError = true
+      }
+    }
   }
+  
+  private var legalLinks: some View {
+    VStack(spacing: 10) {
+      Link("Privacy Policy", destination: privacyURL)
+        .font(.footnote.weight(.semibold))
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(Capsule().fill(Color.white.opacity(scheme == .dark ? 0.10 : 0.60)))
+        .buttonStyle(.plain)
+        .accessibilityLabel("Privacy Policy")
+        .accessibilityHint("Opens the privacy policy in your browser.")
+      
+      Link("Apple Terms of Service", destination: appleTermsURL)
+        .font(.footnote.weight(.semibold))
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(Capsule().fill(Color.white.opacity(scheme == .dark ? 0.10 : 0.60)))
+        .buttonStyle(.plain)
+        .accessibilityLabel("Apple Terms of Use")
+        .accessibilityHint("Opens Apple's standard end user license agreement.")
+    }
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel("Legal links")
+  }
+  
 }
 
 // MARK: - Email flows
@@ -226,7 +300,6 @@ private extension AuthView {
         rawNonce: rawNonce
       )
       
-      // Optional suggested values (only present on first auth)
       let suggestedName = appleIDCredential.fullName?.givenName?.trimmingCharacters(in: .whitespacesAndNewlines)
       let suggestedEmail = appleIDCredential.email
       
@@ -242,12 +315,10 @@ private extension AuthView {
         do {
           await auth.signInOrLinkWithApple(credential)
           
-          // if you want to set a nicer username on first run:
           if let name = suggestedName, !name.isEmpty {
             await auth.updateUsername(name)
           }
           
-          // If you want to persist the returned email into Firestore (optional):
           if let e = suggestedEmail, let uid = auth.userID {
             try await Firestore.firestore().collection("users").document(uid)
               .updateData(["email": e, "updatedAt": FieldValue.serverTimestamp()])
@@ -259,4 +330,3 @@ private extension AuthView {
     }
   }
 }
-

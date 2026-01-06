@@ -19,12 +19,45 @@ struct MemoryRow: View {
   private var isPremium: Bool { memory.isPremium }
   private var moodColor: Color { memory.mood.adaptiveColor }
   
-  // MARK: - Body (now tiny!)
+  // ✅ Accessibility helpers
+  private var usernameLabel: String { "@\(memory.username)" }
+  private var createdAtA11y: String {
+    memory.createdAt.formatted(.dateTime.month(.wide).day().year())
+  }
+  private var moodLabel: String { memory.mood.rawValue }
+  
+  private var journalPreviewA11y: String {
+    let trimmed = memory.journalText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return "No journal text." }
+    // Keep this short so VO doesn’t read an entire essay in the feed.
+    let max = 140
+    if trimmed.count <= max { return trimmed }
+    let idx = trimmed.index(trimmed.startIndex, offsetBy: max)
+    return String(trimmed[..<idx]) + "…"
+  }
+  
+  private var mediaA11y: String {
+    if memory.videoSource != nil { return "Contains a video." }
+    if !memory.imageSources.isEmpty { return "Contains \(memory.imageSources.count) image\(memory.imageSources.count == 1 ? "" : "s")." }
+    if let link = memory.linkURL, !link.isEmpty { return "Contains a link." }
+    return "No media."
+  }
+  
+  private var rowSummaryA11y: String {
+    "\(usernameLabel). \(createdAtA11y). Mood: \(moodLabel). \(mediaA11y) Likes: \(memory.likes). \(journalPreviewA11y)"
+  }
+  
+  // MARK: - Body
   var body: some View {
     content
       .padding(14)
       .frame(maxWidth: .infinity, alignment: .leading)
       .premiumMoodCard(color: moodColor, isPremium: isPremium, scheme: scheme)
+    
+    // ✅ Make the whole row understandable as a single element…
+      .accessibilityElement(children: .contain)
+      .accessibilityLabel(rowSummaryA11y)
+    
       .onAppear {
         if memory.userID == auth.userID {
           hasLiked = true
@@ -51,14 +84,22 @@ private extension MemoryRow {
 
 // MARK: - Subsections
 private extension MemoryRow {
+  
   // 0) Privacy badge (owner only) OR More menu (others)
   var privacyBadgeRow: some View {
     Group {
       HStack {
         Spacer()
+        
         if canEditPrivacy {
           PrivacyBadge(isPublic: $memory.isPublic)
             .disabled(isUpdatingPrivacy)
+          
+          // ✅ Clear toggle semantics
+            .accessibilityLabel("Privacy")
+            .accessibilityValue(memory.isPublic ? "Public" : "Private")
+            .accessibilityHint("Double tap to change visibility.")
+          
             .onChange(of: memory.isPublic) { _, newValue in
               guard !isUpdatingPrivacy else { return }
               isUpdatingPrivacy = true
@@ -71,6 +112,7 @@ private extension MemoryRow {
                 isUpdatingPrivacy = false
               }
             }
+          
         } else {
           Menu {
             Button(role: .destructive) {
@@ -78,10 +120,10 @@ private extension MemoryRow {
               isBlocking = true
               Task { @MainActor in
                 defer { isBlocking = false }
-                onBlockUser?(memory.userID)            // ⬅️ instantly purge from UI
+                onBlockUser?(memory.userID)
               }
             } label: {
-              Label("Block @\(memory.username)", systemImage: "hand.raised.fill")
+              Label("Block \(usernameLabel)", systemImage: "hand.raised.fill")
             }
           } label: {
             Image(systemName: "ellipsis.circle")
@@ -92,6 +134,11 @@ private extension MemoryRow {
           }
           .disabled(isBlocking)
           .animation(.default, value: isBlocking)
+          
+          // ✅ Menu button should speak like “More options”
+          .accessibilityLabel("More options")
+          .accessibilityHint("Shows actions for \(usernameLabel).")
+          .accessibilityValue(isBlocking ? "Busy" : "")
         }
       }
     }
@@ -111,17 +158,22 @@ private extension MemoryRow {
               .scaledToFill()
               .frame(width: 32, height: 32)
               .clipShape(Circle())
+              .accessibilityHidden(true) // ✅ decorative; username provides identity
           case .failure:
             MoodIcon(mood: memory.mood, size: 20).opacity(0.9)
+              .accessibilityHidden(true)
           case .empty:
             ProgressView()
               .frame(width: 20, height: 20)
+              .accessibilityLabel("Loading profile image")
           @unknown default:
             MoodIcon(mood: memory.mood, size: 20).opacity(0.9)
+              .accessibilityHidden(true)
           }
         }
       } else {
         MoodIcon(mood: memory.mood, size: 20).opacity(0.9)
+          .accessibilityHidden(true) // ✅ mood is spoken elsewhere
       }
       
       Text("@\(memory.username)")
@@ -133,20 +185,31 @@ private extension MemoryRow {
         .font(.caption)
         .foregroundStyle(.secondary)
     }
+    // ✅ Read this row cleanly as one sentence
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("\(usernameLabel). \(createdAtA11y).")
   }
   
-  // 1) Header (“TodayI felt …” with capsule or color text) + menu
+  // 1) Header (“TodayI felt …”)
   var headerCard: some View {
     HStack(alignment: .center, spacing: 12) {
       Text("TodayI felt")
         .font(.subheadline.bold())
         .foregroundStyle(.secondary)
+        .accessibilityHidden(true) // we provide a combined label below
+      
       moodChip
+        .accessibilityHidden(true)
+      
       Spacer(minLength: 0)
     }
     .padding(.vertical, 8)
     .padding(.horizontal, 12)
-    .background(headerBackground)
+    .background(headerBackground.accessibilityHidden(true)) // gradients/strokes are decorative
+    
+    // ✅ Speak as one logical statement
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Mood: \(memory.mood.rawValue).")
   }
   
   var moodChip: some View {
@@ -196,34 +259,36 @@ private extension MemoryRow {
           .font(.body)
           .fixedSize(horizontal: false, vertical: true)
           .frame(maxWidth: .infinity, alignment: .leading)
+        // ✅ Keep default reading (it’s the actual content)
+          .accessibilityLabel(memory.journalText)
       }
     }
   }
   
   // 4) Media (video -> images -> link)
-  // MARK: - 4) Media (video → images → link)
   @ViewBuilder
   var mediaSection: some View {
     let cornerRadius: CGFloat = 14
     let cardPadding: CGFloat = 14
     
     if let video = memory.videoSource {
-      // --- VIDEO TILE ---
       Color.clear
-        .frame(height: 220) // reserve layout height
+        .frame(height: 220)
         .overlay {
           MediaTile(source: video, cornerRadius: cornerRadius, minHeight: 220)
             .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .shadow(color: isPremium ? moodColor.opacity(0.12) : .clear,
                     radius: isPremium ? 10 : 0, x: 0, y: 6)
-            .padding(.horizontal, -cardPadding) // visual bleed
+            .padding(.horizontal, -cardPadding)
         }
-        .clipped() // ⛔ clamp any overflow to the row’s bounds
+        .clipped()
+      // ✅ Media is actionable / informative — label it.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Video attachment.")
+        .accessibilityHint("Double tap to play the video.")
       
     } else if !memory.imageSources.isEmpty {
-      // --- IMAGE BLOCK ---
-      // If your MediaBlock has dynamic height, replace 220 with that value.
       Color.clear
         .frame(height: 220)
         .overlay {
@@ -232,14 +297,17 @@ private extension MemoryRow {
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .shadow(color: isPremium ? moodColor.opacity(0.12) : .clear,
                     radius: isPremium ? 10 : 0, x: 0, y: 6)
-            .padding(.horizontal, -cardPadding) // visual bleed
+            .padding(.horizontal, -cardPadding)
         }
-        .clipped() // ⛔ clamp bleed so it can’t extend past the body
+        .clipped()
+      // ✅ Let VO know how many images & what to do
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(memory.imageSources.count) image attachment\(memory.imageSources.count == 1 ? "" : "s").")
+        .accessibilityHint("Double tap an image to view it full screen.")
       
     } else if let urlString = memory.linkURL,
               !urlString.isEmpty,
               let url = URL(string: urlString) {
-      // --- LINK PREVIEW (no bleed needed) ---
       Link(destination: url) {
         LinkPreviewView(url: url)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -250,6 +318,9 @@ private extension MemoryRow {
                   radius: isPremium ? 10 : 0, x: 0, y: 6)
       }
       .buttonStyle(.plain)
+      // ✅ Link should be announced clearly
+      .accessibilityLabel("Link attachment.")
+      .accessibilityHint("Opens in your browser.")
     }
   }
   
@@ -261,6 +332,9 @@ private extension MemoryRow {
         .frame(width: 60)
       Spacer()
       PremiumPill(isPremium: isPremium)
+      // ✅ If you want it read:
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(isPremium ? "Premium post" : "Standard post")
     }
     .font(.subheadline.weight(.semibold))
     .padding(.top, 6)
@@ -268,9 +342,9 @@ private extension MemoryRow {
   
   var likeButton: some View {
     Button {
-      guard !hasLiked else { return } // prevent double-like in UI
+      guard !hasLiked else { return }
       hasLiked = true
-      memory.likes += 1 // ✅ instantly reflect change in UI
+      memory.likes += 1
       
       Task {
         do {
@@ -278,14 +352,16 @@ private extension MemoryRow {
         } catch {
           print("⚠️ Failed to like post:", error)
           hasLiked = false
-          memory.likes -= 1 // rollback UI on failure
+          memory.likes -= 1
         }
       }
     } label: {
       HStack(spacing: 6) {
         Image(systemName: hasLiked ? "hand.thumbsup.fill" : "hand.thumbsup")
+          .accessibilityHidden(true) // we provide a full label below
         Text("\(memory.likes)")
           .font(.caption.weight(.semibold))
+          .accessibilityHidden(true)
       }
       .padding(.horizontal, 12)
       .padding(.vertical, 8)
@@ -300,6 +376,11 @@ private extension MemoryRow {
     }
     .buttonStyle(.plain)
     .disabled(hasLiked)
+    
+    // ✅ Proper control semantics
+    .accessibilityLabel(hasLiked ? "Liked" : "Like")
+    .accessibilityValue("\(memory.likes) likes")
+    .accessibilityHint(hasLiked ? "Already liked." : "Adds one like.")
   }
   
   var commentButton: some View {
@@ -313,5 +394,9 @@ private extension MemoryRow {
         .foregroundStyle(moodColor)
     }
     .buttonStyle(.plain)
+    
+    // ✅ Navigation intent
+    .accessibilityLabel("Comments")
+    .accessibilityHint("Opens the comment thread.")
   }
 }

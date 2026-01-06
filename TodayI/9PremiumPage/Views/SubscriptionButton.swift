@@ -10,16 +10,46 @@ struct SubscriptionButton: View {
   private var displayPrice: String {
     if let override = debugPriceOverride { return override }
     if let product = product { return product.priceString }
-    return "…" // fallback placeholder
+    return "…"
+  }
+  
+  // ✅ Accessibility helpers
+  private var planName: String { isYearly ? "Yearly Premium" : "Monthly Premium" }
+  
+  private var badgeText: String? {
+    guard isYearly else { return nil }
+    return "Best value, 2 months free"
+  }
+  
+  private var isLoading: Bool {
+    // if neither product nor debug price exists, we’re effectively loading
+    product == nil && debugPriceOverride == nil
+  }
+  
+  private var a11yLabel: String {
+    if let badgeText {
+      return "\(planName). \(badgeText)."
+    } else {
+      return "\(planName)."
+    }
+  }
+  
+  private var a11yValue: String {
+    if isLoading { return "Price loading" }
+    return displayPrice
+  }
+  
+  private var a11yHint: String {
+    if isLoading { return "Please wait for pricing to load." }
+    return "Double tap to purchase."
   }
   
   var body: some View {
     Button {
-      if product != nil { action() }   // prevent accidental purchase without a product
+      if product != nil { action() }
     } label: {
       VStack(alignment: .leading, spacing: 8) {
         
-        // Badge for yearly
         if isYearly {
           Text("BEST VALUE – 2 Months Free")
             .font(.caption2.weight(.semibold))
@@ -28,6 +58,7 @@ struct SubscriptionButton: View {
             .padding(.vertical, 4)
             .background(Color.accentColor)
             .clipShape(Capsule())
+            .accessibilityHidden(true) // ✅ don’t read badge twice
         }
         
         HStack {
@@ -46,6 +77,7 @@ struct SubscriptionButton: View {
           Image(systemName: "chevron.right")
             .font(.subheadline)
             .foregroundStyle(.secondary)
+            .accessibilityHidden(true) // ✅ decorative
         }
       }
       .padding()
@@ -61,6 +93,15 @@ struct SubscriptionButton: View {
       )
     }
     .buttonStyle(.plain)
-    .disabled(product == nil && debugPriceOverride == nil) // disables only when no real or debug value
+    .disabled(product == nil && debugPriceOverride == nil)
+    
+    // ✅ Make it read as one clean element
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(a11yLabel)
+    .accessibilityValue(a11yValue)
+    .accessibilityHint(a11yHint)
+    
+    // Optional: announce disabled state more clearly
+    .accessibilityAddTraits(.isButton)
   }
 }
