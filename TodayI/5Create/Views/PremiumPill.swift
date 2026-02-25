@@ -8,7 +8,7 @@ struct PremiumPill: View {
   var body: some View {
     Button {
       if haptics { triggerHaptic() }
-      onTap?()
+      //onTap?()
     } label: {
       HStack(spacing: 6) {
         Image(systemName: isPremium ? "star.fill" : "person.fill")

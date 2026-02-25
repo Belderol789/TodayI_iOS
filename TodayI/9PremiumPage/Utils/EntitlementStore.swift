@@ -16,7 +16,7 @@ struct Entitlement: Codable, Equatable {
 @MainActor
 final class EntitlementStore: ObservableObject {
   @Published private(set) var active: [Entitlement] = []
-  @Published var isPremium: Bool = false
+  @Published var isPremium: Bool = true
   
   private let cacheService = "entitlements.v1"
   private let cacheAccount = "current"
@@ -36,7 +36,7 @@ final class EntitlementStore: ObservableObject {
     }
     
     // Derive isPremium from cached immediately
-    self.isPremium = self.active.contains { $0.productId == IAP.monthlyID || $0.productId == IAP.yearlyID }
+    //self.isPremium = self.active.contains { $0.productId == IAP.monthlyID || $0.productId == IAP.yearlyID }
     
     // Bootstrap current status on launch
     Task {
@@ -167,7 +167,7 @@ final class EntitlementStore: ObservableObject {
       let newPremium = active.contains { $0.productId == IAP.monthlyID || $0.productId == IAP.yearlyID }
       if newPremium != isPremium {
         print("isPremium changed: \(isPremium) -> \(newPremium)")
-        isPremium = newPremium
+        //isPremium = newPremium
       } else {
         print("isPremium stays: \(isPremium)")
       }

@@ -63,15 +63,15 @@ struct TodayIApp: App {
           print("Trial activation result: \(activated)")
           
           // 🔍 2. Check if trial is still valid
-          let isTrialPremium = await FirebaseFirestoreManager.checkDeviceTrialPremium()
-          print("Trial active? \(isTrialPremium)")
-          
-          // 🎁 3. Merge boot trial into premium status
-          // If user SUBSCRIBED, entitlements.isPremium = true already overrides this
-          if isTrialPremium && store.isPremium == false {
-            store.isPremium = true
-            print("🎉 Trial premium unlocked!")
-          }
+//          let isTrialPremium = await FirebaseFirestoreManager.checkDeviceTrialPremium()
+//          print("Trial active? \(isTrialPremium)")
+//          
+//          // 🎁 3. Merge boot trial into premium status
+//          // If user SUBSCRIBED, entitlements.isPremium = true already overrides this
+//          if isTrialPremium && store.isPremium == false {
+//            store.isPremium = true
+//            print("🎉 Trial premium unlocked!")
+//          }
         }
         .onAppear {
           Task {
