@@ -14,11 +14,11 @@ struct TodayIApp: App {
   @StateObject private var iapStore: IAPStore
   private let container: ModelContainer
   private let manager: SwiftDataManager
-  
+
   @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-  
+
   init() {
-  
+
     // Ensure Application Support directory exists
     do {
       let urls = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
@@ -28,17 +28,37 @@ struct TodayIApp: App {
     } catch {
       print("Failed to ensure Application Support directory:", error)
     }
-    
-    try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback, options: [])
-    try? AVAudioSession.sharedInstance().setActive(true)
-    // Create one shared container
-    container = try! ModelContainer(
-      for: UserModel.self,
-      MemoryModel.self,
-      DateModel.self,
-      BlockedUserList.self      // ← add this
-    )
-    
+
+    // Audio session configured lazily on a background thread to avoid blocking first render
+    Task.detached(priority: .utility) {
+      try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback, options: [])
+      try? AVAudioSession.sharedInstance().setActive(true)
+    }
+
+    // Create one shared container — with a fallback chain so a schema
+    // migration failure on iOS betas doesn't silently crash the app.
+    let schema = Schema([UserModel.self, MemoryModel.self, DateModel.self, BlockedUserList.self])
+    let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+
+    if let c = try? ModelContainer(for: schema, configurations: config) {
+      container = c
+    } else {
+      print("⚠️ ModelContainer init failed; deleting store and retrying.")
+      let storeURL = config.url
+      try? FileManager.default.removeItem(at: storeURL)
+      let shmURL = storeURL.deletingPathExtension().appendingPathExtension("sqlite-shm")
+      let walURL = storeURL.deletingPathExtension().appendingPathExtension("sqlite-wal")
+      try? FileManager.default.removeItem(at: shmURL)
+      try? FileManager.default.removeItem(at: walURL)
+      if let c = try? ModelContainer(for: schema, configurations: config) {
+        container = c
+      } else {
+        print("❌ ModelContainer retry failed; falling back to in-memory store.")
+        container = try! ModelContainer(for: schema,
+          configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
+      }
+    }
+
     // Create AuthStore & SwiftDataManager using same context
     let context = container.mainContext
     let entitlements = EntitlementStore()
@@ -47,7 +67,7 @@ struct TodayIApp: App {
     _iapStore = StateObject(wrappedValue: IAPStore(entitlements: entitlements))
     manager = SwiftDataManager(context: context, store: entitlements)
   }
-  
+
   var body: some Scene {
     WindowGroup {
       RootView()
@@ -56,22 +76,10 @@ struct TodayIApp: App {
         .environmentObject(iapStore)
         .environment(\.swiftDataManager, manager)
         .task {
-          store.observeUpdates()   // existing
-          
-          // 🔥 1. Try activating a trial if this is first launch
+          store.observeUpdates()
+
           let activated = await FirebaseFirestoreManager.activateDeviceTrialIfNeeded()
           print("Trial activation result: \(activated)")
-          
-          // 🔍 2. Check if trial is still valid
-//          let isTrialPremium = await FirebaseFirestoreManager.checkDeviceTrialPremium()
-//          print("Trial active? \(isTrialPremium)")
-//          
-//          // 🎁 3. Merge boot trial into premium status
-//          // If user SUBSCRIBED, entitlements.isPremium = true already overrides this
-//          if isTrialPremium && store.isPremium == false {
-//            store.isPremium = true
-//            print("🎉 Trial premium unlocked!")
-//          }
         }
         .onAppear {
           Task {

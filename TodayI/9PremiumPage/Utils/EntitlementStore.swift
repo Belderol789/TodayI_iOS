@@ -38,9 +38,13 @@ final class EntitlementStore: ObservableObject {
     // Derive isPremium from cached immediately
     //self.isPremium = self.active.contains { $0.productId == IAP.monthlyID || $0.productId == IAP.yearlyID }
     
-    // Bootstrap current status on launch
+    // Bootstrap current status on launch.
+    // Wrapped in a timeout so a stuck StoreKit call on beta OSes
+    // never permanently holds the MainActor (which blocks SwiftUI rendering).
     Task {
-      await self.refresh(reason: "init()")
+      await withTimeout(seconds: 8) {
+        await self.refresh(reason: "init()")
+      }
     }
   }
   

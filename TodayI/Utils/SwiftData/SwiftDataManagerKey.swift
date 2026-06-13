@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import SwiftUICore
+import SwiftUI
 
 private struct SwiftDataManagerKey: EnvironmentKey {
   static let defaultValue: SwiftDataManager? = nil

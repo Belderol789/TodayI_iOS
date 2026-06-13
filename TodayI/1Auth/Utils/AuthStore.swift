@@ -17,6 +17,9 @@ final class AuthStore: ObservableObject {
   @Published var profileImage: UIImage?
   @Published var photoURL: String?
   @Published var username: String?
+  /// True once the first auth state has been resolved (signed-in or anonymous).
+  /// Use this to gate the main UI so a blank screen never shows on launch.
+  @Published var isSessionReady: Bool = false
   
   let db = Firestore.firestore()
   let context: ModelContext
@@ -41,7 +44,8 @@ final class AuthStore: ObservableObject {
     self.email = email
     self.isAnonymous = isAnonymous
     self.photoURL = photoURL
-    
+    isSessionReady = true
+
     // ✅ Try to load the cached profile image
     loadLocalProfileImageIfAvailable(for: uid)
   }

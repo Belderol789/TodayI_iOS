@@ -14,7 +14,9 @@ final class IAPStore: ObservableObject {
     print("🛒 IAPStore.init()")
     
     Task {
-      await refreshProducts(reason: "init")
+      await withTimeout(seconds: 8) {
+        await self.refreshProducts(reason: "init")
+      }
     }
   }
   

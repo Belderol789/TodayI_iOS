@@ -16,10 +16,11 @@ extension AuthStore {
   func ensureSignedIn() async {
     // If already a registered user, do nothing
     if let u = Auth.auth().currentUser, !u.isAnonymous {
-      print("Anonymous sign-in failed")
+      // Session already valid; mark ready if not already done
+      if !isSessionReady { isSessionReady = true }
       return
     }
-    
+
     if let u = Auth.auth().currentUser {
       await loadOrCreateProfile(for: u)
     } else {
@@ -28,6 +29,8 @@ extension AuthStore {
         await loadOrCreateProfile(for: result.user)
       } catch {
         print("Anonymous sign-in failed:", error)
+        // Still unblock the UI so user doesn't see a permanent loading screen
+        isSessionReady = true
       }
     }
   }
