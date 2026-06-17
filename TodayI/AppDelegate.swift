@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
   
   func application(_ application: UIApplication,
                    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+    print("👋 AppDelegate didFinishLaunching")
     FirebaseApp.configure()
     UNUserNotificationCenter.current().delegate = self
     Messaging.messaging().delegate = self
