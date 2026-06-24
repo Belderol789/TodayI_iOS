@@ -11,6 +11,10 @@ struct CreateMemoryView: View {
   @Environment(\.colorScheme) private var scheme
   @StateObject private var vm = CreateMemoryViewModel()
 
+  private var moodGradient: LinearGradient {
+    LinearGradient(colors: Mood.allCases.map(\.adaptiveColor), startPoint: .leading, endPoint: .trailing)
+  }
+
   @State private var showPreview = false
   @State private var showPremium = false
   @State private var showAuth = false
@@ -90,25 +94,30 @@ struct CreateMemoryView: View {
   }
 
   private func moodChip(_ mood: Mood) -> some View {
-    Button {
+    let selected = vm.selectedMood == mood
+    return Button {
       withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-        vm.selectedMood = (vm.selectedMood == mood) ? nil : mood
+        vm.selectedMood = selected ? nil : mood
       }
     } label: {
       HStack(spacing: 5) {
-        MoodIcon(mood: mood, size: 16)
+        // White circle backing keeps icon visible against the filled mood-color background
+        mood.image
+          .resizable()
+          .scaledToFit()
+          .frame(width: 16, height: 16)
+          .padding(selected ? 3 : 0)
+          .background(Circle().fill(.white.opacity(selected ? 0.35 : 0)))
         Text(mood.rawValue)
           .font(.subheadline.weight(.semibold))
           .lineLimit(1)
       }
       .frame(maxWidth: .infinity)
       .padding(.vertical, 10)
-      .foregroundStyle(vm.selectedMood == mood ? .white : mood.adaptiveColor)
+      .foregroundStyle(selected ? .white : mood.adaptiveColor)
       .background(
         Capsule()
-          .fill(vm.selectedMood == mood
-            ? mood.adaptiveColor
-            : mood.adaptiveColor.opacity(0.12))
+          .fill(selected ? mood.adaptiveColor : mood.adaptiveColor.opacity(0.12))
       )
     }
     .buttonStyle(.plain)
@@ -239,7 +248,7 @@ struct CreateMemoryView: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Capsule().fill(Color.orange))
+            .background(Capsule().fill(moodGradient))
         }
         .buttonStyle(.plain)
       }
@@ -249,7 +258,7 @@ struct CreateMemoryView: View {
   private func toolbarButton(icon: String, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
     Button(action: action) {
       VStack(spacing: 3) {
-        Image(systemName: enabled ? icon : "\(icon).badge.plus")
+        Image(systemName: icon)
           .font(.system(size: 18))
           .frame(width: 36, height: 30)
         Text(label)
@@ -260,6 +269,7 @@ struct CreateMemoryView: View {
           ? (vm.selectedMood?.adaptiveColor ?? Color.accentColor)
           : Color(.tertiaryLabel)
       )
+      .opacity(enabled ? 1 : 0.45)
     }
     .buttonStyle(.plain)
     .disabled(!enabled)
@@ -305,6 +315,7 @@ struct CreateMemoryView: View {
               : Color(.tertiarySystemFill))
         )
     }
+    .buttonStyle(.plain)
     .disabled(!vm.canPost)
     .animation(.easeInOut(duration: 0.2), value: vm.canPost)
     .animation(.easeInOut(duration: 0.2), value: vm.selectedMood)

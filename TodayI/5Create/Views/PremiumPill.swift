@@ -4,29 +4,34 @@ struct PremiumPill: View {
   let isPremium: Bool
   var onTap: (() -> Void)? = nil
   var haptics: Bool = true
-  
+
+  private var moodGradient: LinearGradient {
+    LinearGradient(colors: Mood.allCases.map(\.adaptiveColor), startPoint: .leading, endPoint: .trailing)
+  }
+
   var body: some View {
     Button {
       if haptics { triggerHaptic() }
-      //onTap?()
+      onTap?()
     } label: {
       HStack(spacing: 6) {
-        Image(systemName: isPremium ? "star.fill" : "person.fill")
-        Text(isPremium ? "Premium" : "Free")
+        Image(systemName: "star.fill")
+        Text(isPremium ? "Premium" : "Upgrade")
           .font(.caption.weight(.semibold))
       }
       .padding(.horizontal, 10)
       .padding(.vertical, 6)
+      .foregroundStyle(isPremium ? .white : Color(.label))
       .background(
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-          .fill(isPremium ? Color.yellow.opacity(0.25) : Color.gray.opacity(0.15))
+        Capsule()
+          .fill(isPremium ? AnyShapeStyle(moodGradient) : AnyShapeStyle(Color(.tertiarySystemFill)))
       )
       .overlay(
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-          .stroke(isPremium ? Color.yellow.opacity(0.5) : Color.gray.opacity(0.25), lineWidth: 1)
+        Capsule()
+          .stroke(isPremium ? Color.clear : Color(.separator), lineWidth: 0.5)
       )
-      .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-      .accessibilityLabel(isPremium ? "Premium" : "Free")
+      .contentShape(Capsule())
+      .accessibilityLabel(isPremium ? "Premium active" : "Upgrade to Premium")
       .accessibilityAddTraits(.isButton)
     }
     .buttonStyle(PillPressStyle())
