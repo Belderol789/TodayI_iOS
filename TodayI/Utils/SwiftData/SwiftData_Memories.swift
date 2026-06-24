@@ -105,6 +105,12 @@ extension SwiftDataManager {
       let localPath = try persistVideoToFiles(videoURL, dayKey: dayStartLocal)
       model.videoLocalPath = localPath
     }
+
+    // Persist local audio (offline cache)
+    if let audioURL = payload.audioURL {
+      let localPath = try persistAudioToFiles(audioURL, dayKey: dayStartLocal)
+      model.audioLocalPath = localPath
+    }
     
     // Save link (if any)
     if let link = payload.linkString {
@@ -147,6 +153,20 @@ extension SwiftDataManager {
     return names
   }
   
+  private func persistAudioToFiles(_ originalURL: URL, dayKey: Date) throws -> String {
+    let base = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+      .appendingPathComponent("audio", isDirectory: true)
+    try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+    let ext = originalURL.pathExtension.isEmpty ? "m4a" : originalURL.pathExtension
+    let name = "\(Int(dayKey.timeIntervalSince1970))-\(UUID().uuidString).\(ext)"
+    let dest = base.appendingPathComponent(name)
+    if FileManager.default.fileExists(atPath: dest.path) {
+      try FileManager.default.removeItem(at: dest)
+    }
+    try FileManager.default.copyItem(at: originalURL, to: dest)
+    return dest.path
+  }
+
   private func persistVideoToFiles(_ originalURL: URL, dayKey: Date) throws -> String {
     // choose a persistent base — Documents or Caches
     let base = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)

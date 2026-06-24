@@ -25,6 +25,7 @@ final class MemoryModel {
   var remoteImagePaths: [String]
   var videoLocalPath: String?
   var videoRemoteURL: String?
+  var audioLocalPath: String?
   var linkURL: String?
   
   // Privacy / Premium
@@ -57,6 +58,7 @@ final class MemoryModel {
     remoteImagePaths: [String] = [],
     videoLocalPath: String? = nil,
     videoRemoteURL: String? = nil,
+    audioLocalPath: String? = nil,
     linkURL: String? = nil,
     isPublic: Bool = false,
     isPremium: Bool,
@@ -76,6 +78,7 @@ final class MemoryModel {
     self.remoteImagePaths = remoteImagePaths
     self.videoLocalPath = videoLocalPath
     self.videoRemoteURL = videoRemoteURL
+    self.audioLocalPath = audioLocalPath
     self.linkURL = linkURL
     self.isPublic = isPublic
     self.isPremium = isPremium

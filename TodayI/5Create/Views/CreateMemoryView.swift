@@ -173,6 +173,12 @@ struct CreateMemoryView: View {
           .padding(.top, 12)
       }
 
+      if vm.isRecording || vm.pendingAudioURL != nil {
+        audioSection
+          .padding(.horizontal, 12)
+          .padding(.top, 12)
+      }
+
       if let s = vm.linkString, let url = URL(string: s) {
         linkCard(url: url)
           .padding(.horizontal, 12)
@@ -225,25 +231,36 @@ struct CreateMemoryView: View {
   // MARK: - Inline action toolbar
 
   private var actionToolbar: some View {
-    HStack(spacing: 6) {
-      toolbarButton(icon: "photo", label: "Photo", enabled: true) {
-        vm.tapPhoto()
-      }
+    HStack(spacing: 4) {
+      // Free tier: Photo, Mic, Link
+      toolbarButton(icon: "photo", label: "Photo", enabled: true) { vm.tapPhoto() }
+      toolbarButton(
+        icon: vm.isRecording ? "stop.circle.fill" : (vm.pendingAudioURL != nil ? "mic.fill" : "mic"),
+        label: vm.isRecording ? "Stop" : "Mic",
+        enabled: true,
+        tint: vm.isRecording ? .red : nil
+      ) { vm.tapMic() }
+      toolbarButton(icon: "link", label: "Link", enabled: true) { vm.tapLink() }
+
+      // Divider between free and premium
+      Rectangle()
+        .fill(Color(.separator))
+        .frame(width: 1, height: 28)
+        .padding(.horizontal, 4)
+
+      // Premium tier: Video, Gallery
       toolbarButton(icon: "video", label: "Video", enabled: entitlements.isPremium) {
-        vm.tapVideo()
+        if entitlements.isPremium { vm.tapVideo() } else { showPremium = true }
       }
       toolbarButton(icon: "photo.on.rectangle", label: "Gallery", enabled: entitlements.isPremium) {
-        vm.tapGallery()
+        if entitlements.isPremium { vm.tapGallery() } else { showPremium = true }
       }
-      toolbarButton(icon: "link", label: "Link", enabled: true) {
-        vm.tapLink()
-      }
+
       Spacer()
+
       if !entitlements.isPremium {
-        Button {
-          showPremium = true
-        } label: {
-          Label("Unlock all", systemImage: "star.fill")
+        Button { showPremium = true } label: {
+          Label("Unlock", systemImage: "star.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.white)
             .padding(.horizontal, 10)
@@ -255,7 +272,7 @@ struct CreateMemoryView: View {
     }
   }
 
-  private func toolbarButton(icon: String, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+  private func toolbarButton(icon: String, label: String, enabled: Bool, tint: Color? = nil, action: @escaping () -> Void) -> some View {
     Button(action: action) {
       VStack(spacing: 3) {
         Image(systemName: icon)
@@ -265,14 +282,13 @@ struct CreateMemoryView: View {
           .font(.system(size: 10, weight: .medium))
       }
       .foregroundStyle(
-        enabled
+        tint ?? (enabled
           ? (vm.selectedMood?.adaptiveColor ?? Color.accentColor)
-          : Color(.tertiaryLabel)
+          : Color(.tertiaryLabel))
       )
       .opacity(enabled ? 1 : 0.45)
     }
     .buttonStyle(.plain)
-    .disabled(!enabled)
   }
 
   // MARK: - Privacy row
@@ -366,6 +382,67 @@ struct CreateMemoryView: View {
     .animation(.easeInOut, value: vm.isProcessingVideo)
   }
 
+  // MARK: - Audio section (inside card)
+
+  private var audioSection: some View {
+    ZStack(alignment: .topTrailing) {
+      HStack(spacing: 12) {
+        // Play/Stop or mic-pulse icon
+        Button {
+          if vm.isRecording {
+            vm.stopRecording()
+          } else {
+            vm.togglePlayback()
+          }
+        } label: {
+          Image(systemName: vm.isRecording ? "stop.circle.fill" : (vm.isPlayingAudio ? "pause.circle.fill" : "play.circle.fill"))
+            .font(.system(size: 36))
+            .foregroundStyle(vm.selectedMood?.adaptiveColor ?? Color.accentColor)
+            .symbolEffect(.pulse, isActive: vm.isRecording)
+        }
+        .buttonStyle(.plain)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(vm.isRecording ? "Recording…" : "Voice Note")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.primary)
+
+          // Animated waveform bars
+          WaveformView(isActive: vm.isRecording || vm.isPlayingAudio,
+                       color: vm.selectedMood?.adaptiveColor ?? Color.accentColor)
+
+          Text(formatDuration(vm.recordingDuration))
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.secondary)
+        }
+
+        Spacer()
+      }
+      .padding(12)
+      .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+      if !vm.isRecording {
+        Button { vm.clearAudio() } label: {
+          Image(systemName: "xmark.circle.fill")
+            .font(.title3)
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(.primary)
+            .padding(6)
+            .background(.thinMaterial, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .padding(8)
+      }
+    }
+    .animation(.easeInOut(duration: 0.2), value: vm.isRecording)
+    .animation(.easeInOut(duration: 0.2), value: vm.isPlayingAudio)
+  }
+
+  private func formatDuration(_ t: TimeInterval) -> String {
+    let total = Int(t)
+    return String(format: "%d:%02d", total / 60, total % 60)
+  }
+
   // MARK: - Link card (inside card)
 
   private func linkCard(url: URL) -> some View {
@@ -454,6 +531,49 @@ private struct MediaPickers: ViewModifier {
       .onChange(of: vm.galleryItems) { _, _ in Task { await vm.handleGallerySelectionChange() } }
       .photosPicker(isPresented: $vm.presentVideoPicker, selection: $vm.videoItem, matching: .videos)
       .onChange(of: vm.videoItem) { _, _ in Task { await vm.handleVideoSelectionChange() } }
+  }
+}
+
+// MARK: - Waveform animation
+
+private struct WaveformView: View {
+  let isActive: Bool
+  let color: Color
+  private let barCount = 12
+  @State private var phases: [Double] = (0..<12).map { Double($0) * 0.3 }
+
+  var body: some View {
+    HStack(spacing: 2) {
+      ForEach(0..<barCount, id: \.self) { i in
+        RoundedRectangle(cornerRadius: 2)
+          .fill(color.opacity(isActive ? 1.0 : 0.35))
+          .frame(width: 3, height: isActive ? (8 + 12 * abs(sin(phases[i]))) : 4)
+          .animation(
+            isActive
+              ? .easeInOut(duration: 0.4 + Double(i) * 0.05).repeatForever(autoreverses: true)
+              : .easeOut(duration: 0.2),
+            value: isActive
+          )
+      }
+    }
+    .frame(height: 24)
+    .onAppear {
+      guard isActive else { return }
+      for i in 0..<barCount {
+        withAnimation(.easeInOut(duration: 0.4 + Double(i) * 0.05).repeatForever(autoreverses: true)) {
+          phases[i] += .pi
+        }
+      }
+    }
+    .onChange(of: isActive) { _, active in
+      if active {
+        for i in 0..<barCount {
+          withAnimation(.easeInOut(duration: 0.4 + Double(i) * 0.05).repeatForever(autoreverses: true)) {
+            phases[i] += .pi
+          }
+        }
+      }
+    }
   }
 }
 

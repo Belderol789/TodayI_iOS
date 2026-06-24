@@ -39,7 +39,16 @@ final class CreateMemoryViewModel: ObservableObject {
   @Published var linkString: String? = nil
   @Published var showLinkPrompt = false
   @Published var tempLinkInput = ""
-  
+
+  // Audio recording
+  @Published var isRecording: Bool = false
+  @Published var recordingDuration: TimeInterval = 0
+  @Published private(set) var pendingAudioURL: URL? = nil
+  @Published var isPlayingAudio: Bool = false
+  private var audioRecorder: AVAudioRecorder?
+  private var audioPlayer: AVAudioPlayer?
+  private var recordingTimer: Timer?
+
   // MARK: - Hooks (optional)
   var onAddLink: (() -> Void)?
   var onPost: ((PostPayload) -> Void)?
@@ -97,9 +106,95 @@ final class CreateMemoryViewModel: ObservableObject {
       text: text,
       images: pickedImages,
       videoURL: pendingVideoURL,
+      audioURL: pendingAudioURL,
       linkString: linkString
     )
     onPost?(payload)
+  }
+
+  // MARK: - Audio recording
+
+  func tapMic() {
+    if isRecording {
+      stopRecording()
+    } else if pendingAudioURL != nil {
+      clearAudio()
+    } else {
+      startRecording()
+    }
+  }
+
+  func startRecording() {
+    AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
+      guard let self, granted else { return }
+      Task { @MainActor in
+        do {
+          try AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .default, options: .defaultToSpeaker)
+          try AVAudioSession.sharedInstance().setActive(true)
+          let dir = FileManager.default.temporaryDirectory
+          let url = dir.appendingPathComponent(UUID().uuidString).appendingPathExtension("m4a")
+          let settings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: 44100,
+            AVNumberOfChannelsKey: 1,
+            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
+          ]
+          self.audioRecorder = try AVAudioRecorder(url: url, settings: settings)
+          self.audioRecorder?.record()
+          self.isRecording = true
+          self.recordingDuration = 0
+          self.recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.recordingDuration += 0.1
+            if self.recordingDuration >= 120 { self.stopRecording() }
+          }
+        } catch {
+          print("Recording failed: \(error)")
+        }
+      }
+    }
+  }
+
+  func stopRecording() {
+    recordingTimer?.invalidate()
+    recordingTimer = nil
+    audioRecorder?.stop()
+    pendingAudioURL = audioRecorder?.url
+    audioRecorder = nil
+    isRecording = false
+    try? AVAudioSession.sharedInstance().setActive(false)
+  }
+
+  func togglePlayback() {
+    guard let url = pendingAudioURL else { return }
+    if isPlayingAudio {
+      audioPlayer?.stop()
+      isPlayingAudio = false
+    } else {
+      do {
+        try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+        try AVAudioSession.sharedInstance().setActive(true)
+        audioPlayer = try AVAudioPlayer(contentsOf: url)
+        audioPlayer?.play()
+        isPlayingAudio = true
+        let duration = audioPlayer?.duration ?? 0
+        Task {
+          try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000) + 200_000_000)
+          await MainActor.run { self.isPlayingAudio = false }
+        }
+      } catch {
+        print("Playback failed: \(error)")
+      }
+    }
+  }
+
+  func clearAudio() {
+    audioPlayer?.stop()
+    audioPlayer = nil
+    isPlayingAudio = false
+    pendingAudioURL = nil
+    recordingDuration = 0
+    if isRecording { stopRecording() }
   }
   
   // MARK: - PhotosPicker change handlers (called by the View’s .onChange)
@@ -266,6 +361,7 @@ final class CreateMemoryViewModel: ObservableObject {
   func clearAll() {
     clearVideo()
     clearImages()
+    clearAudio()
     clearLink()
     selectedMood = nil
     text = ""
@@ -310,6 +406,8 @@ extension CreateMemoryViewModel {
       return pickedImages.count == 1 ? "📷 1 photo" : "📷 \(pickedImages.count) photos"
     } else if pendingVideoURL != nil {
       return "🎬 1 video"
+    } else if pendingAudioURL != nil {
+      return "🎙 voice note"
     } else if let link = linkString, !link.isEmpty {
       // Keep it short (strip scheme)
       let display = link.replacingOccurrences(of: "^https?://", with: "", options: .regularExpression)

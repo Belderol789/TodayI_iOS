@@ -12,7 +12,8 @@ struct PostPayload {
   let isPublic: Bool
   let isPremium: Bool
   let text: String
-  let images: [PickedImage]       // empty if not using photos
-  let videoURL: URL?              // non-nil if posting a video
-  let linkString: String?         // non-nil if posting a link
+  let images: [PickedImage]
+  let videoURL: URL?
+  let audioURL: URL?
+  let linkString: String?
 }
