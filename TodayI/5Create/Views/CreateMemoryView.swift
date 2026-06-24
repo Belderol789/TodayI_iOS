@@ -10,24 +10,41 @@ struct CreateMemoryView: View {
   @Environment(\.openURL) private var openURL
   @Environment(\.colorScheme) private var scheme
   @StateObject private var vm = CreateMemoryViewModel()
-  
+
   @State private var showPreview = false
   @State private var showPremium = false
   @State private var showAuth = false
   @State private var postedMemory: MemoryModel? = nil
-  
-  // MARK: - Body
+
   var body: some View {
     NavigationStack {
       ScrollView {
-        mainContent
+
+        VStack(spacing: 0) {
+          moodPicker
+            .padding(.top, 8)
+            .padding(.bottom, 20)
+
+          moodHeadline
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
+
+          contentCard
+            .padding(.horizontal, 16)
+            .padding(.bottom, 14)
+
+          privacyRow
+            .padding(.horizontal, 20)
+            .padding(.bottom, 100)
+        }
       }
+      .scrollDismissesKeyboard(.interactively)
+      .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
       .navigationTitle("Create")
       .navigationBarTitleDisplayMode(.inline)
-      .safeAreaInset(edge: .bottom) { postButton }     // ← single definition
       .toolbar {
-        PremiumPill(isPremium: entitlements.isPremium) {
-          showPremium = true        // 👈 trigger modal
+        ToolbarItem(placement: .topBarTrailing) {
+          postToolbarButton
         }
       }
       .onAppear(perform: configureViewModel)
@@ -46,37 +63,348 @@ struct CreateMemoryView: View {
       }
       .sheet(isPresented: $showPremium) {
         PremiumView()
-          .presentationDetents([.large])                 // or [.fraction(0.9)]
+          .presentationDetents([.large])
           .presentationDragIndicator(.visible)
-          .interactiveDismissDisabled(false)             // set to true if you want to force a choice
-          .presentationCornerRadius(20)                   // optional
-          .preferredColorScheme(.dark) 
+          .interactiveDismissDisabled(false)
+          .presentationCornerRadius(20)
+          .preferredColorScheme(.dark)
       }
     }
   }
-  
-  // MARK: - Main content
-  private var mainContent: some View {
-    VStack(spacing: 16) {
-      header
-      if let indicator = vm.attachmentIndicatorText {
-        Text(indicator)
+
+  // MARK: - Mood picker (fixed 2-row grid — no scroll bias)
+
+  private var moodPicker: some View {
+    let all = Mood.allCases
+    let topRow = Array(all.prefix(4))
+    let bottomRow = Array(all.suffix(3))
+    return VStack(spacing: 8) {
+      HStack(spacing: 8) {
+        ForEach(topRow) { mood in moodChip(mood) }
+      }
+      HStack(spacing: 8) {
+        ForEach(bottomRow) { mood in moodChip(mood) }
+      }
+    }
+    .padding(.horizontal, 16)
+  }
+
+  private func moodChip(_ mood: Mood) -> some View {
+    Button {
+      withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+        vm.selectedMood = (vm.selectedMood == mood) ? nil : mood
+      }
+    } label: {
+      HStack(spacing: 5) {
+        MoodIcon(mood: mood, size: 16)
+        Text(mood.rawValue)
           .font(.subheadline.weight(.semibold))
-          .foregroundStyle(.secondary)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.horizontal)
+          .lineLimit(1)
       }
-      videoSection
-      mediaSection
-      linkSection
-      journalSection
-      counterSection
-      quickActions
+      .frame(maxWidth: .infinity)
+      .padding(.vertical, 10)
+      .foregroundStyle(vm.selectedMood == mood ? .white : mood.adaptiveColor)
+      .background(
+        Capsule()
+          .fill(vm.selectedMood == mood
+            ? mood.adaptiveColor
+            : mood.adaptiveColor.opacity(0.12))
+      )
     }
-    .padding(.top, 10)
+    .buttonStyle(.plain)
+    .animation(.spring(response: 0.25, dampingFraction: 0.8), value: vm.selectedMood)
   }
-  
-  // MARK: - View model wiring
+
+  // MARK: - Mood headline
+
+  @ViewBuilder
+  private var moodHeadline: some View {
+    if let mood = vm.selectedMood {
+      HStack(alignment: .firstTextBaseline, spacing: 0) {
+        Text("TodayI feel ")
+          .font(.title2.weight(.semibold))
+          .foregroundStyle(.primary)
+        Text(mood.rawValue)
+          .font(.title2.weight(.bold))
+          .foregroundStyle(mood.adaptiveColor)
+        Spacer()
+        Text(Date().formatted("MMM d, yyyy"))
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+      }
+      .transition(.opacity.combined(with: .move(edge: .top)))
+    } else {
+      HStack {
+        Text("How are you feeling today?")
+          .font(.title3.weight(.semibold))
+          .foregroundStyle(.secondary)
+        Spacer()
+        Text(Date().formatted("MMM d, yyyy"))
+          .font(.subheadline)
+          .foregroundStyle(.tertiary)
+      }
+      .transition(.opacity)
+    }
+  }
+
+  // MARK: - Content card
+
+  private var contentCard: some View {
+    VStack(spacing: 0) {
+      // Attachments at top of card
+      if vm.isProcessingVideo || vm.videoPlayer != nil {
+        videoSection
+          .padding(.horizontal, 12)
+          .padding(.top, 12)
+      }
+
+      if !vm.pickedImages.isEmpty {
+        MediaSection(images: vm.pickedImages, onRemove: { vm.removeImage($0) })
+          .padding(.horizontal, 12)
+          .padding(.top, 12)
+      }
+
+      if let s = vm.linkString, let url = URL(string: s) {
+        linkCard(url: url)
+          .padding(.horizontal, 12)
+          .padding(.top, 12)
+      }
+
+      // Text editor
+      PlaceholderTextEditor(
+        text: $vm.text,
+        placeholder: "Write your thoughts for today…",
+        minHeight: 160,
+        maxHeight: 260
+      )
+      .padding(.horizontal, 4)
+      .padding(.top, 4)
+      .padding(.bottom, 4)
+
+      // Character counter (non-premium)
+      if !entitlements.isPremium {
+        HStack {
+          Spacer()
+          Text("\(vm.remaining) left")
+            .font(.caption)
+            .foregroundStyle(vm.remaining < 30 ? .orange : Color(.tertiaryLabel))
+            .padding(.trailing, 14)
+            .padding(.bottom, 8)
+        }
+      }
+
+      Divider()
+        .padding(.horizontal, 12)
+
+      // Inline action toolbar
+      actionToolbar
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+    .background(Color(.secondarySystemBackground))
+    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    .overlay(
+      RoundedRectangle(cornerRadius: 18, style: .continuous)
+        .stroke(
+          vm.selectedMood?.adaptiveColor.opacity(0.25) ?? Color(.separator),
+          lineWidth: 1
+        )
+    )
+    .animation(.easeInOut(duration: 0.2), value: vm.selectedMood)
+  }
+
+  // MARK: - Inline action toolbar
+
+  private var actionToolbar: some View {
+    HStack(spacing: 6) {
+      toolbarButton(icon: "photo", label: "Photo", enabled: true) {
+        vm.tapPhoto()
+      }
+      toolbarButton(icon: "video", label: "Video", enabled: entitlements.isPremium) {
+        vm.tapVideo()
+      }
+      toolbarButton(icon: "photo.on.rectangle", label: "Gallery", enabled: entitlements.isPremium) {
+        vm.tapGallery()
+      }
+      toolbarButton(icon: "link", label: "Link", enabled: true) {
+        vm.tapLink()
+      }
+      Spacer()
+      if !entitlements.isPremium {
+        Button {
+          showPremium = true
+        } label: {
+          Label("Unlock all", systemImage: "star.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(Color.orange))
+        }
+        .buttonStyle(.plain)
+      }
+    }
+  }
+
+  private func toolbarButton(icon: String, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      VStack(spacing: 3) {
+        Image(systemName: enabled ? icon : "\(icon).badge.plus")
+          .font(.system(size: 18))
+          .frame(width: 36, height: 30)
+        Text(label)
+          .font(.system(size: 10, weight: .medium))
+      }
+      .foregroundStyle(
+        enabled
+          ? (vm.selectedMood?.adaptiveColor ?? Color.accentColor)
+          : Color(.tertiaryLabel)
+      )
+    }
+    .buttonStyle(.plain)
+    .disabled(!enabled)
+  }
+
+  // MARK: - Privacy row
+
+  private var privacyBinding: Binding<Bool> {
+    Binding(
+      get: { vm.isPublic },
+      set: { newValue in
+        if newValue && auth.isGuest {
+          showAuth = true
+        } else {
+          vm.isPublic = newValue
+        }
+      }
+    )
+  }
+
+  private var privacyRow: some View {
+    HStack {
+      PrivacyBadge(isPublic: privacyBinding)
+      Spacer()
+    }
+  }
+
+  // MARK: - Post toolbar button
+
+  private var postToolbarButton: some View {
+    Button {
+      vm.pressPost()
+    } label: {
+      Text("Post")
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(vm.canPost ? .white : Color(.secondaryLabel))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 7)
+        .background(
+          Capsule()
+            .fill(vm.canPost
+              ? (vm.selectedMood?.adaptiveColor ?? Color.accentColor)
+              : Color(.tertiarySystemFill))
+        )
+    }
+    .disabled(!vm.canPost)
+    .animation(.easeInOut(duration: 0.2), value: vm.canPost)
+    .animation(.easeInOut(duration: 0.2), value: vm.selectedMood)
+  }
+
+  // MARK: - Video section (inside card)
+
+  private var videoSection: some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: 12, style: .continuous)
+        .fill(Color(.tertiarySystemBackground))
+        .frame(height: 180)
+
+      if let player = vm.videoPlayer {
+        VideoPlayer(player: player)
+          .frame(height: 180)
+          .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+          .onAppear { player.play() }
+          .onDisappear { player.pause() }
+      }
+
+      if vm.isProcessingVideo {
+        VStack(spacing: 8) {
+          ProgressView().progressViewStyle(.circular)
+          Text("Processing video…").font(.caption).foregroundStyle(.secondary)
+        }
+        .transition(.opacity)
+      }
+
+      if vm.videoPlayer != nil {
+        VStack {
+          HStack {
+            Button { vm.clearVideo() } label: {
+              Image(systemName: "xmark.circle.fill")
+                .font(.title3)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.primary)
+                .padding(8)
+                .background(.thinMaterial, in: Circle())
+            }
+            .padding(.leading, 8).padding(.top, 8)
+            Spacer()
+          }
+          Spacer()
+        }
+      }
+    }
+    .animation(.easeInOut, value: vm.isProcessingVideo)
+  }
+
+  // MARK: - Link card (inside card)
+
+  private func linkCard(url: URL) -> some View {
+    ZStack(alignment: .topTrailing) {
+      Button { openURL(url) } label: {
+        LinkPreviewView(url: url)
+          .frame(height: 140)
+          .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+          .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+      }
+      .buttonStyle(.plain)
+
+      Button { vm.clearLink() } label: {
+        Image(systemName: "xmark.circle.fill")
+          .font(.title3)
+          .symbolRenderingMode(.hierarchical)
+          .foregroundStyle(.primary)
+          .padding(6)
+          .background(.thinMaterial, in: Circle())
+      }
+      .buttonStyle(.plain)
+      .padding(8)
+    }
+  }
+
+  // MARK: - Preview sheet
+
+  private var previewSheet: some View {
+    Group {
+      if let mem = postedMemory {
+        NavigationStack {
+          ScrollView {
+            MemoryRow(memory: mem)
+              .environmentObject(auth)
+              .padding()
+          }
+          .navigationTitle("Preview")
+          .navigationBarTitleDisplayMode(.inline)
+          .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+              Button("Done") { showPreview = false }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // MARK: - ViewModel wiring
+
   private func configureViewModel() {
     vm.isPremium = entitlements.isPremium
     vm.onPost = { payload in
@@ -98,326 +426,6 @@ struct CreateMemoryView: View {
       }
     }
   }
-  
-  // MARK: - Toolbar
-  private var premiumToggleButton: some ToolbarContent {
-    ToolbarItem(placement: .topBarTrailing) {
-      Button(entitlements.isPremium ? "Set Free" : "Set Premium") {
-        entitlements.isPremium.toggle()
-      }
-    }
-  }
-  
-  // MARK: - Bottom Post button
-  private var postButton: some View {
-    HStack {
-      Spacer(minLength: 0)
-      Button {
-        vm.pressPost()
-      } label: {
-        Text("Post")
-          .font(.headline.bold())
-          .foregroundColor(vm.canPost ? .white : .secondary)
-          .padding(.horizontal, 24)
-          .padding(.vertical, 12)
-          .background(
-            Capsule()
-              .fill(vm.selectedMood?.adaptiveColor ?? .primary)
-              .opacity(vm.canPost ? 1.0 : 0.35)
-          )
-          .shadow(
-            color: vm.canPost ? .black.opacity(0.25) : .clear,
-            radius: 2,
-            x: 0,
-            y: 2
-          )
-      }
-      .disabled(!vm.canPost)
-      
-      Spacer(minLength: 0)
-    }
-    .padding(.horizontal, 16)
-    .padding(.top, 8)
-    .padding(.bottom, 12)
-    .background(.regularMaterial)
-  }
-  
-  // MARK: - Sections
-  
-  // Title + mood dropdown + date
-  private var header: some View {
-    HStack(spacing: 4) {
-      Text("TodayI feel")
-        .font(.headline)
-        .frame(minWidth: 100, alignment: .leading)
-      
-      // Mood dropdown
-      Menu {
-        ForEach(Mood.allCases) { mood in
-          Button {
-            vm.choose(mood: mood)
-          } label: {
-            HStack(spacing: 8) {
-              MoodIcon(mood: mood, size: 20)
-              Text(mood.rawValue)
-                .font(.headline.bold())
-                .foregroundStyle(mood.adaptiveColor)
-            }
-          }
-        }
-        
-        if vm.selectedMood != nil {
-          Divider()
-          Button(role: .destructive) {
-            vm.selectedMood = nil
-          } label: {
-            Label("Clear", systemImage: "xmark")
-          }
-        }
-      } label: {
-        Group {
-          if let mood = vm.selectedMood {
-            HStack(spacing: 4) {
-              if entitlements.isPremium {
-                Text(mood.rawValue)
-                  .font(.headline.bold())
-                  .padding(.horizontal, 10)
-                  .padding(.vertical, 6)
-                  .background(Capsule().fill(mood.adaptiveColor))
-                  .foregroundStyle(Color(.systemBackground))
-                  .shadow(color: .black.opacity(0.18), radius: 1, x: 0, y: 1)
-                MoodIcon(mood: mood, size: 24)
-              } else {
-                Text(mood.rawValue)
-                  .font(.headline.bold())
-                  .foregroundStyle(mood.adaptiveColor)
-                MoodIcon(mood: mood, size: 24)
-              }
-            }
-          } else {
-            HStack(spacing: 8) {
-              Text("Select mood")
-                .font(.headline.weight(.semibold))
-                .foregroundColor(scheme == .dark ? .black : .white)
-              
-              Image(systemName: "chevron.down")
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(scheme == .dark ? .black : .white)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-              Capsule()
-                .fill(scheme == .dark ? Color.white : Color.black)
-            )
-            .shadow(color: .black.opacity(0.25), radius: 2, x: 0, y: 2)
-          }
-        }
-        .frame(minWidth: 160, alignment: .leading) // prevent shrinking
-      }
-      
-      Spacer()
-      
-      Text(Date().formatted("MMM d, yyyy"))
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-        .fixedSize(horizontal: true, vertical: false)
-        .frame(minWidth: 90, alignment: .trailing)
-    }
-    .padding(.horizontal)
-    .padding(.top, 4)
-    .zIndex(1)
-  }
-  
-  private var videoSection: some View {
-    Group {
-      if vm.isProcessingVideo || vm.videoPlayer != nil {
-        ZStack {
-          RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(Color(.secondarySystemBackground))
-            .frame(height: 180)
-          
-          if let player = vm.videoPlayer {
-            VideoPlayer(player: player)
-              .frame(height: 180)
-              .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-              .onAppear { player.play() }
-              .onDisappear { player.pause() }
-          }
-          
-          if vm.isProcessingVideo {
-            VStack(spacing: 8) {
-              ProgressView()
-                .progressViewStyle(.circular)
-              
-              Text("Processing video…")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-            .transition(.opacity)
-          }
-          
-          // Close button (only when ready)
-          if vm.videoPlayer != nil {
-            VStack {
-              HStack {
-                Button {
-                  vm.clearVideo()
-                } label: {
-                  Image(systemName: "xmark.circle.fill")
-                    .font(.title3)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.primary)
-                    .padding(8)
-                    .background(.thinMaterial, in: Circle())
-                }
-                .padding(.leading, 8)
-                .padding(.top, 8)
-                
-                Spacer()
-              }
-              Spacer()
-            }
-          }
-        }
-        .padding(.horizontal)
-        .animation(.easeInOut, value: vm.isProcessingVideo)
-      }
-    }
-  }
-  
-  private var mediaSection: some View {
-    Group {
-      if !vm.pickedImages.isEmpty {
-        MediaSection(
-          images: vm.pickedImages,
-          onRemove: { id in vm.removeImage(id) }
-        )
-        .padding(.horizontal)
-      }
-    }
-  }
-  
-  private var linkSection: some View {
-    Group {
-      if let s = vm.linkString, let url = URL(string: s) {
-        ZStack(alignment: .topTrailing) {
-          Button { openURL(url) } label: {
-            LinkPreviewView(url: url)
-              .frame(height: 150)
-              .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-              .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-          }
-          .buttonStyle(.plain)
-          
-          Button { vm.clearLink() } label: {
-            Image(systemName: "xmark.circle.fill")
-              .font(.title3)
-              .symbolRenderingMode(.hierarchical)
-              .foregroundStyle(.primary)
-              .padding(6)
-              .background(.thinMaterial, in: Circle())
-          }
-          .buttonStyle(.plain)
-          .padding(.trailing, 8)
-          .padding(.top, 8)
-        }
-        .padding(.horizontal)
-        .padding(.top, 4)
-        .zIndex(0)
-      }
-    }
-  }
-  
-  private var journalSection: some View {
-    PlaceholderTextEditor(
-      text: $vm.text,
-      placeholder: "Write your thoughts for today…",
-      minHeight: 160,
-      maxHeight: 220
-    )
-    .padding(.horizontal)
-  }
-  
-  private var privacyBinding: Binding<Bool> {
-    Binding(
-      get: { vm.isPublic },
-      set: { newValue in
-        if newValue && auth.isGuest {
-          showAuth = true
-        } else {
-          vm.isPublic = newValue
-        }
-      }
-    )
-  }
-
-  private var counterSection: some View {
-    HStack {
-      PrivacyBadge(isPublic: privacyBinding)
-      Spacer()
-      if !entitlements.isPremium {
-        Text("\(vm.remaining) left")
-          .font(.caption)
-          .foregroundStyle(vm.remaining < 20 ? .orange : .secondary)
-      }
-    }
-    .padding(.horizontal)
-  }
-  
-  private var quickActions: some View {
-    HStack(spacing: 12) {
-      QuickActionButton(
-        title: "Photo", systemImage: "photo",
-        action: { vm.tapPhoto() },
-        isEnabled: true,
-        color: vm.selectedMood?.adaptiveColor
-      )
-      QuickActionButton(
-        title: "Video", systemImage: "video",
-        action: { vm.tapVideo() },
-        isEnabled: entitlements.isPremium,
-        color: vm.selectedMood?.adaptiveColor
-      )
-      QuickActionButton(
-        title: "Gallery", systemImage: "photo.on.rectangle",
-        action: { vm.tapGallery() },
-        isEnabled: entitlements.isPremium,
-        color: vm.selectedMood?.adaptiveColor
-      )
-      QuickActionButton(
-        title: "Link", systemImage: "link",
-        action: { vm.tapLink() },
-        isEnabled: true,
-        color: vm.selectedMood?.adaptiveColor
-      )
-    }
-    .padding(.horizontal)
-    .padding(.bottom, 120)
-  }
-  
-  // MARK: - Preview sheet
-  private var previewSheet: some View {
-    Group {
-      if let mem = postedMemory {
-        NavigationStack {
-          ScrollView {
-            MemoryRow(memory: mem)
-              .environmentObject(auth)
-              .padding()
-          }
-          .navigationTitle("Preview")
-          .navigationBarTitleDisplayMode(.inline)
-          .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-              Button("Done") { showPreview = false }
-            }
-          }
-        }
-      }
-    }
-  }
 }
 
 // MARK: - View Modifiers
@@ -425,37 +433,22 @@ struct CreateMemoryView: View {
 private struct MediaPickers: ViewModifier {
   @ObservedObject var vm: CreateMemoryViewModel
   let entitlements: EntitlementStore
-  
+
   func body(content: Content) -> some View {
     content
-    // Single image
-      .photosPicker(isPresented: $vm.presentSinglePicker,
-                    selection: $vm.singleItem,
-                    matching: .images)
-      .onChange(of: vm.singleItem) { _, _ in
-        Task { await vm.handleSingleSelectionChange() }
-      }
-    // Multi image
-      .photosPicker(isPresented: $vm.presentMultiPicker,
-                    selection: $vm.galleryItems,
-                    maxSelectionCount: entitlements.isPremium ? 12 : 1,
-                    matching: .images)
-      .onChange(of: vm.galleryItems) { _, _ in
-        Task { await vm.handleGallerySelectionChange() }
-      }
-    // Video
-      .photosPicker(isPresented: $vm.presentVideoPicker,
-                    selection: $vm.videoItem,
-                    matching: .videos)
-      .onChange(of: vm.videoItem) { _, _ in
-        Task { await vm.handleVideoSelectionChange() }
-      }
+      .photosPicker(isPresented: $vm.presentSinglePicker, selection: $vm.singleItem, matching: .images)
+      .onChange(of: vm.singleItem) { _, _ in Task { await vm.handleSingleSelectionChange() } }
+      .photosPicker(isPresented: $vm.presentMultiPicker, selection: $vm.galleryItems,
+                    maxSelectionCount: entitlements.isPremium ? 12 : 1, matching: .images)
+      .onChange(of: vm.galleryItems) { _, _ in Task { await vm.handleGallerySelectionChange() } }
+      .photosPicker(isPresented: $vm.presentVideoPicker, selection: $vm.videoItem, matching: .videos)
+      .onChange(of: vm.videoItem) { _, _ in Task { await vm.handleVideoSelectionChange() } }
   }
 }
 
 private struct LinkAlert: ViewModifier {
   @ObservedObject var vm: CreateMemoryViewModel
-  
+
   func body(content: Content) -> some View {
     content.alert("Add a link", isPresented: $vm.showLinkPrompt) {
       TextField("https://example.com", text: $vm.tempLinkInput)

@@ -65,6 +65,13 @@ struct SettingsView: View {
         }
       }
       
+      // MARK: - Debug (only in non-release builds)
+      #if DEBUG
+      Section("Developer") {
+        Toggle("Premium", isOn: $entitlements.isPremium)
+      }
+      #endif
+
       // MARK: - Logout
       Section {
         Button(role: .destructive) {

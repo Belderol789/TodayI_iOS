@@ -11,7 +11,7 @@ final class CreateMemoryViewModel: ObservableObject {
   @Published var selectedMood: Mood? = nil
   @Published var text: String = "" { didSet { enforceLimit() } }
   @Published var isPremium: Bool = false { didSet { enforceLimit() } }
-  @Published var isPublic: Bool = true
+  @Published var isPublic: Bool = false
   
   // Picked images the UI renders
   @Published private(set) var pickedImages: [PickedImage] = []
