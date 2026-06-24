@@ -6,6 +6,7 @@
 //
 
 import FirebaseAuth
+import GoogleSignIn
 
 extension AuthStore {
 
@@ -25,7 +26,81 @@ extension AuthStore {
   func upgradeWithEmailPassword(_ email: String, password: String) async throws {
     try await linkEmailPassword(email: email, password: password)
   }
+
+  // Login path: links anonymous account to existing email account if possible,
+  // otherwise signs in directly. Prevents orphaning anonymous-user memories.
+  func signInOrLinkWithEmail(_ email: String, password: String) async throws {
+    let credential = EmailAuthProvider.credential(withEmail: email, password: password)
+
+    if let current = Auth.auth().currentUser, current.isAnonymous {
+      do {
+        let result = try await current.link(with: credential)
+        await loadOrCreateProfile(for: result.user)
+        return
+      } catch {
+        let nsError = error as NSError
+        guard let code = AuthErrorCode(rawValue: nsError.code),
+              code == .credentialAlreadyInUse || code == .emailAlreadyInUse else {
+          throw error
+        }
+        // Credential belongs to an existing account — sign in to it and clean up anon
+        let signInResult = try await Auth.auth().signIn(with: credential)
+        await loadOrCreateProfile(for: signInResult.user)
+        try? await current.delete()
+        return
+      }
+    }
+
+    // Not anonymous: plain sign-in
+    let result = try await Auth.auth().signIn(with: credential)
+    await loadOrCreateProfile(for: result.user)
+  }
   
+  @MainActor
+  func signInOrLinkWithGoogle(presenting viewController: UIViewController) async throws {
+    guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+          let plist = NSDictionary(contentsOfFile: path),
+          let clientID = plist["CLIENT_ID"] as? String else {
+      throw NSError(domain: "AuthStore", code: 3,
+                    userInfo: [NSLocalizedDescriptionKey: "Missing Google client ID in GoogleService-Info.plist."])
+    }
+
+    GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+
+    let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: viewController)
+    guard let idToken = result.user.idToken?.tokenString else {
+      throw NSError(domain: "AuthStore", code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "Google sign-in failed: missing ID token."])
+    }
+
+    let credential = GoogleAuthProvider.credential(
+      withIDToken: idToken,
+      accessToken: result.user.accessToken.tokenString
+    )
+
+    if let current = Auth.auth().currentUser, current.isAnonymous {
+      do {
+        let linked = try await current.link(with: credential)
+        await loadOrCreateProfile(for: linked.user)
+        return
+      } catch {
+        let nsError = error as NSError
+        guard let code = AuthErrorCode(rawValue: nsError.code),
+              code == .credentialAlreadyInUse || code == .accountExistsWithDifferentCredential else {
+          throw error
+        }
+        let updated = nsError.userInfo[AuthErrorUserInfoUpdatedCredentialKey] as? AuthCredential
+        let signInResult = try await Auth.auth().signIn(with: updated ?? credential)
+        await loadOrCreateProfile(for: signInResult.user)
+        try? await current.delete()
+        return
+      }
+    }
+
+    let signInResult = try await Auth.auth().signIn(with: credential)
+    await loadOrCreateProfile(for: signInResult.user)
+  }
+
   @MainActor
   func signInOrLinkWithApple(_ credential: OAuthCredential) async {
     // If current user is anonymous, try to link first (keeps UID if truly new)

@@ -13,6 +13,7 @@ struct CreateMemoryView: View {
   
   @State private var showPreview = false
   @State private var showPremium = false
+  @State private var showAuth = false
   @State private var postedMemory: MemoryModel? = nil
   
   // MARK: - Body
@@ -31,9 +32,18 @@ struct CreateMemoryView: View {
       }
       .onAppear(perform: configureViewModel)
       .onChange(of: entitlements.isPremium) { _, new in vm.isPremium = new }
+      .onChange(of: auth.isRegisteredUser) { _, isRegistered in
+        if isRegistered { vm.isPublic = true }
+      }
       .modifier(MediaPickers(vm: vm, entitlements: entitlements))
       .modifier(LinkAlert(vm: vm))
       .sheet(isPresented: $showPreview) { previewSheet }
+      .sheet(isPresented: $showAuth) {
+        NavigationStack { AuthView() }
+          .presentationDetents([.large])
+          .presentationDragIndicator(.visible)
+          .presentationCornerRadius(20)
+      }
       .sheet(isPresented: $showPremium) {
         PremiumView()
           .presentationDetents([.large])                 // or [.fraction(0.9)]
@@ -330,9 +340,22 @@ struct CreateMemoryView: View {
     .padding(.horizontal)
   }
   
+  private var privacyBinding: Binding<Bool> {
+    Binding(
+      get: { vm.isPublic },
+      set: { newValue in
+        if newValue && auth.isGuest {
+          showAuth = true
+        } else {
+          vm.isPublic = newValue
+        }
+      }
+    )
+  }
+
   private var counterSection: some View {
     HStack {
-      PrivacyBadge(isPublic: $vm.isPublic)
+      PrivacyBadge(isPublic: privacyBinding)
       Spacer()
       if !entitlements.isPremium {
         Text("\(vm.remaining) left")

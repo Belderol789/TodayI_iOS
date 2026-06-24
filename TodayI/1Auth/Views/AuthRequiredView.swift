@@ -2,63 +2,53 @@ import SwiftUI
 
 struct AuthRequiredView: View {
   var action: (() -> Void)? = nil
-  
-  @Environment(\.colorScheme) private var scheme
-  private let gradient = LinearGradient(
-    colors: [
-      .yellow, .orange, .pink, .green, .purple, .blue
-    ],
-    startPoint: .topLeading,
-    endPoint: .bottomTrailing
-  )
-  
+
+  private var moodColors: [Color] { Mood.allCases.map(\.adaptiveColor) }
+
+  private var moodGradient: LinearGradient {
+    LinearGradient(colors: moodColors, startPoint: .leading, endPoint: .trailing)
+  }
+
   var body: some View {
     VStack(spacing: 24) {
-      // MARK: - Icon / Illustration
-      ZStack {
-        Circle()
-          .fill(gradient.opacity(0.2))
-          .frame(width: 120, height: 120)
-          .overlay(
-            Image(systemName: "person.crop.circle.badge.plus")
-              .font(.system(size: 56, weight: .semibold))
-              .foregroundStyle(gradient)
-          )
+      HStack(spacing: 7) {
+        ForEach(Mood.allCases) { mood in
+          Circle()
+            .fill(mood.adaptiveColor)
+            .frame(width: 10, height: 10)
+        }
       }
-      .shadow(radius: 6, y: 4)
-      
-      // MARK: - Text
+      .accessibilityHidden(true)
+
       VStack(spacing: 6) {
-        Text("Sign In Required")
-          .font(.title2.bold())
-        
-        Text("You need to sign up or sign in to access this feature.")
+        Text("Sign in to continue")
+          .font(.title3.bold())
+          .accessibilityAddTraits(.isHeader)
+
+        Text("Create an account or log in to use this feature.")
+          .font(.subheadline)
           .multilineTextAlignment(.center)
           .foregroundStyle(.secondary)
           .padding(.horizontal)
       }
-      
-      // MARK: - Action Button
+
       Button {
         action?()
       } label: {
-        Text("Sign Up / Sign In")
+        Text("Sign up or log in")
           .font(.headline)
           .frame(maxWidth: .infinity)
-          .padding()
-          .background(gradient)
+          .padding(.vertical, 14)
           .foregroundStyle(.white)
+          .background(moodGradient)
           .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-          .shadow(color: .black.opacity(0.15), radius: 4, y: 3)
       }
-      .padding(.horizontal, 40)
+      .padding(.horizontal, 32)
+      .accessibilityLabel("Sign up or log in")
     }
     .padding()
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(
-      Color(.systemBackground)
-        .ignoresSafeArea()
-    )
+    .background(Color(.systemBackground).ignoresSafeArea())
   }
 }
 

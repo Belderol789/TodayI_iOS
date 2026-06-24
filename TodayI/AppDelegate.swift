@@ -3,6 +3,7 @@ import FirebaseAuth
 import FirebaseCore
 import FirebaseMessaging
 import UserNotifications
+import GoogleSignIn
 
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
   
@@ -46,6 +47,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     NotificationManager.shared.handleRemoteDataPush(userInfo, completion: completionHandler)
   }
   
+  func application(_ app: UIApplication, open url: URL,
+                   options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+    GIDSignIn.sharedInstance.handle(url)
+  }
+
   // FCM registration token updated
   func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
     print("FCM token:", fcmToken ?? "nil")

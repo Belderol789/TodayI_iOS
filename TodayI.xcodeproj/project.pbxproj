@@ -25,6 +25,8 @@
 		9C6658352E6B2BC000354821 /* FirebaseRemoteConfig in Frameworks */ = {isa = PBXBuildFile; productRef = 9C6658342E6B2BC000354821 /* FirebaseRemoteConfig */; };
 		9C6658372E6B2BC000354821 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 9C6658362E6B2BC000354821 /* FirebaseStorage */; };
 		9C6658392E6B2BC000354821 /* FirebaseStorageCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = 9C6658382E6B2BC000354821 /* FirebaseStorageCombine-Community */; };
+		9C6B01562FEC6A3F00B59C5D /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 9C6B01552FEC6A3F00B59C5D /* GoogleSignIn */; };
+		9C6B01582FEC6A3F00B59C5D /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 9C6B01572FEC6A3F00B59C5D /* GoogleSignInSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,9 +34,22 @@
 		9CBE3C572E68134D007D4772 /* TodayI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TodayI.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		9C6B015A2FEC6A5E00B59C5D /* Exceptions for "TodayI" folder in "TodayI" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 9CBE3C562E68134D007D4772 /* TodayI */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		9CBE3C592E68134D007D4772 /* TodayI */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				9C6B015A2FEC6A5E00B59C5D /* Exceptions for "TodayI" folder in "TodayI" target */,
+			);
 			path = TodayI;
 			sourceTree = "<group>";
 		};
@@ -48,6 +63,7 @@
 				9C1E70662EB38B4400F5CDE1 /* FirebaseMessaging in Frameworks */,
 				9C6658212E6B2BC000354821 /* FirebaseAnalyticsIdentitySupport in Frameworks */,
 				9C6658252E6B2BC000354821 /* FirebaseAuth in Frameworks */,
+				9C6B01562FEC6A3F00B59C5D /* GoogleSignIn in Frameworks */,
 				9C66581D2E6B2BC000354821 /* FirebaseAnalytics in Frameworks */,
 				9C6658352E6B2BC000354821 /* FirebaseRemoteConfig in Frameworks */,
 				9C6658312E6B2BC000354821 /* FirebaseFunctions in Frameworks */,
@@ -59,6 +75,7 @@
 				9C6658392E6B2BC000354821 /* FirebaseStorageCombine-Community in Frameworks */,
 				9C6658332E6B2BC000354821 /* FirebaseFunctionsCombine-Community in Frameworks */,
 				9C6658272E6B2BC000354821 /* FirebaseAuthCombine-Community in Frameworks */,
+				9C6B01582FEC6A3F00B59C5D /* GoogleSignInSwift in Frameworks */,
 				9C66582B2E6B2BC000354821 /* FirebaseCrashlytics in Frameworks */,
 				9C54A1872EA7E81E00BE4D00 /* StoreKit.framework in Frameworks */,
 				9C6658292E6B2BC000354821 /* FirebaseCore in Frameworks */,
@@ -131,6 +148,8 @@
 				9C6658362E6B2BC000354821 /* FirebaseStorage */,
 				9C6658382E6B2BC000354821 /* FirebaseStorageCombine-Community */,
 				9C1E70652EB38B4400F5CDE1 /* FirebaseMessaging */,
+				9C6B01552FEC6A3F00B59C5D /* GoogleSignIn */,
+				9C6B01572FEC6A3F00B59C5D /* GoogleSignInSwift */,
 			);
 			productName = TodayI;
 			productReference = 9CBE3C572E68134D007D4772 /* TodayI.app */;
@@ -162,6 +181,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				9C6658192E6B2BC000354821 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				9C6B01542FEC6A3F00B59C5D /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9CBE3C582E68134D007D4772 /* Products */;
@@ -325,6 +345,7 @@
 				DEVELOPMENT_TEAM = XUN95V9WDZ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TodayI/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TodayI;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Use Face ID to access your memories and protect your journal.";
@@ -369,6 +390,7 @@
 				DEVELOPMENT_TEAM = XUN95V9WDZ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TodayI/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TodayI;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Use Face ID to access your memories and protect your journal.";
@@ -431,6 +453,14 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 12.2.0;
+			};
+		};
+		9C6B01542FEC6A3F00B59C5D /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.2.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -519,6 +549,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9C6658192E6B2BC000354821 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = "FirebaseStorageCombine-Community";
+		};
+		9C6B01552FEC6A3F00B59C5D /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9C6B01542FEC6A3F00B59C5D /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		9C6B01572FEC6A3F00B59C5D /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9C6B01542FEC6A3F00B59C5D /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
