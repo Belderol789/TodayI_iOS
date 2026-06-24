@@ -4,41 +4,19 @@ import SwiftUI
 struct RootView: View {
   @EnvironmentObject private var auth: AuthStore
   @State private var selection: AppTab = .home
+  @State private var splashDone = false
   @Namespace private var tabNS
 
   var body: some View {
     Group {
-      if auth.isSessionReady {
+      if auth.isSessionReady && splashDone {
         mainContent
       } else {
-        // Shown while Firebase auth resolves on cold launch.
-        // Uses an explicit gradient so it is never confused with a black screen,
-        // even on OLED devices in dark mode where systemBackground = #000000.
-        ZStack {
-          LinearGradient(
-            colors: [Color.indigo.opacity(0.85), Color.purple.opacity(0.7)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-          )
-          .ignoresSafeArea()
-
-          VStack(spacing: 20) {
-            Image(systemName: "sun.max.fill")
-              .font(.system(size: 56, weight: .semibold))
-              .foregroundStyle(.yellow)
-              .shadow(color: .yellow.opacity(0.6), radius: 12)
-
-            Text("TodayI")
-              .font(.largeTitle.weight(.bold))
-              .foregroundStyle(.white)
-
-            ProgressView()
-              .progressViewStyle(.circular)
-              .tint(.white)
-              .scaleEffect(1.3)
-              .padding(.top, 8)
+        SplashView()
+          .task {
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            splashDone = true
           }
-        }
       }
     }
   }
@@ -65,6 +43,54 @@ struct RootView: View {
       CustomTabBar(selection: $selection, namespace: tabNS)
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
+    }
+  }
+}
+
+// MARK: - Splash
+
+private struct SplashView: View {
+  private let mood: Mood = Mood.allCases.randomElement()!
+
+  @State private var rotation: Double = 0
+  @State private var iconScale: Double = 0.7
+  @State private var titleOpacity: Double = 0
+
+  var body: some View {
+    ZStack {
+      mood.adaptiveColor
+        .ignoresSafeArea()
+
+      // Soft radial glow behind the icon
+      Circle()
+        .fill(.white.opacity(0.12))
+        .frame(width: 200, height: 200)
+        .blur(radius: 40)
+        .accessibilityHidden(true)
+
+      VStack(spacing: 24) {
+        mood.image
+          .resizable()
+          .scaledToFit()
+          .frame(width: 80, height: 80)
+          .rotationEffect(.degrees(rotation))
+          .scaleEffect(iconScale)
+          .accessibilityHidden(true)
+
+        Text("TodayI")
+          .font(.largeTitle.weight(.bold))
+          .foregroundStyle(.white)
+          .opacity(titleOpacity)
+      }
+    }
+    .onAppear {
+      withAnimation(.easeOut(duration: 0.5)) {
+        iconScale = 1.0
+        titleOpacity = 1.0
+      }
+      withAnimation(.linear(duration: 1.6).repeatForever(autoreverses: false)) {
+        rotation = 360
+      }
     }
   }
 }
