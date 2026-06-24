@@ -45,7 +45,7 @@ struct CreateMemoryView: View {
       .scrollDismissesKeyboard(.interactively)
       .onTapGesture { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
       .navigationTitle("Create")
-      .navigationBarTitleDisplayMode(.inline)
+      .navigationBarTitleDisplayMode(.large)
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
           postToolbarButton
