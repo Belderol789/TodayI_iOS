@@ -55,10 +55,9 @@ struct MonthPager: View {
           presentedDay = Calendar.current.startOfDay(for: date)
         }
       )
+      .padding(.bottom, 20)
     }
     .environment(\.calendarInsets, insets)
-    // Prevent the TabView's internal scroll indicators from bleeding through
-    .ignoresSafeArea(.container, edges: .bottom)
   }
 
   // MARK: - Sheet
