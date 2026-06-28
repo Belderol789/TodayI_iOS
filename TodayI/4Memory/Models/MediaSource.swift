@@ -12,4 +12,6 @@ enum MediaSource {
   case remoteImage(url: URL)
   case localVideo(path: String)
   case remoteVideo(url: URL)
+  case localAudio(path: String)
+  case remoteAudio(url: URL)
 }

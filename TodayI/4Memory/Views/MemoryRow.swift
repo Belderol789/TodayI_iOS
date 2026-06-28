@@ -37,6 +37,7 @@ struct MemoryRow: View {
   }
   
   private var mediaA11y: String {
+    if memory.audioSource != nil { return "Contains a voice note." }
     if memory.videoSource != nil { return "Contains a video." }
     if !memory.imageSources.isEmpty { return "Contains \(memory.imageSources.count) image\(memory.imageSources.count == 1 ? "" : "s")." }
     if let link = memory.linkURL, !link.isEmpty { return "Contains a link." }
@@ -265,13 +266,20 @@ private extension MemoryRow {
     }
   }
   
-  // 4) Media (video -> images -> link)
+  // 4) Media (video -> images -> audio -> link)
   @ViewBuilder
   var mediaSection: some View {
     let cornerRadius: CGFloat = 14
     let cardPadding: CGFloat = 14
-    
-    if let video = memory.videoSource {
+
+    if let audio = memory.audioSource {
+      MediaTile(source: audio, cornerRadius: cornerRadius, minHeight: 80)
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .accessibilityLabel("Voice note.")
+        .accessibilityHint("Double tap to play or pause.")
+
+    } else if let video = memory.videoSource {
       Color.clear
         .frame(height: 220)
         .overlay {

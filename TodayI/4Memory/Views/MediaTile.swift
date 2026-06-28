@@ -39,9 +39,15 @@ struct MediaTile: View {
         
       case .localVideo(let path):
         normalizedVideo(url: URL(fileURLWithPath: path))
-        
+
       case .remoteVideo(let url):
         normalizedVideo(url: url)
+
+      case .localAudio(let path):
+        normalizedAudio(source: .localAudio(path: path))
+
+      case .remoteAudio(let url):
+        normalizedAudio(source: .remoteAudio(url: url))
       }
     }
     .background(Color.secondary.opacity(0.08))
@@ -60,6 +66,14 @@ struct MediaTile: View {
       .onTapGesture { onTap?() }
   }
   
+  /// Renders an audio player with the same footprint as other media tiles.
+  private func normalizedAudio(source: MediaSource) -> some View {
+    AudioPlayerRow(source: source, moodColor: .accentColor)
+      .frame(maxWidth: .infinity)
+      .frame(minHeight: minHeight)
+      .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+  }
+
   /// Ensures videos get the same footprint as images.
   private func normalizedVideo(url: URL) -> some View {
     InteractablePlayOverlayPlayer(

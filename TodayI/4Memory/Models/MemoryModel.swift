@@ -182,6 +182,18 @@ extension MemoryModel {
     }
     return nil
   }
+
+  /// Prefer local audio; fallback to remote
+  @Transient
+  var audioSource: MediaSource? {
+    if let path = audioLocalPath, FileManager.default.fileExists(atPath: path) {
+      return .localAudio(path: path)
+    }
+    if let s = audioRemoteURL, let u = URL(string: s) {
+      return .remoteAudio(url: u)
+    }
+    return nil
+  }
   
   /// Generates resolved local filepaths for images
   @Transient
