@@ -26,6 +26,7 @@ final class MemoryModel {
   var videoLocalPath: String?
   var videoRemoteURL: String?
   var audioLocalPath: String?
+  var audioRemoteURL: String?
   var linkURL: String?
   
   // Privacy / Premium
@@ -59,6 +60,7 @@ final class MemoryModel {
     videoLocalPath: String? = nil,
     videoRemoteURL: String? = nil,
     audioLocalPath: String? = nil,
+    audioRemoteURL: String? = nil,
     linkURL: String? = nil,
     isPublic: Bool = false,
     isPremium: Bool,
@@ -79,6 +81,7 @@ final class MemoryModel {
     self.videoLocalPath = videoLocalPath
     self.videoRemoteURL = videoRemoteURL
     self.audioLocalPath = audioLocalPath
+    self.audioRemoteURL = audioRemoteURL
     self.linkURL = linkURL
     self.isPublic = isPublic
     self.isPremium = isPremium
@@ -108,8 +111,9 @@ extension MemoryModel {
       m.mood = Mood(rawValue: dto.mood) ?? .neutral
       m.journalText = dto.journalText
       m.remoteImagePaths = dto.remoteImagePaths
-      m.videoRemoteURL = dto.videoRemoteURL    // 👈
-      m.linkURL = dto.linkURL                  // 👈
+      m.videoRemoteURL = dto.videoRemoteURL
+      m.audioRemoteURL = dto.audioRemoteURL
+      m.linkURL = dto.linkURL
       m.isPublic = dto.isPublic
       m.updatedAt = dto.updatedAt
       m.authorTZ = dto.authorTZ
@@ -126,9 +130,10 @@ extension MemoryModel {
         likes: dto.likes,
         localImageNames: [],
         remoteImagePaths: dto.remoteImagePaths,
-        videoLocalPath: nil,                    // 👈 stays nil from DTO
-        videoRemoteURL: dto.videoRemoteURL,     // 👈
-        linkURL: dto.linkURL,                   // 👈
+        videoLocalPath: nil,
+        videoRemoteURL: dto.videoRemoteURL,
+        audioRemoteURL: dto.audioRemoteURL,
+        linkURL: dto.linkURL,
         isPublic: dto.isPublic,
         isPremium: dto.isPremium ?? false,
         createdAt: dto.createdAt,

@@ -154,17 +154,34 @@ struct FirebaseFirestoreManager {
       } else {
         print("ℹ️ No video to upload")
       }
-      
+
+      // Upload audio (if any)
+      var audioURLString: String?
+      if let audioURL = payload.audioURL {
+        print("📤 Uploading audio for userID: \(userID), file: \(audioURL.lastPathComponent)")
+        let url = try await FirebaseStorageManager.uploadAudio(
+          fileURL: audioURL,
+          userID: userID,
+          memoryID: memoryID
+        )
+        audioURLString = url.absoluteString
+        print("✅ Audio uploaded: \(url.absoluteString)")
+      } else {
+        print("ℹ️ No audio to upload")
+      }
+
       // Finalize DTO with remote fields
       dto.remoteImagePaths = remoteImages
       dto.videoRemoteURL = videoURLString
+      dto.audioRemoteURL = audioURLString
       dto.linkURL = payload.linkString
-      print("🟩 Final DTO prepared with \(remoteImages.count) images, video: \(videoURLString ?? "none"), link: \(payload.linkString ?? "none")")
-      
+      print("🟩 Final DTO prepared — images: \(remoteImages.count), video: \(videoURLString ?? "none"), audio: \(audioURLString ?? "none"), link: \(payload.linkString ?? "none")")
+
       // Update local model with remote fields
       await MainActor.run {
         model.remoteImagePaths = remoteImages
         if let v = videoURLString { model.videoRemoteURL = v }
+        if let a = audioURLString { model.audioRemoteURL = a }
         if let l = payload.linkString { model.linkURL = l }
         model.updatedAt = Date()
         do {

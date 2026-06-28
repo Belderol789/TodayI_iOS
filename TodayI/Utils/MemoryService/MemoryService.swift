@@ -41,6 +41,7 @@ struct MemoryService {
       "likes": memory.likes,
       "remoteImagePaths": memory.remoteImagePaths,
       "videoRemoteURL": memory.videoRemoteURL as Any,
+      "audioRemoteURL": memory.audioRemoteURL as Any,
       "linkURL": memory.linkURL as Any,
       "isPublic": memory.isPublic,
       "isPremium": memory.isPremium,          // ✅ SAFETY ADD
@@ -80,10 +81,11 @@ struct MemoryService {
     let imgsOK     = m.remoteImagePaths.allSatisfy { $0.hasPrefix("http://") || $0.hasPrefix("https://") } && m.remoteImagePaths.count <= 12
     let linkOK     = m.linkURL == nil || isHttps(m.linkURL)
     let videoOK    = m.videoRemoteURL == nil || isHttps(m.videoRemoteURL)
-    
-    
+    let audioOK    = m.audioRemoteURL == nil || isHttps(m.audioRemoteURL)
+
     print("Rules preflight — usernameOK:", usernameOK,
-          "moodOK:", moodOK, "imgsOK:", imgsOK, "linkOK:", linkOK, "videoOK:", videoOK)
+          "moodOK:", moodOK, "imgsOK:", imgsOK, "linkOK:", linkOK,
+          "videoOK:", videoOK, "audioOK:", audioOK)
   }
 }
 

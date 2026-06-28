@@ -48,7 +48,20 @@ struct FirebaseStorageManager {
     LoggerManager.instance.logFirebaseCall()
     let ref = storage.reference()
       .child("users/\(userID)/memories/\(memoryID)/video.mp4")
-    
+
+    let _ = try await ref.putFileAsync(from: fileURL, metadata: nil)
+    return try await ref.downloadURL()
+  }
+
+  /// Uploads an audio file and returns the download URL
+  static func uploadAudio(fileURL: URL,
+                          userID: String,
+                          memoryID: String) async throws -> URL {
+    LoggerManager.instance.logFirebaseCall()
+    let ext = fileURL.pathExtension.isEmpty ? "m4a" : fileURL.pathExtension
+    let ref = storage.reference()
+      .child("users/\(userID)/memories/\(memoryID)/audio.\(ext)")
+
     let _ = try await ref.putFileAsync(from: fileURL, metadata: nil)
     return try await ref.downloadURL()
   }

@@ -12,6 +12,7 @@ struct MemoryDTO: Codable {
   // media
   var remoteImagePaths: [String]
   var videoRemoteURL: String?
+  var audioRemoteURL: String?
   var linkURL: String?
   
   // ✅ New
@@ -27,8 +28,8 @@ struct MemoryDTO: Codable {
   
   enum CodingKeys: String, CodingKey {
     case id, username, userID, date, mood, journalText, likes,
-         remoteImagePaths, videoRemoteURL, linkURL,
-         remoteProfilePhotoURL,     // ✅ included here
+         remoteImagePaths, videoRemoteURL, audioRemoteURL, linkURL,
+         remoteProfilePhotoURL,
          isPublic, isPremium, createdAt, updatedAt, authorTZ, dayKey
   }
 }
@@ -44,6 +45,7 @@ extension MemoryDTO {
     self.likes = model.likes
     self.remoteImagePaths = model.remoteImagePaths
     self.videoRemoteURL = model.videoRemoteURL
+    self.audioRemoteURL = model.audioRemoteURL
     self.linkURL = model.linkURL
     self.remoteProfilePhotoURL = model.remoteProfilePhotoURL   // ✅ only remote version
     self.isPublic = model.isPublic
@@ -65,6 +67,7 @@ extension MemoryDTO {
     self.likes = 0
     self.remoteImagePaths = []
     self.videoRemoteURL = nil
+    self.audioRemoteURL = nil
     self.linkURL = payload.linkString
     self.isPublic = payload.isPublic
     self.isPremium = payload.isPremium
