@@ -35,6 +35,7 @@ struct CalendarShell: View {
           tabSelection: $tabSelection,
           zoomNS: zoomNS
         )
+        .padding(.bottom, 80)
         .transition(.opacity.combined(with: .move(edge: .bottom)))
       } else {
         YearGrid(

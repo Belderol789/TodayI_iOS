@@ -55,7 +55,6 @@ struct MonthPager: View {
           presentedDay = Calendar.current.startOfDay(for: date)
         }
       )
-      .padding(.bottom, 20)
     }
     .environment(\.calendarInsets, insets)
   }
