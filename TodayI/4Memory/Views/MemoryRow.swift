@@ -273,7 +273,7 @@ private extension MemoryRow {
     let cardPadding: CGFloat = 14
 
     if let audio = memory.audioSource {
-      MediaTile(source: audio, cornerRadius: cornerRadius, minHeight: 80)
+      MediaTile(source: audio, cornerRadius: cornerRadius, minHeight: 80, accentColor: moodColor)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .accessibilityLabel("Voice note.")

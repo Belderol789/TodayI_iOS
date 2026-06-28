@@ -6,6 +6,7 @@ struct MediaTile: View {
   let source: MediaSource
   var cornerRadius: CGFloat = 12
   var minHeight: CGFloat = 160
+  var accentColor: Color = .accentColor
   var onTap: (() -> Void)? = nil
   
   var body: some View {
@@ -68,7 +69,7 @@ struct MediaTile: View {
   
   /// Renders an audio player with the same footprint as other media tiles.
   private func normalizedAudio(source: MediaSource) -> some View {
-    AudioPlayerRow(source: source, moodColor: .accentColor)
+    AudioPlayerRow(source: source, moodColor: accentColor)
       .frame(maxWidth: .infinity)
       .frame(minHeight: minHeight)
       .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
