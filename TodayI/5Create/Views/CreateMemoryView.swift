@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import AVKit
+import UserNotifications
 
 struct CreateMemoryView: View {
   @EnvironmentObject private var entitlements: EntitlementStore
@@ -19,6 +20,9 @@ struct CreateMemoryView: View {
   @State private var showPremium = false
   @State private var showAuth = false
   @State private var postedMemory: MemoryModel? = nil
+
+  @AppStorage("hasPostedOnce") private var hasPostedOnce = false
+  @State private var showNotifPrompt = false
 
   var body: some View {
     NavigationStack {
@@ -58,7 +62,7 @@ struct CreateMemoryView: View {
       }
       .modifier(MediaPickers(vm: vm, entitlements: entitlements))
       .modifier(LinkAlert(vm: vm))
-      .sheet(isPresented: $showPreview) { previewSheet }
+      .sheet(isPresented: $showPreview, onDismiss: handlePreviewDismiss) { previewSheet }
       .sheet(isPresented: $showAuth) {
         NavigationStack { AuthView() }
           .presentationDetents([.large])
@@ -72,6 +76,14 @@ struct CreateMemoryView: View {
           .interactiveDismissDisabled(false)
           .presentationCornerRadius(20)
           .preferredColorScheme(.dark)
+      }
+      .alert("Build a journaling habit?", isPresented: $showNotifPrompt) {
+        Button("Yes, remind me daily") {
+          Task { await NotificationManager.shared.configure() }
+        }
+        Button("Maybe later", role: .cancel) {}
+      } message: {
+        Text("Want to get notified to create a habit of journalling daily?")
       }
     }
   }
@@ -487,6 +499,19 @@ struct CreateMemoryView: View {
             }
           }
         }
+      }
+    }
+  }
+
+  // MARK: - Post-preview hook
+
+  private func handlePreviewDismiss() {
+    guard !hasPostedOnce else { return }
+    hasPostedOnce = true
+    Task {
+      let status = await UNUserNotificationCenter.current().notificationSettings()
+      if status.authorizationStatus == .notDetermined {
+        await MainActor.run { showNotifPrompt = true }
       }
     }
   }

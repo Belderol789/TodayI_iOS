@@ -36,7 +36,7 @@ struct RootView: View {
           day: Date()
         )
       case .notifications:
-        NotificationView()
+        NotificationView(tabSelection: $selection)
       }
     }
     .safeAreaInset(edge: .bottom, spacing: 0) {

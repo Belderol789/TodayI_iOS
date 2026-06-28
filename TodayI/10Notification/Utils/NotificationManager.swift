@@ -11,14 +11,25 @@ final class NotificationManager: NSObject {
   
   // MARK: - Bootstrap
   func configure() async -> Bool {
-    await withCheckedContinuation { cont in
-      UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
-        if let error = error { print("Notification auth error:", error) }
-        DispatchQueue.main.async {
-          UIApplication.shared.registerForRemoteNotifications()
+    let center = UNUserNotificationCenter.current()
+    let current = await center.notificationSettings()
+
+    switch current.authorizationStatus {
+    case .authorized, .provisional, .ephemeral:
+      await MainActor.run { UIApplication.shared.registerForRemoteNotifications() }
+      return true
+    case .notDetermined:
+      return await withCheckedContinuation { cont in
+        center.requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+          if let error = error { print("Notification auth error:", error) }
+          DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
+          cont.resume(returning: granted)
         }
-        cont.resume(returning: granted)
       }
+    case .denied:
+      return false
+    @unknown default:
+      return false
     }
   }
   

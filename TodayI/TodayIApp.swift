@@ -76,11 +76,6 @@ struct TodayIApp: App {
           let activated = await FirebaseFirestoreManager.activateDeviceTrialIfNeeded()
           print("Trial activation result: \(activated)")
         }
-        .onAppear {
-          Task {
-            await NotificationManager.shared.configure()
-          }
-        }
     }
     .modelContainer(container)
   }

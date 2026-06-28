@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import UIKit
 import LocalAuthentication
+import UserNotifications
 
 struct SettingsView: View {
   @EnvironmentObject private var auth: AuthStore
@@ -10,6 +11,14 @@ struct SettingsView: View {
   
   @AppStorage("requireFaceID") private var requireFaceID = false
   @State private var biometricsAvailable: Bool = false
+
+  // Daily reminder
+  @AppStorage("dailyReminderEnabled") private var dailyReminderEnabled = false
+  @AppStorage("dailyReminderHour") private var dailyReminderHour = 20
+  @AppStorage("dailyReminderMinute") private var dailyReminderMinute = 0
+  @State private var reminderDate: Date = Calendar.current.date(
+    from: DateComponents(hour: 20, minute: 0)) ?? Date()
+  @State private var notificationsAuthorized = false
 
   @State private var draftUsername: String = ""
   @State private var isSaving = false
@@ -69,6 +78,34 @@ struct SettingsView: View {
         }
       }
       
+      // MARK: - Notifications
+      if notificationsAuthorized {
+        Section {
+          Toggle("Daily Reminder", isOn: $dailyReminderEnabled)
+            .onChange(of: dailyReminderEnabled) { _, enabled in
+              Task { await applyReminderChange(enabled: enabled) }
+            }
+
+          if dailyReminderEnabled {
+            DatePicker("Reminder Time",
+                       selection: $reminderDate,
+                       displayedComponents: .hourAndMinute)
+              .onChange(of: reminderDate) { _, date in
+                let comps = Calendar.current.dateComponents([.hour, .minute], from: date)
+                dailyReminderHour = comps.hour ?? 20
+                dailyReminderMinute = comps.minute ?? 0
+                Task { await applyReminderChange(enabled: true) }
+              }
+          }
+        } header: {
+          Text("Notifications")
+        } footer: {
+          Text(dailyReminderEnabled
+               ? "You'll get a daily nudge to log how you're feeling."
+               : "Get a daily nudge to log how you're feeling.")
+        }
+      }
+
       // MARK: - Security
       if biometricsAvailable {
         Section {
@@ -121,6 +158,15 @@ struct SettingsView: View {
       draftUsername = auth.username ?? ""
       let ctx = LAContext()
       biometricsAvailable = ctx.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+      reminderDate = Calendar.current.date(
+        from: DateComponents(hour: dailyReminderHour, minute: dailyReminderMinute)) ?? reminderDate
+      Task {
+        let status = await UNUserNotificationCenter.current().notificationSettings()
+        await MainActor.run {
+          notificationsAuthorized = status.authorizationStatus == .authorized
+            || status.authorizationStatus == .provisional
+        }
+      }
     }
     .photosPicker(isPresented: $showPhotoPicker,
                   selection: $selectedPhotoItem,
@@ -227,6 +273,20 @@ private extension SettingsView {
 
 // MARK: - Save Logic
 private extension SettingsView {
+  func applyReminderChange(enabled: Bool) async {
+    if enabled {
+      try? await NotificationManager.shared.rescheduleDaily(
+        id: "daily-reminder",
+        hour: dailyReminderHour,
+        minute: dailyReminderMinute,
+        title: "How are you feeling today?",
+        body: "Take a moment to log your mood in TodayI."
+      )
+    } else {
+      NotificationManager.shared.cancel(id: "daily-reminder")
+    }
+  }
+
   func saveChangesAndDismiss() async {
     guard let uid = auth.userID else { return }
     if !hasUnsavedChanges { dismiss(); return }

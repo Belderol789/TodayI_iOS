@@ -29,7 +29,7 @@ struct MemoryRow: View {
   private var journalPreviewA11y: String {
     let trimmed = memory.journalText.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return "No journal text." }
-    // Keep this short so VO doesn’t read an entire essay in the feed.
+    // Keep this short so VO doesn't read an entire essay in the feed.
     let max = 140
     if trimmed.count <= max { return trimmed }
     let idx = trimmed.index(trimmed.startIndex, offsetBy: max)
@@ -72,9 +72,7 @@ struct MemoryRow: View {
 private extension MemoryRow {
   var content: some View {
     VStack(alignment: .leading, spacing: 12) {
-      privacyBadgeRow
-      userDateRow
-      headerCard
+      headerRow
       journalText
       mediaSection
       actionRow
@@ -86,170 +84,94 @@ private extension MemoryRow {
 // MARK: - Subsections
 private extension MemoryRow {
   
-  // 0) Privacy badge (owner only) OR More menu (others)
-  var privacyBadgeRow: some View {
-    Group {
-      HStack {
-        Spacer()
-        
-        if canEditPrivacy {
-          PrivacyBadge(isPublic: $memory.isPublic)
-            .disabled(isUpdatingPrivacy)
-          
-          // ✅ Clear toggle semantics
-            .accessibilityLabel("Privacy")
-            .accessibilityValue(memory.isPublic ? "Public" : "Private")
-            .accessibilityHint("Double tap to change visibility.")
-          
-            .onChange(of: memory.isPublic) { _, newValue in
-              guard !isUpdatingPrivacy else { return }
-              isUpdatingPrivacy = true
-              Task {
-                do {
-                  try await MemoryService.updatePrivacy(for: memory, isPublic: newValue)
-                } catch {
-                  print("⚠️ Failed to update privacy:", error)
-                }
-                isUpdatingPrivacy = false
-              }
-            }
-          
-        } else {
-          Menu {
-            Button(role: .destructive) {
-              guard !isBlocking else { return }
-              isBlocking = true
-              Task { @MainActor in
-                defer { isBlocking = false }
-                onBlockUser?(memory.userID)
-              }
-            } label: {
-              Label("Block \(usernameLabel)", systemImage: "hand.raised.fill")
-            }
-          } label: {
-            Image(systemName: "ellipsis.circle")
-              .imageScale(.large)
-              .symbolRenderingMode(.hierarchical)
-              .foregroundStyle(memory.mood.adaptiveColor)
-              .padding(.vertical, 4)
-          }
-          .disabled(isBlocking)
-          .animation(.default, value: isBlocking)
-          
-          // ✅ Menu button should speak like “More options”
-          .accessibilityLabel("More options")
-          .accessibilityHint("Shows actions for \(usernameLabel).")
-          .accessibilityValue(isBlocking ? "Busy" : "")
-        }
-      }
-    }
-  }
-  
-  // 2) Username + date
-  var userDateRow: some View {
-    HStack {
-      if memory.isPremium,
-         let urlString = memory.remoteProfilePhotoURL,
-         let url = URL(string: urlString) {
-        AsyncImage(url: url) { phase in
-          switch phase {
-          case .success(let image):
-            image
-              .resizable()
-              .scaledToFill()
-              .frame(width: 32, height: 32)
-              .clipShape(Circle())
-              .accessibilityHidden(true) // ✅ decorative; username provides identity
-          case .failure:
-            MoodIcon(mood: memory.mood, size: 20).opacity(0.9)
-              .accessibilityHidden(true)
-          case .empty:
-            ProgressView()
-              .frame(width: 20, height: 20)
-              .accessibilityLabel("Loading profile image")
-          @unknown default:
-            MoodIcon(mood: memory.mood, size: 20).opacity(0.9)
-              .accessibilityHidden(true)
-          }
-        }
-      } else {
-        MoodIcon(mood: memory.mood, size: 20).opacity(0.9)
-          .accessibilityHidden(true) // ✅ mood is spoken elsewhere
-      }
-      
-      Text("@\(memory.username)")
-        .font(.subheadline.weight(.semibold))
-      
-      Spacer()
-      
-      Text(timeString)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-    }
-    // ✅ Read this row cleanly as one sentence
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel("\(usernameLabel). \(createdAtA11y).")
-  }
-  
-  // 1) Header (“TodayI felt …”)
-  var headerCard: some View {
-    HStack(alignment: .center, spacing: 12) {
-      Text("TodayI felt")
-        .font(.subheadline.bold())
-        .foregroundStyle(.secondary)
-        .accessibilityHidden(true) // we provide a combined label below
-      
-      moodChip
+  // Header: avatar · [username + mood chip / date] · trailing action
+  var headerRow: some View {
+    HStack(alignment: .top, spacing: 10) {
+      avatar
         .accessibilityHidden(true)
-      
-      Spacer(minLength: 0)
-    }
-    .padding(.vertical, 8)
-    .padding(.horizontal, 12)
-    .background(headerBackground.accessibilityHidden(true)) // gradients/strokes are decorative
-    
-    // ✅ Speak as one logical statement
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel("Mood: \(memory.mood.rawValue).")
-  }
-  
-  var moodChip: some View {
-    Group {
-      if isPremium {
-        Text(memory.mood.rawValue)
-          .font(.headline.bold())
-          .padding(.horizontal, 10)
-          .padding(.vertical, 4)
-          .background(Capsule().fill(Color(.systemBackground).opacity(0.85)))
-          .foregroundStyle(moodColor)
-          .shadow(color: .black.opacity(0.18), radius: 1, x: 0, y: 1)
-      } else {
-        Text(memory.mood.rawValue)
-          .font(.headline.bold())
-          .foregroundStyle(moodColor)
-      }
-    }
-  }
-  
-  var headerBackground: some View {
-    RoundedRectangle(cornerRadius: 12, style: .continuous)
-      .fill(isPremium ? Color.white.opacity(0.08) : moodColor.opacity(0.15))
-      .overlay(
-        Group {
-          if isPremium {
-            LinearGradient(
-              colors: [moodColor.opacity(0.20), moodColor.opacity(0.08)],
-              startPoint: .topLeading,
-              endPoint: .bottomTrailing
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-          }
+
+      VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 6) {
+          Text("@\(memory.username)")
+            .font(.subheadline.weight(.semibold))
+          moodChip
+          Spacer(minLength: 0)
         }
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-          .stroke(moodColor.opacity(isPremium ? 0.18 : 0.15), lineWidth: 1)
-      )
+        Text(timeString)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
+      trailingAction
+    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("\(usernameLabel). Mood: \(moodLabel). \(createdAtA11y).")
+  }
+
+  @ViewBuilder
+  var avatar: some View {
+    if memory.isPremium,
+       let urlString = memory.remoteProfilePhotoURL,
+       let url = URL(string: urlString) {
+      AsyncImage(url: url) { phase in
+        switch phase {
+        case .success(let image):
+          image.resizable().scaledToFill()
+            .frame(width: 36, height: 36).clipShape(Circle())
+        case .empty:
+          Circle().fill(Color(.systemGray5)).frame(width: 36, height: 36)
+            .overlay(ProgressView().scaleEffect(0.6))
+        default:
+          moodIconAvatar
+        }
+      }
+    } else {
+      moodIconAvatar
+    }
+  }
+
+  var moodIconAvatar: some View {
+    Circle()
+      .fill(moodColor.opacity(0.18))
+      .frame(width: 36, height: 36)
+      .overlay(MoodIcon(mood: memory.mood, size: 18).opacity(0.9))
+  }
+
+  var moodChip: some View {
+    Text(memory.mood.rawValue)
+      .font(.caption.weight(.semibold))
+      .padding(.horizontal, 8)
+      .padding(.vertical, 3)
+      .background(Capsule().fill(moodColor.opacity(0.15)))
+      .foregroundStyle(moodColor)
+  }
+
+  @ViewBuilder
+  var trailingAction: some View {
+    if !canEditPrivacy {
+      Menu {
+        Button(role: .destructive) {
+          guard !isBlocking else { return }
+          isBlocking = true
+          Task { @MainActor in
+            defer { isBlocking = false }
+            onBlockUser?(memory.userID)
+          }
+        } label: {
+          Label("Block \(usernameLabel)", systemImage: "hand.raised.fill")
+        }
+      } label: {
+        Image(systemName: "ellipsis")
+          .font(.subheadline.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .padding(8)
+          .contentShape(Rectangle())
+      }
+      .disabled(isBlocking)
+      .accessibilityLabel("More options")
+      .accessibilityHint("Shows actions for \(usernameLabel).")
+      .accessibilityValue(isBlocking ? "Busy" : "")
+    }
   }
   
   // 3) Journal text
@@ -260,7 +182,7 @@ private extension MemoryRow {
           .font(.body)
           .fixedSize(horizontal: false, vertical: true)
           .frame(maxWidth: .infinity, alignment: .leading)
-        // ✅ Keep default reading (it’s the actual content)
+        // ✅ Keep default reading (it's the actual content)
           .accessibilityLabel(memory.journalText)
       }
     }
@@ -332,28 +254,40 @@ private extension MemoryRow {
     }
   }
   
-  // 5) Actions / flags
+  // 5) Actions
   var actionRow: some View {
-    HStack(spacing: 16) {
+    HStack(spacing: 12) {
       likeButton
       commentButton
-        .frame(width: 60)
       Spacer()
-      PremiumPill(isPremium: isPremium)
-      // ✅ If you want it read:
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(isPremium ? "Premium post" : "Standard post")
+      if canEditPrivacy {
+        PrivacyBadge(isPublic: $memory.isPublic)
+          .disabled(isUpdatingPrivacy)
+          .accessibilityLabel("Privacy")
+          .accessibilityValue(memory.isPublic ? "Public" : "Private")
+          .accessibilityHint("Double tap to change visibility.")
+          .onChange(of: memory.isPublic) { _, newValue in
+            guard !isUpdatingPrivacy else { return }
+            isUpdatingPrivacy = true
+            Task {
+              do {
+                try await MemoryService.updatePrivacy(for: memory, isPublic: newValue)
+              } catch {
+                print("⚠️ Failed to update privacy:", error)
+              }
+              isUpdatingPrivacy = false
+            }
+          }
+      }
     }
-    .font(.subheadline.weight(.semibold))
-    .padding(.top, 6)
+    .padding(.top, 4)
   }
-  
+
   var likeButton: some View {
     Button {
       guard !hasLiked else { return }
       hasLiked = true
       memory.likes += 1
-      
       Task {
         do {
           try await MemoryService.like(memory: memory)
@@ -364,46 +298,42 @@ private extension MemoryRow {
         }
       }
     } label: {
-      HStack(spacing: 6) {
-        Image(systemName: hasLiked ? "hand.thumbsup.fill" : "hand.thumbsup")
-          .accessibilityHidden(true) // we provide a full label below
+      HStack(spacing: 5) {
+        Image(systemName: hasLiked ? "heart.fill" : "heart")
+          .accessibilityHidden(true)
         Text("\(memory.likes)")
           .font(.caption.weight(.semibold))
           .accessibilityHidden(true)
       }
       .padding(.horizontal, 12)
       .padding(.vertical, 8)
-      .background(
-        Capsule().fill(
-          hasLiked
-          ? moodColor.opacity(0.3)
-          : moodColor.opacity(0.15)
-        )
-      )
-      .foregroundStyle(hasLiked ? moodColor : .secondary)
+      .background(Capsule().fill(hasLiked ? Color.pink.opacity(0.15) : moodColor.opacity(0.12)))
+      .foregroundStyle(hasLiked ? Color.pink : .secondary)
     }
     .buttonStyle(.plain)
     .disabled(hasLiked)
-    
-    // ✅ Proper control semantics
     .accessibilityLabel(hasLiked ? "Liked" : "Like")
     .accessibilityValue("\(memory.likes) likes")
     .accessibilityHint(hasLiked ? "Already liked." : "Adds one like.")
   }
-  
+
   var commentButton: some View {
     NavigationLink {
       CommentThreadView(memory: memory)
     } label: {
-      Image(systemName: "text.bubble.fill")
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Capsule().fill(moodColor.opacity(0.18)))
-        .foregroundStyle(moodColor)
+      HStack(spacing: 5) {
+        Image(systemName: "bubble.right")
+          .accessibilityHidden(true)
+        Text("Reply")
+          .font(.caption.weight(.semibold))
+          .accessibilityHidden(true)
+      }
+      .padding(.horizontal, 12)
+      .padding(.vertical, 8)
+      .background(Capsule().fill(moodColor.opacity(0.12)))
+      .foregroundStyle(.secondary)
     }
     .buttonStyle(.plain)
-    
-    // ✅ Navigation intent
     .accessibilityLabel("Comments")
     .accessibilityHint("Opens the comment thread.")
   }
