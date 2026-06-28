@@ -64,7 +64,10 @@ final class CreateMemoryViewModel: ObservableObject {
   
   // MARK: - Derived
   var canPost: Bool {
-    selectedMood != nil && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isProcessingVideo
+    guard selectedMood != nil, !isProcessingVideo else { return false }
+    let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    let hasMedia = !pickedImages.isEmpty || pendingVideoURL != nil || pendingAudioURL != nil || linkString != nil
+    return hasText || hasMedia
   }
   
   // MARK: - Intents (called by the View)
