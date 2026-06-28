@@ -23,6 +23,9 @@ struct SettingsView: View {
   @State private var draftUsername: String = ""
   @State private var isSaving = false
   @State private var isLoggingOut = false
+  @State private var isDeletingAccount = false
+  @State private var showDeleteConfirm = false
+  @State private var deleteError: String?
   
   // Photo picking + preview
   @State private var showPhotoPicker = false
@@ -124,7 +127,7 @@ struct SettingsView: View {
       }
       #endif
 
-      // MARK: - Logout
+      // MARK: - Account actions
       Section {
         Button(role: .destructive) {
           isLoggingOut = true
@@ -140,7 +143,35 @@ struct SettingsView: View {
             Text("Log Out")
           }
         }
+        .disabled(auth.isGuest || isLoggingOut || isDeletingAccount)
+
+        if !auth.isGuest {
+          Button(role: .destructive) {
+            showDeleteConfirm = true
+          } label: {
+            if isDeletingAccount {
+              ProgressView().tint(.red)
+            } else {
+              Text("Delete Account")
+            }
+          }
+          .disabled(isDeletingAccount || isLoggingOut)
+        }
+      } footer: {
+        if let deleteError {
+          Text(deleteError)
+            .foregroundStyle(.red)
+            .font(.caption)
+        }
       }
+    }
+    .alert("Delete Account?", isPresented: $showDeleteConfirm) {
+      Button("Delete", role: .destructive) {
+        Task { await performDeleteAccount() }
+      }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text("This permanently deletes your account, all memories, and cannot be undone.")
     }
     .navigationTitle("Settings")
     .navigationBarTitleDisplayMode(.inline)
@@ -273,6 +304,19 @@ private extension SettingsView {
 
 // MARK: - Save Logic
 private extension SettingsView {
+  func performDeleteAccount() async {
+    isDeletingAccount = true
+    deleteError = nil
+    do {
+      try await auth.deleteAccount()
+      isDeletingAccount = false
+      dismiss()
+    } catch {
+      isDeletingAccount = false
+      deleteError = error.localizedDescription
+    }
+  }
+
   func applyReminderChange(enabled: Bool) async {
     if enabled {
       try? await NotificationManager.shared.rescheduleDaily(
