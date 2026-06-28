@@ -5,185 +5,150 @@ struct GlobalFeedView: View {
   @EnvironmentObject private var entitlements: EntitlementStore
   @EnvironmentObject private var auth: AuthStore
   @Environment(\.swiftDataManager) private var swiftManager
-  
+
   @StateObject private var vm: GlobalFeedViewModel
   @Binding var tabSelection: AppTab
   @State private var showPremium = false
-  
+
   @Query private var blockedLists: [BlockedUserList]
   private var blockedIDs: Set<String> { Set(blockedLists.first?.users ?? []) }
-  
+
   private var visibleRows: [MemoryDTO] {
     vm.rows.filter { !blockedIDs.contains($0.userID) }
   }
-  
+
   init(tabSelection: Binding<AppTab>, day: Date = Date()) {
     _vm = StateObject(wrappedValue: GlobalFeedViewModel(day: day))
     _tabSelection = tabSelection
   }
-  
+
   var body: some View {
-    List {
-      Section {
-        MoodSummaryCard(
-          slices: vm.globalMoodSlices.isEmpty ? vm.moodSlices : vm.globalMoodSlices,
-          total: vm.globalMoodTotal > 0 ? vm.globalMoodTotal : vm.totalMoodsCount,
-          tabSelection: $tabSelection
-        )
-        // ✅ Give the chart card a strong accessible “summary”
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(moodSummaryA11yTitle)
-        .accessibilityHint("Shows the mood distribution for today.")
-        
-        FeedRows(
-          rows: visibleRows,
-          onNearEnd: { Task { await vm.loadMore() } },
-          onBlockUser: { userID in
-            swiftManager?.addBlockedUser(userID)
+    NavigationStack {
+      ScrollView {
+        LazyVStack(spacing: 12) {
+          GlassMoodFilter(vm: vm)
+            .padding(.top, 4)
+
+          MoodSummaryCard(
+            slices: vm.globalMoodSlices.isEmpty ? vm.moodSlices : vm.globalMoodSlices,
+            total: vm.globalMoodTotal > 0 ? vm.globalMoodTotal : vm.totalMoodsCount,
+            selectedMoods: vm.selectedMoods,
+            tabSelection: $tabSelection
+          )
+          .padding(.horizontal, 16)
+          .padding(.top, 8)
+
+          if visibleRows.isEmpty && !vm.isLoading {
+            emptyFeedView
+          } else {
+            ForEach(visibleRows, id: \.id) { dto in
+              GlobalMemoryRow(dto: dto, onBlockUser: { swiftManager?.addBlockedUser($0) })
+                .padding(.horizontal, 16)
+                .onAppear {
+                  if dto.id == visibleRows.suffix(5).first?.id {
+                    Task { await vm.loadMore() }
+                  }
+                }
+            }
           }
-        )
-        // ✅ Group the feed rows as “Posts”
-        .accessibilityElement(children: .contain)
-        
-        FooterState(
-          isLoading: vm.isLoading,
-          reachedEnd: vm.reachedEnd
-        )
-        // ✅ Make loading / end-of-feed understandable
-        .accessibilityElement(children: .contain)
-        
-      } header: {
-        GlobalFeedHeader(vm: vm)
-        // ✅ Header semantics
-          .accessibilityAddTraits(.isHeader)
-          .accessibilityLabel("Filters")
-          .accessibilityHint("Filter posts by mood.")
+
+          footerView
+        }
+        .padding(.bottom, 100)
       }
-      .listSectionSeparator(.hidden, edges: .all)
-    }
-    .contentMargins(.horizontal, 0, for: .scrollContent)
-    .listStyle(.plain)
-    .navigationTitle("Global")
-    .navigationBarTitleDisplayMode(.inline)
-    .scrollContentBackground(.hidden)
-    
-    // ✅ Make the screen read well when it appears
-    .accessibilityLabel("Global feed")
-    
-    .toolbar {
-      PremiumPill(isPremium: entitlements.isPremium) {
-        showPremium = true
+      .navigationTitle("World Feed")
+      .navigationBarTitleDisplayMode(.large)
+      .toolbar {
+        PremiumPill(isPremium: entitlements.isPremium) { showPremium = true }
+          .accessibilityLabel(entitlements.isPremium ? "Premium active" : "Go Premium")
       }
-      .accessibilityLabel(entitlements.isPremium ? "Premium active" : "Go Premium")
-      .accessibilityHint("Opens premium options.")
-    }
-    
-    .task { await vm.refresh() }
-    .refreshable { await vm.refresh() }
-    
-    .sheet(isPresented: $showPremium) {
-      PremiumView()
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-        .interactiveDismissDisabled(false)
-        .presentationCornerRadius(20)
-        .preferredColorScheme(.dark)
-        .accessibilityLabel("Premium")
+      .task { await vm.refresh() }
+      .refreshable { await vm.refresh() }
+      .sheet(isPresented: $showPremium) {
+        PremiumView()
+          .presentationDetents([.large])
+          .presentationDragIndicator(.visible)
+          .interactiveDismissDisabled(false)
+          .presentationCornerRadius(20)
+          .preferredColorScheme(.dark)
+      }
     }
   }
-  
-  // MARK: - Accessibility helpers
-  private var moodSummaryA11yTitle: String {
-    let total = vm.globalMoodTotal > 0 ? vm.globalMoodTotal : vm.totalMoodsCount
-    return "Today the world feels. \(total) mood entries."
+
+  // MARK: - Footer
+
+  @ViewBuilder
+  private var footerView: some View {
+    if vm.isLoading {
+      ProgressView()
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
+    } else if vm.reachedEnd && !visibleRows.isEmpty {
+      VStack(spacing: 8) {
+        Image(systemName: "checkmark.circle")
+          .font(.title2.weight(.light))
+          .foregroundStyle(.secondary)
+        Text("You're all caught up")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+      }
+      .frame(maxWidth: .infinity)
+      .padding(.vertical, 32)
+    }
+  }
+
+  // MARK: - Empty feed
+
+  private var emptyFeedView: some View {
+    VStack(spacing: 12) {
+      Image(systemName: "person.2")
+        .font(.system(size: 36, weight: .light))
+        .foregroundStyle(.secondary)
+      Text("No posts yet today")
+        .font(.headline)
+      Text("Be the first to share how you're feeling.")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .multilineTextAlignment(.center)
+      Button {
+        tabSelection = .create
+      } label: {
+        Text("Create a Memory")
+          .font(.subheadline.weight(.semibold))
+          .padding(.horizontal, 20)
+          .padding(.vertical, 10)
+          .background(Capsule().fill(Color.accentColor))
+          .foregroundColor(.white)
+      }
+      .padding(.top, 4)
+    }
+    .frame(maxWidth: .infinity)
+    .padding(.vertical, 48)
+    .padding(.horizontal, 32)
   }
 }
 
-// MARK: - Subviews
-
-private struct GlobalFeedHeader: View {
-  @ObservedObject var vm: GlobalFeedViewModel
-  var body: some View {
-    GlassMoodFilter(vm: vm)
-      .padding(.vertical, 6)
-      .background(.ultraThinMaterial)
-    // If GlassMoodFilter is mostly UI, we avoid VO reading internal decoration twice.
-      .accessibilityElement(children: .contain)
-  }
-}
+// MARK: - Mood summary card wrapper
 
 private struct MoodSummaryCard: View {
   let slices: [MoodSlice]
   let total: Int
+  let selectedMoods: Set<Mood>
   @Binding var tabSelection: AppTab
-  
+
   var body: some View {
     MoodPieChart(
       slices: slices,
       total: total,
+      selectedMoods: selectedMoods,
       title: "Today the world feels",
       tabSelection: $tabSelection
     )
-    // ✅ If your MoodPieChart doesn’t expose labels, at least ensure it’s discoverable
-    .accessibilityElement(children: .contain)
-  }
-}
-
-private struct FeedRows: View {
-  let rows: [MemoryDTO]
-  let onNearEnd: () -> Void
-  let onBlockUser: (String) -> Void
-  
-  var body: some View {
-    ForEach(rows, id: \.id) { dto in
-      GlobalMemoryRow(dto: dto, onBlockUser: onBlockUser)
-        .padding(8)
-        .listRowInsets(EdgeInsets())
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-      
-      // ✅ Prevent List cell container from adding weird extra VO groupings
-        .accessibilityElement(children: .contain)
-      
-        .onAppear {
-          if dto.id == rows.suffix(5).first?.id {
-            onNearEnd()
-          }
-        }
-    }
-    // Optional: If you want a heading for the feed region in VO rotor:
-    .accessibilityLabel("Posts")
-  }
-}
-
-private struct FooterState: View {
-  let isLoading: Bool
-  let reachedEnd: Bool
-  
-  var body: some View {
-    Group {
-      if isLoading {
-        HStack { Spacer(); ProgressView(); Spacer() }
-          .listRowInsets(EdgeInsets())
-          .listRowSeparator(.hidden)
-          .listRowBackground(Color.clear)
-        // ✅ VO will announce progress properly with this label
-          .accessibilityLabel("Loading more posts.")
-      } else if reachedEnd {
-        HStack {
-          Spacer()
-          Text("No more posts")
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.vertical, 12)
-          Spacer()
-        }
-        .listRowInsets(EdgeInsets())
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("No more posts.")
-      }
-    }
+    .padding(16)
+    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    .overlay(
+      RoundedRectangle(cornerRadius: 20, style: .continuous)
+        .stroke(.primary.opacity(0.06), lineWidth: 1)
+    )
   }
 }

@@ -57,6 +57,7 @@ struct MonthView: View {
             MoodPieChart(
               slices: moodSlices,
               total: totalMoodsCount,
+              selectedMoods: [],
               title: "Month feels",
               tabSelection: .constant(.calendar)
               // Keep original chart’s CTA hidden on this screen (if you use that flag)

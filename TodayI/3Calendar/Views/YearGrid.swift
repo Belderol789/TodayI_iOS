@@ -45,6 +45,7 @@ struct YearGrid: View {
         MoodPieChart(
           slices: moodSlices,
           total: totalMoodsCount,
+          selectedMoods: [],
           title: "Year feels",
           tabSelection: .constant(.calendar)
         )
