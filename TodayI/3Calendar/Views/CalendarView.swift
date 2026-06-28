@@ -19,6 +19,7 @@ struct CalendarView: View {
   @State private var showPremium = false
   
   // Face ID gating
+  @AppStorage("requireFaceID") private var requireFaceID = false
   @State private var isUnlocked = false
   @State private var isAuthenticating = false
   @State private var lockError: String?
@@ -43,9 +44,9 @@ struct CalendarView: View {
             showPremium = true
           }
         }
-        .disabled(!isUnlocked)
-        
-        if !isUnlocked {
+        .disabled(requireFaceID && !isUnlocked)
+
+        if requireFaceID && !isUnlocked {
           Color.black.opacity(0.65)
             .ignoresSafeArea()
             .overlay(alignment: .center) {
@@ -86,29 +87,28 @@ struct CalendarView: View {
         }
       }
     }
-    // Re-lock in background (optional)
+    // Re-lock when backgrounded (only relevant when Face ID is enabled)
     .onChange(of: scenePhase) { _, newPhase in
-      if newPhase == .background {
+      if newPhase == .background, requireFaceID {
         isUnlocked = false
-      } else if newPhase == .active, !isUnlocked {
+      } else if newPhase == .active, requireFaceID, !isUnlocked {
         Task { await unlockWithFaceID() }
       }
     }
-    
-    // ✅ This is the key fix: rerun when unlock changes too
-    .task(id: "\(auth.userID ?? "nil")-\(isUnlocked)") {
-      guard isUnlocked else { return }
+
+    .task(id: "\(auth.userID ?? "nil")-\(isUnlocked)-\(requireFaceID)") {
+      guard !requireFaceID || isUnlocked else { return }
       await seedDatesIfNeeded()
       await loadYear(selectedYear)
     }
-    
+
     .onChange(of: selectedYear) { _, new in
-      guard isUnlocked else { return }
+      guard !requireFaceID || isUnlocked else { return }
       Task { await loadYear(new) }
     }
-    
+
     .refreshable {
-      guard isUnlocked else { return }
+      guard !requireFaceID || isUnlocked else { return }
       await forceRefreshDates()
       await loadYear(selectedYear)
     }
@@ -122,9 +122,9 @@ struct CalendarView: View {
         .preferredColorScheme(.dark)
     }
     
-    // Prompt Face ID on first appearance
+    // Prompt Face ID on first appearance (only when enabled)
     .task {
-      if !isUnlocked {
+      if requireFaceID && !isUnlocked {
         await unlockWithFaceID()
       }
     }

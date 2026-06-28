@@ -1,12 +1,16 @@
 import SwiftUI
 import PhotosUI
-import UIKit   // for UIImage
+import UIKit
+import LocalAuthentication
 
 struct SettingsView: View {
   @EnvironmentObject private var auth: AuthStore
   @EnvironmentObject private var entitlements: EntitlementStore
   @Environment(\.dismiss) private var dismiss
   
+  @AppStorage("requireFaceID") private var requireFaceID = false
+  @State private var biometricsAvailable: Bool = false
+
   @State private var draftUsername: String = ""
   @State private var isSaving = false
   @State private var isLoggingOut = false
@@ -65,6 +69,17 @@ struct SettingsView: View {
         }
       }
       
+      // MARK: - Security
+      if biometricsAvailable {
+        Section {
+          Toggle("Require Face ID", isOn: $requireFaceID)
+        } header: {
+          Text("Security")
+        } footer: {
+          Text("When enabled, Face ID is required to view your calendar.")
+        }
+      }
+
       // MARK: - Debug (only in non-release builds)
       #if DEBUG
       Section("Developer") {
@@ -104,6 +119,8 @@ struct SettingsView: View {
     }
     .onAppear {
       draftUsername = auth.username ?? ""
+      let ctx = LAContext()
+      biometricsAvailable = ctx.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
     }
     .photosPicker(isPresented: $showPhotoPicker,
                   selection: $selectedPhotoItem,
