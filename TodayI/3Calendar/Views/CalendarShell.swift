@@ -3,7 +3,7 @@ import SwiftUI
 enum CalendarMode { case month, year }
 
 struct CalendarShell: View {
-  let year: Int
+  @Binding var year: Int
   let models: [DateModel]
 
   @State private var mode: CalendarMode = .month
@@ -13,6 +13,9 @@ struct CalendarShell: View {
 
   @Namespace private var zoomNS
   private let cal = Calendar.current
+
+  private let minYear = 2020
+  private var maxYear: Int { cal.component(.year, from: Date()) }
 
   // All first-of-month dates for this year
   private var months: [Date] {
@@ -62,8 +65,10 @@ struct CalendarShell: View {
 
   private var header: some View {
     HStack(spacing: 0) {
-      // Prev month
-      Button { navigateMonth(-1) } label: {
+      // Left arrow — prev month (month mode) or prev year (year mode)
+      Button {
+        if mode == .month { navigateMonth(-1) } else { navigateYear(-1) }
+      } label: {
         Image(systemName: "chevron.left")
           .font(.title3.weight(.semibold))
           .frame(width: 40, height: 40)
@@ -71,12 +76,11 @@ struct CalendarShell: View {
       }
       .buttonStyle(.plain)
       .foregroundStyle(.primary)
-      .opacity(mode == .month ? 1 : 0)
-      .disabled(mode != .month || currentMonth == months.first)
+      .disabled(mode == .month ? currentMonth == months.first : year <= minYear)
 
       Spacer()
 
-      // Month + Year label — taps to toggle year grid
+      // Title — taps to toggle between month and year grid
       Button {
         withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
           mode = mode == .month ? .year : .month
@@ -102,8 +106,10 @@ struct CalendarShell: View {
 
       Spacer()
 
-      // Next month
-      Button { navigateMonth(1) } label: {
+      // Right arrow — next month (month mode) or next year (year mode)
+      Button {
+        if mode == .month { navigateMonth(1) } else { navigateYear(1) }
+      } label: {
         Image(systemName: "chevron.right")
           .font(.title3.weight(.semibold))
           .frame(width: 40, height: 40)
@@ -111,11 +117,11 @@ struct CalendarShell: View {
       }
       .buttonStyle(.plain)
       .foregroundStyle(.primary)
-      .opacity(mode == .month ? 1 : 0)
-      .disabled(mode != .month || currentMonth == months.last)
+      .disabled(mode == .month ? currentMonth == months.last : year >= maxYear)
     }
     .animation(.easeInOut(duration: 0.2), value: mode)
     .animation(.easeInOut(duration: 0.2), value: currentMonth)
+    .animation(.easeInOut(duration: 0.2), value: year)
   }
 
   // MARK: - Helpers
@@ -124,6 +130,13 @@ struct CalendarShell: View {
     let df = DateFormatter()
     df.dateFormat = "MMMM"
     return df.string(from: date)
+  }
+
+  private func navigateYear(_ delta: Int) {
+    let next = year + delta
+    guard next >= minYear && next <= maxYear else { return }
+    year = next
+    seedCurrentMonth()
   }
 
   private func navigateMonth(_ delta: Int) {

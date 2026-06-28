@@ -35,10 +35,9 @@ struct CalendarView: View {
   var body: some View {
     NavigationStack {
       ZStack {
-        CalendarShell(year: selectedYear,
+        CalendarShell(year: $selectedYear,
                       models: yearModels,
                       tabSelection: $tabSelection)
-        .id(refreshToken)
         .toolbar {
           PremiumPill(isPremium: entitlements.isPremium) {
             showPremium = true
