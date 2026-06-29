@@ -31,6 +31,7 @@ struct CommentThreadView: View {
     }
     .navigationTitle("Comments")
     .navigationBarTitleDisplayMode(.inline)
+    .toolbar(.hidden, for: .tabBar)
     .task {
       await vm.loadComments()
       if let manager = swiftManager {
@@ -91,6 +92,24 @@ private extension CommentThreadView {
       commentRow(for: comment)
         .padding(.horizontal)
         .padding(.vertical, 4)
+    }
+    loadMoreFooter
+  }
+
+  @ViewBuilder
+  var loadMoreFooter: some View {
+    if vm.isLoadingMore {
+      ProgressView()
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+    } else if !vm.reachedEnd {
+      Button("Load more comments") {
+        Task { await vm.loadMore() }
+      }
+      .font(.subheadline)
+      .foregroundStyle(.secondary)
+      .frame(maxWidth: .infinity)
+      .padding(.vertical, 12)
     }
   }
   

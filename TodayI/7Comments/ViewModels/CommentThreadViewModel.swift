@@ -7,58 +7,78 @@ final class CommentThreadViewModel: ObservableObject {
   @Published var comments: [CommentDTO] = []
   @Published var newComment: String = ""
   @Published var isLoading = false
-  
+  @Published var isLoadingMore = false
+  @Published var reachedEnd = false
+
   private let memoryID: String
   private let db = Firestore.firestore()
-  
+  private let pageSize = 10
+  private var cursor: DocumentSnapshot?
+
+  private var baseQuery: Query {
+    db.collection("comments")
+      .document(memoryID)
+      .collection("comments")
+      .order(by: "createdAt", descending: false)
+      .limit(to: pageSize)
+  }
+
   init(memoryID: String) {
     self.memoryID = memoryID
   }
-  
+
   func loadComments() async {
     isLoading = true
+    cursor = nil
+    reachedEnd = false
     defer { isLoading = false }
-    
     do {
-      let snap = try await db
-        .collection("comments")
-        .document(memoryID)
-        .collection("comments")
-        .order(by: "createdAt", descending: false)
-        .getDocuments()
-      
+      let snap = try await baseQuery.getDocuments()
       comments = snap.documents.compactMap { CommentDTO(doc: $0) }
+      cursor = snap.documents.last
+      reachedEnd = snap.documents.count < pageSize
     } catch {
       print("⚠️ Failed to load comments:", error)
       comments = []
     }
   }
-  
+
+  func loadMore() async {
+    guard !isLoadingMore, !reachedEnd, let cursor else { return }
+    isLoadingMore = true
+    defer { isLoadingMore = false }
+    do {
+      let snap = try await baseQuery.start(afterDocument: cursor).getDocuments()
+      let new = snap.documents.compactMap { CommentDTO(doc: $0) }
+      comments.append(contentsOf: new)
+      self.cursor = snap.documents.last
+      reachedEnd = snap.documents.count < pageSize
+    } catch {
+      print("⚠️ Failed to load more comments:", error)
+    }
+  }
+
   func postComment(username: String?) async {
     let trimmed = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return }
-    
-    guard let uid = Auth.auth().currentUser?.uid else {
-      print("⚠️ No logged-in user; cannot post comment.")
-      return
-    }
-    
-    let username = username ?? Auth.auth().currentUser?.displayName ?? "Anonymous"
-    let commentData: [String: Any] = [
+    guard !trimmed.isEmpty, let uid = Auth.auth().currentUser?.uid else { return }
+    let name = username ?? Auth.auth().currentUser?.displayName ?? "Anonymous"
+    let data: [String: Any] = [
       "userID": uid,
-      "username": username,
+      "username": name,
       "text": trimmed,
       "createdAt": FieldValue.serverTimestamp()
     ]
-    
     do {
-      try await db
+      let ref = try await db
         .collection("comments")
         .document(memoryID)
         .collection("comments")
-        .addDocument(data: commentData)
+        .addDocument(data: data)
+      // Append optimistically so the user sees it immediately
+      let optimistic = CommentDTO(id: ref.documentID, userID: uid, username: name,
+                                  text: trimmed, createdAt: Date())
+      comments.append(optimistic)
       newComment = ""
-      await loadComments()
     } catch {
       print("⚠️ Failed to post comment:", error)
     }
