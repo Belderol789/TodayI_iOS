@@ -79,6 +79,7 @@ private extension MemoryRow {
     ReportSheet(
       reportedUID: memory.userID,
       memoryID: memory.id,
+      onBlock: onBlockUser,
       onDismiss: { showReportSheet = false }
     )
   }
@@ -87,6 +88,7 @@ private extension MemoryRow {
 struct ReportSheet: View {
   let reportedUID: String
   let memoryID: String
+  var onBlock: ((String) -> Void)? = nil
   let onDismiss: () -> Void
 
   @State private var selectedReason: ReportReason?
@@ -121,6 +123,7 @@ struct ReportSheet: View {
               )
               await MainActor.run {
                 isSubmitting = false
+                onBlock?(reportedUID)
                 onDismiss()
               }
             }
