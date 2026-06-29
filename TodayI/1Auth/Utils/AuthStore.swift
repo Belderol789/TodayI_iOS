@@ -20,6 +20,8 @@ final class AuthStore: ObservableObject {
   /// True once the first auth state has been resolved (signed-in or anonymous).
   /// Use this to gate the main UI so a blank screen never shows on launch.
   @Published var isSessionReady: Bool = false
+  /// Set to true by an admin via Firebase Console → disables public posting.
+  @Published private(set) var isRestricted: Bool = false
   
   let db = Firestore.firestore()
   let context: ModelContext
@@ -38,12 +40,13 @@ final class AuthStore: ObservableObject {
     if let h = authHandle { Auth.auth().removeStateDidChangeListener(h) }
   }
   
-  func publish(uid: String, username: String?, email: String?, isAnonymous: Bool, photoURL: String? = nil) {
+  func publish(uid: String, username: String?, email: String?, isAnonymous: Bool, photoURL: String? = nil, isRestricted: Bool = false) {
     self.userID = uid
     self.username = username
     self.email = email
     self.isAnonymous = isAnonymous
     self.photoURL = photoURL
+    self.isRestricted = isRestricted
     isSessionReady = true
 
     // ✅ Try to load the cached profile image

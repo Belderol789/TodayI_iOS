@@ -12,6 +12,10 @@ struct MemoryRow: View {
   @State private var hasLiked = false
   @State private var isUpdatingPrivacy = false
   @State private var isBlocking = false
+  @State private var showReportSheet = false
+  @State private var selectedReportReason: ReportReason?
+  @State private var isReporting = false
+  @State private var reportConfirmed = false
   
   // MARK: - Derived
   private var canEditPrivacy: Bool { auth.userID == memory.userID }
@@ -65,6 +69,83 @@ struct MemoryRow: View {
           memory.likes = memory.likes == 0 ? 1 : memory.likes
         }
       }
+      .sheet(isPresented: $showReportSheet) { reportSheet }
+  }
+}
+
+// MARK: - Report sheet
+private extension MemoryRow {
+  var reportSheet: some View {
+    ReportSheet(
+      reportedUID: memory.userID,
+      memoryID: memory.id,
+      onDismiss: { showReportSheet = false }
+    )
+  }
+}
+
+struct ReportSheet: View {
+  let reportedUID: String
+  let memoryID: String
+  let onDismiss: () -> Void
+
+  @State private var selectedReason: ReportReason?
+  @State private var isSubmitting = false
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section("Why are you reporting this post?") {
+          reasonRow(.inappropriate)
+          reasonRow(.harassment)
+          reasonRow(.spam)
+          reasonRow(.hateSpeech)
+          reasonRow(.other)
+        }
+      }
+      .navigationTitle("Report Post")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .topBarLeading) {
+          Button("Cancel", action: onDismiss)
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+          Button {
+            guard let reason = selectedReason else { return }
+            isSubmitting = true
+            Task {
+              try? await ReportService.report(
+                reportedUID: reportedUID,
+                memoryID: memoryID,
+                reason: reason
+              )
+              await MainActor.run {
+                isSubmitting = false
+                onDismiss()
+              }
+            }
+          } label: {
+            if isSubmitting { ProgressView() } else { Text("Submit").bold() }
+          }
+          .disabled(selectedReason == nil || isSubmitting)
+        }
+      }
+    }
+    .presentationDetents([.medium])
+    .presentationDragIndicator(.visible)
+  }
+
+  @ViewBuilder
+  private func reasonRow(_ reason: ReportReason) -> some View {
+    Button { selectedReason = reason } label: {
+      HStack {
+        Text(reason.rawValue).foregroundStyle(.primary)
+        Spacer()
+        if selectedReason == reason {
+          Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
+        }
+      }
+    }
   }
 }
 
@@ -150,6 +231,12 @@ private extension MemoryRow {
   var trailingAction: some View {
     if !canEditPrivacy {
       Menu {
+        Button {
+          showReportSheet = true
+        } label: {
+          Label("Report Post", systemImage: "flag")
+        }
+
         Button(role: .destructive) {
           guard !isBlocking else { return }
           isBlocking = true

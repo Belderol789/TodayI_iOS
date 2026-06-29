@@ -47,7 +47,9 @@ extension AuthStore {
         let uname = data["username"] as? String ?? Self.defaultUsername(for: uid)
         let email = data["email"] as? String
         let photoURL = data["photoURL"] as? String
-        
+        let isRestricted = data["isRestricted"] as? Bool ?? false
+        let remoteBlocked = data["blockedUsers"] as? [String] ?? []
+
         // If Firestore has stale isAnonymous, fix it
         if (data["isAnonymous"] as? Bool) != isAnon {
           try await userDoc.updateData([
@@ -55,9 +57,10 @@ extension AuthStore {
             "updatedAt": FieldValue.serverTimestamp()
           ])
         }
-        
+
+        syncBlockedUsers(remoteBlocked)
         upsertLocalUser(uid: uid, username: uname, email: email, isAnonymous: isAnon)
-        publish(uid: uid, username: uname, email: email, isAnonymous: isAnon, photoURL: photoURL)
+        publish(uid: uid, username: uname, email: email, isAnonymous: isAnon, photoURL: photoURL, isRestricted: isRestricted)
         return
       }
       
@@ -103,6 +106,21 @@ extension AuthStore {
     }
   }
   
+  func syncBlockedUsers(_ remoteList: [String]) {
+    do {
+      let lists = try context.fetch(FetchDescriptor<BlockedUserList>())
+      if let list = lists.first {
+        let merged = Array(Set(list.users + remoteList))
+        list.users = merged
+      } else {
+        context.insert(BlockedUserList(users: remoteList))
+      }
+      try context.save()
+    } catch {
+      print("syncBlockedUsers error:", error)
+    }
+  }
+
   func fetchLocalUser(uid: String) throws -> UserModel? {
     let fetch = FetchDescriptor<UserModel>(predicate: #Predicate { $0.id == uid })
     return try context.fetch(fetch).first

@@ -58,7 +58,10 @@ struct CreateMemoryView: View {
       .onAppear(perform: configureViewModel)
       .onChange(of: entitlements.isPremium) { _, new in vm.isPremium = new }
       .onChange(of: auth.isRegisteredUser) { _, isRegistered in
-        if isRegistered { vm.isPublic = true }
+        if isRegistered && !auth.isRestricted { vm.isPublic = true }
+      }
+      .onChange(of: auth.isRestricted) { _, restricted in
+        if restricted { vm.isPublic = false }
       }
       .modifier(MediaPickers(vm: vm, entitlements: entitlements))
       .modifier(LinkAlert(vm: vm))
@@ -311,6 +314,8 @@ struct CreateMemoryView: View {
       set: { newValue in
         if newValue && auth.isGuest {
           showAuth = true
+        } else if newValue && auth.isRestricted {
+          // Silently block — badge stays private
         } else {
           vm.isPublic = newValue
         }
@@ -319,9 +324,18 @@ struct CreateMemoryView: View {
   }
 
   private var privacyRow: some View {
-    HStack {
-      PrivacyBadge(isPublic: privacyBinding)
-      Spacer()
+    VStack(alignment: .leading, spacing: 6) {
+      HStack {
+        PrivacyBadge(isPublic: privacyBinding)
+          .disabled(auth.isRestricted)
+        Spacer()
+      }
+      if auth.isRestricted {
+        Text("Your account is currently restricted from public posts.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .padding(.leading, 4)
+      }
     }
   }
 

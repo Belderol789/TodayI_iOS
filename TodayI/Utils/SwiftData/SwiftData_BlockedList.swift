@@ -7,6 +7,8 @@
 
 import Foundation
 import SwiftData
+import FirebaseFirestore
+import FirebaseAuth
 
 @Model
 final class BlockedUserList {
@@ -20,27 +22,33 @@ final class BlockedUserList {
 
 extension SwiftDataManager {
   // MARK: - Add Blocked User
-  func addBlockedUser(_ userID: String) {
+  func addBlockedUser(_ targetUID: String) {
+    // 1. Local SwiftData
     do {
-      // Try to fetch existing list
       if let list = try context.fetch(FetchDescriptor<BlockedUserList>()).first {
-        if !list.users.contains(userID) {
-          list.users.append(userID)
+        if !list.users.contains(targetUID) {
+          list.users.append(targetUID)
           try context.save()
-          print("✅ Added blocked user: \(userID)")
-        } else {
-          print("⚠️ User already in blocked list: \(userID)")
         }
       } else {
-        // Create new list if none exists
-        let newList = BlockedUserList(users: [userID])
-        context.insert(newList)
+        context.insert(BlockedUserList(users: [targetUID]))
         try context.save()
-        print("✅ Created new blocked list with: \(userID)")
       }
     } catch {
-      print("❌ Failed to add blocked user: \(error.localizedDescription)")
+      print("❌ addBlockedUser SwiftData error:", error)
     }
+
+    // 2. Firestore — bidirectional: both users block each other
+    guard let myUID = Auth.auth().currentUser?.uid else { return }
+    let db = Firestore.firestore()
+    // Add target to my blockedUsers
+    db.collection("users").document(myUID).setData(
+      ["blockedUsers": FieldValue.arrayUnion([targetUID])], merge: true
+    )
+    // Add me to target's blockedUsers
+    db.collection("users").document(targetUID).setData(
+      ["blockedUsers": FieldValue.arrayUnion([myUID])], merge: true
+    )
   }
   
   // MARK: - Fetch Blocked Users
