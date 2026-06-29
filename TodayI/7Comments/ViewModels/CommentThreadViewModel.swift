@@ -62,6 +62,14 @@ final class CommentThreadViewModel: ObservableObject {
     let trimmed = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty, let uid = Auth.auth().currentUser?.uid else { return }
     let name = username ?? Auth.auth().currentUser?.displayName ?? "Anonymous"
+    let tempID = UUID().uuidString
+    let optimistic = CommentDTO(id: tempID, userID: uid, username: name,
+                                text: trimmed, createdAt: Date())
+
+    // Show immediately — don't wait for Firestore
+    comments.append(optimistic)
+    newComment = ""
+
     let data: [String: Any] = [
       "userID": uid,
       "username": name,
@@ -70,16 +78,17 @@ final class CommentThreadViewModel: ObservableObject {
     ]
     do {
       let ref = try await db
-        .collection("comments")
-        .document(memoryID)
-        .collection("comments")
-        .addDocument(data: data)
-      // Append optimistically so the user sees it immediately
-      let optimistic = CommentDTO(id: ref.documentID, userID: uid, username: name,
-                                  text: trimmed, createdAt: Date())
-      comments.append(optimistic)
-      newComment = ""
+        .collection("comments").document(memoryID)
+        .collection("comments").addDocument(data: data)
+      // Swap temp ID for the real Firestore document ID
+      if let idx = comments.firstIndex(where: { $0.id == tempID }) {
+        comments[idx] = CommentDTO(id: ref.documentID, userID: uid, username: name,
+                                   text: trimmed, createdAt: optimistic.createdAt)
+      }
     } catch {
+      // Roll back the optimistic insert
+      comments.removeAll { $0.id == tempID }
+      newComment = trimmed
       print("⚠️ Failed to post comment:", error)
     }
   }
