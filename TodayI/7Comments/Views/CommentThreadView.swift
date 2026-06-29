@@ -133,16 +133,6 @@ private extension CommentThreadView {
         onDeleted: handleDeleted(id:),
         onBlocked: handleBlocked(userID:)
       )
-      .contextMenu {
-        if comment.userID != auth.userID {
-          Button(role: .destructive) {
-            manager.addBlockedUser(comment.userID)
-            handleBlocked(userID: comment.userID)
-          } label: {
-            Label("Block @\(comment.username)", systemImage: "hand.raised.fill")
-          }
-        }
-      }
     }
   }
 }

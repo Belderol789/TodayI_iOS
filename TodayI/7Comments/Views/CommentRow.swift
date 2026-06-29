@@ -18,7 +18,6 @@ struct CommentRow: View {
     HStack(alignment: .top, spacing: 10) {
       avatar
       bubble
-      if isOwn { moreMenu }
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 4)
@@ -44,10 +43,9 @@ private extension CommentRow {
         Text("@\(comment.username)")
           .font(.caption.weight(.semibold))
           .foregroundStyle(isOwn ? Color.accentColor : .primary)
-        Text(comment.createdAt, style: .relative)
+        Text(comment.createdAt.formatted(date: .omitted, time: .shortened))
           .font(.caption2)
           .foregroundStyle(.tertiary)
-          .fixedSize()
       }
       Text(comment.text)
         .font(.subheadline)
@@ -61,45 +59,26 @@ private extension CommentRow {
         .fill(isOwn ? Color.accentColor.opacity(0.08) : Color(.secondarySystemBackground))
     )
     .frame(maxWidth: .infinity, alignment: .leading)
-  }
-
-  @ViewBuilder
-  var moreMenu: some View {
-    Menu {
-      Button(role: .destructive) { showAlert = true } label: {
-        Label("Delete", systemImage: "trash")
-      }
-    } label: {
-      Image(systemName: "ellipsis")
-        .font(.caption)
-        .foregroundStyle(.tertiary)
-        .padding(6)
-    }
-    .alert("Delete Comment?", isPresented: $showAlert) {
-      Button("Cancel", role: .cancel) {}
-      Button("Delete", role: .destructive) { deleteComment() }
-    } message: {
-      Text("This comment will be permanently deleted.")
-    }
-  }
-}
-
-// MARK: - Others' menu (long-press)
-extension CommentRow {
-  // Applied in CommentThreadView via .contextMenu on the row
-  var contextActions: some View {
-    Group {
-      if !isOwn {
+    .contextMenu {
+      if isOwn {
         Button(role: .destructive) { showAlert = true } label: {
-          Label("Block \("@\(comment.username)")", systemImage: "hand.raised.fill")
+          Label("Delete Comment", systemImage: "trash")
+        }
+      } else {
+        Button(role: .destructive) { showAlert = true } label: {
+          Label("Block @\(comment.username)", systemImage: "hand.raised.fill")
         }
       }
     }
-    .alert("Block @\(comment.username)?", isPresented: $showAlert) {
+    .alert(isOwn ? "Delete Comment?" : "Block @\(comment.username)?",
+           isPresented: $showAlert) {
       Button("Cancel", role: .cancel) {}
-      Button("Block", role: .destructive) { blockUser() }
+      Button(isOwn ? "Delete" : "Block", role: .destructive) {
+        isOwn ? deleteComment() : blockUser()
+      }
     } message: {
-      Text("Their comments will be hidden from you.")
+      Text(isOwn ? "This comment will be permanently deleted."
+                 : "Their comments will be hidden from you.")
     }
   }
 }
