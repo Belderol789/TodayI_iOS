@@ -22,6 +22,8 @@ final class AuthStore: ObservableObject {
   @Published var isSessionReady: Bool = false
   /// Set to true by an admin via Firebase Console → disables public posting.
   @Published private(set) var isRestricted: Bool = false
+  /// Set to true by any view that needs to hide the custom tab bar (e.g. CommentThreadView).
+  @Published var hideTabBar: Bool = false
   
   let db = Firestore.firestore()
   let context: ModelContext

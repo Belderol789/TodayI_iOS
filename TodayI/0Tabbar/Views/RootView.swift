@@ -40,10 +40,14 @@ struct RootView: View {
       }
     }
     .safeAreaInset(edge: .bottom, spacing: 0) {
-      CustomTabBar(selection: $selection, namespace: tabNS)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 8)
+      if !auth.hideTabBar {
+        CustomTabBar(selection: $selection, namespace: tabNS)
+          .padding(.horizontal, 16)
+          .padding(.bottom, 8)
+          .transition(.move(edge: .bottom).combined(with: .opacity))
+      }
     }
+    .animation(.easeInOut(duration: 0.2), value: auth.hideTabBar)
   }
 }
 

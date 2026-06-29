@@ -39,8 +39,9 @@ struct CommentThreadView: View {
     }
     .navigationTitle("Comments")
     .navigationBarTitleDisplayMode(.inline)
-    .toolbar(.hidden, for: .tabBar)
     .safeAreaInset(edge: .bottom, spacing: 0) { inputBar }
+    .onAppear { auth.hideTabBar = true }
+    .onDisappear { auth.hideTabBar = false }
     .task {
       await vm.loadComments()
       if let manager = swiftManager {
