@@ -111,12 +111,16 @@ private extension MemoryContainer {
     } else {
       List {
         ForEach(memories, id: \.id) { mem in
-          MemoryRow(memory: mem)
-            .padding(.vertical, 8)
-            .padding(.horizontal, 4)
-            .listRowInsets(EdgeInsets())// remove List’s insets
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
+          MemoryRow(memory: mem, onDelete: {
+            withAnimation(.easeOut(duration: 0.25)) {
+              memories.removeAll { $0.id == mem.id }
+            }
+          })
+          .padding(.vertical, 8)
+          .padding(.horizontal, 4)
+          .listRowInsets(EdgeInsets())
+          .listRowSeparator(.hidden)
+          .listRowBackground(Color.clear)
         }
       }
       .contentMargins(.horizontal, 0, for: .scrollContent)

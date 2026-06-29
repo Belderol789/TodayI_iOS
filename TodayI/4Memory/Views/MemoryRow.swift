@@ -6,6 +6,7 @@ struct MemoryRow: View {
   var onMore: (() -> Void)? = nil
   var onTapImage: ((Int) -> Void)? = nil
   var onBlockUser: ((String) -> Void)? = nil
+  var onDelete: (() -> Void)? = nil
   
   @EnvironmentObject private var auth: AuthStore
   @Environment(\.modelContext) private var modelContext
@@ -99,6 +100,9 @@ private extension MemoryRow {
     Task {
       do {
         try await MemoryService.deleteMemory(memory, context: modelContext)
+        await MainActor.run {
+          onDelete?()
+        }
       } catch {
         await MainActor.run {
           deleteError = error.localizedDescription
