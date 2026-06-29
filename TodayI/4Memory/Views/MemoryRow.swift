@@ -8,6 +8,7 @@ struct MemoryRow: View {
   var onBlockUser: ((String) -> Void)? = nil
   
   @EnvironmentObject private var auth: AuthStore
+  @Environment(\.modelContext) private var modelContext
   @Environment(\.colorScheme) private var scheme
   @State private var hasLiked = false
   @State private var isUpdatingPrivacy = false
@@ -16,6 +17,9 @@ struct MemoryRow: View {
   @State private var selectedReportReason: ReportReason?
   @State private var isReporting = false
   @State private var reportConfirmed = false
+  @State private var showDeleteConfirm = false
+  @State private var isDeleting = false
+  @State private var deleteError: String?
   
   // MARK: - Derived
   private var canEditPrivacy: Bool { auth.userID == memory.userID }
@@ -70,6 +74,38 @@ struct MemoryRow: View {
         }
       }
       .sheet(isPresented: $showReportSheet) { reportSheet }
+      .alert("Delete Post?", isPresented: $showDeleteConfirm) {
+        Button("Delete", role: .destructive) { performDelete() }
+        Button("Cancel", role: .cancel) {}
+      } message: {
+        Text("This will permanently remove your post. This action cannot be undone.")
+      }
+      .alert("Delete Failed", isPresented: Binding(
+        get: { deleteError != nil },
+        set: { if !$0 { deleteError = nil } }
+      )) {
+        Button("OK", role: .cancel) {}
+      } message: {
+        Text(deleteError ?? "")
+      }
+  }
+}
+
+// MARK: - Delete
+private extension MemoryRow {
+  func performDelete() {
+    guard !isDeleting else { return }
+    isDeleting = true
+    Task {
+      do {
+        try await MemoryService.deleteMemory(memory, context: modelContext)
+      } catch {
+        await MainActor.run {
+          deleteError = error.localizedDescription
+          isDeleting = false
+        }
+      }
+    }
   }
 }
 
@@ -232,7 +268,24 @@ private extension MemoryRow {
 
   @ViewBuilder
   var trailingAction: some View {
-    if !canEditPrivacy {
+    if canEditPrivacy {
+      Menu {
+        Button(role: .destructive) {
+          showDeleteConfirm = true
+        } label: {
+          Label("Delete Post", systemImage: "trash")
+        }
+      } label: {
+        Image(systemName: "ellipsis")
+          .font(.subheadline.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .padding(8)
+          .contentShape(Rectangle())
+      }
+      .disabled(isDeleting)
+      .accessibilityLabel("More options")
+      .accessibilityHint("Shows actions for your post.")
+    } else {
       Menu {
         Button {
           showReportSheet = true
