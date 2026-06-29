@@ -1,156 +1,127 @@
 import SwiftUI
 
 struct CommentRow: View {
-  
   let memoryID: String
   let comment: CommentDTO
   let dataManager: SwiftDataManager
-  let auth: AuthStore   // Injected dependency
-  
+  let auth: AuthStore
+
   let onDeleted: (String) -> Void
   let onBlocked: (String) -> Void
-  
+
   @State private var showAlert = false
   @State private var isBlocking = false
-  
+
+  private var isOwn: Bool { comment.userID == auth.userID }
+
   var body: some View {
     HStack(alignment: .top, spacing: 10) {
-      avatarSection
-      commentContent
+      avatar
+      bubble
+      if isOwn { moreMenu }
     }
-    .padding(.vertical, 6)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 4)
   }
 }
 
-extension CommentRow {
-  // MARK: - Avatar
-  private var avatarSection: some View {
+// MARK: - Subviews
+private extension CommentRow {
+  var avatar: some View {
     Circle()
-      .fill(Color.secondary.opacity(0.2))
-      .frame(width: 34, height: 34)
+      .fill(Color.secondary.opacity(0.15))
+      .frame(width: 32, height: 32)
       .overlay(
         Text(String(comment.username.prefix(1)).uppercased())
-          .font(.headline)
+          .font(.subheadline.weight(.semibold))
           .foregroundStyle(.secondary)
       )
   }
-  
-  // MARK: - Comment Content
-  private var commentContent: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      headerRow
-      commentText
-    }
-  }
-  
-  // MARK: - Header Row
-  private var headerRow: some View {
-    HStack {
-      Text(comment.username)
-        .font(.subheadline.weight(.semibold))
+
+  var bubble: some View {
+    VStack(alignment: .leading, spacing: 3) {
+      HStack(spacing: 6) {
+        Text("@\(comment.username)")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(isOwn ? Color.accentColor : .primary)
+        Text(comment.createdAt, style: .relative)
+          .font(.caption2)
+          .foregroundStyle(.tertiary)
+          .fixedSize()
+      }
+      Text(comment.text)
+        .font(.subheadline)
         .foregroundStyle(.primary)
-      
-      Spacer()
-      
-      optionsMenu
-      
-      Text(comment.createdAt, style: .time)
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
     }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
+    .background(
+      RoundedRectangle(cornerRadius: 14, style: .continuous)
+        .fill(isOwn ? Color.accentColor.opacity(0.08) : Color(.secondarySystemBackground))
+    )
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
-  
-  // MARK: - Comment Text
-  private var commentText: some View {
-    Text(comment.text)
-      .font(.body)
-      .foregroundStyle(.primary)
-      .fixedSize(horizontal: false, vertical: true)
-  }
-  
-  // MARK: - Options Menu
-  private var optionsMenu: some View {
+
+  @ViewBuilder
+  var moreMenu: some View {
     Menu {
-      if comment.userID == auth.userID {
-        Button(role: .destructive) {
-          showAlert = true
-        } label: {
-          Label("Delete Comment", systemImage: "trash")
-        }
-      } else {
-        Button(role: .destructive) {
-          showAlert = true
-        } label: {
-          Label("Block User", systemImage: "hand.raised.fill")
-        }
+      Button(role: .destructive) { showAlert = true } label: {
+        Label("Delete", systemImage: "trash")
       }
     } label: {
       Image(systemName: "ellipsis")
-        .foregroundStyle(.secondary)
+        .font(.caption)
+        .foregroundStyle(.tertiary)
         .padding(6)
     }
-    .alert(alertTitle, isPresented: $showAlert) {
+    .alert("Delete Comment?", isPresented: $showAlert) {
       Button("Cancel", role: .cancel) {}
-      Button(confirmButtonTitle, role: .destructive) {
-        if comment.userID == auth.userID {
-          deleteComment()
-        } else {
-          blockUser()
+      Button("Delete", role: .destructive) { deleteComment() }
+    } message: {
+      Text("This comment will be permanently deleted.")
+    }
+  }
+}
+
+// MARK: - Others' menu (long-press)
+extension CommentRow {
+  // Applied in CommentThreadView via .contextMenu on the row
+  var contextActions: some View {
+    Group {
+      if !isOwn {
+        Button(role: .destructive) { showAlert = true } label: {
+          Label("Block \("@\(comment.username)")", systemImage: "hand.raised.fill")
         }
       }
+    }
+    .alert("Block @\(comment.username)?", isPresented: $showAlert) {
+      Button("Cancel", role: .cancel) {}
+      Button("Block", role: .destructive) { blockUser() }
     } message: {
-      Text(alertMessage)
+      Text("Their comments will be hidden from you.")
     }
   }
 }
 
 // MARK: - Logic
 private extension CommentRow {
-  
-  // MARK: - Actions
   func blockUser() {
-    Task { @MainActor in
-      guard !comment.userID.isEmpty else { return }
-      isBlocking = true
-      dataManager.addBlockedUser(comment.userID)
-      isBlocking = false
-      onBlocked(comment.userID)                  // ✅ notify parent
-      print("🚫 Blocked userID: \(comment.userID)")
-    }
+    guard !isBlocking, !comment.userID.isEmpty else { return }
+    isBlocking = true
+    dataManager.addBlockedUser(comment.userID)
+    onBlocked(comment.userID)
+    isBlocking = false
   }
-  
+
   func deleteComment() {
     Task {
       do {
-        try await MemoryService.deleteComment(
-          memoryID: memoryID,
-          commentID: comment.id
-        )
-        await MainActor.run {
-          onDeleted(comment.id)                  // ✅ notify parent
-        }
+        try await MemoryService.deleteComment(memoryID: memoryID, commentID: comment.id)
+        await MainActor.run { onDeleted(comment.id) }
       } catch {
-        print("❌ Failed to delete comment: \(error.localizedDescription)")
+        print("❌ Failed to delete comment:", error)
       }
     }
-  }
-}
-
-// MARK: - Alerts
-private extension CommentRow {
-  var alertTitle: String {
-    comment.userID == auth.userID
-    ? "Delete Comment?"
-    : "Block \(comment.username)?"
-  }
-  
-  var confirmButtonTitle: String {
-    comment.userID == auth.userID ? "Delete" : "Block"
-  }
-  
-  var alertMessage: String {
-    comment.userID == auth.userID
-    ? "This comment will be permanently deleted."
-    : "This user’s comments will be hidden from your feed."
   }
 }
