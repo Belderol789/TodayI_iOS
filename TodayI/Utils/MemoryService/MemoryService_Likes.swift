@@ -1,40 +1,30 @@
-//
-//  MemoryService_Likes.swift
-//  TodayI
-//
-//  Created by Kemuel Clyde Belderol on 10/11/25.
-//
-
 import FirebaseFirestore
+import FirebaseAuth
 
 extension MemoryService {
-  
-  /// Increment the `likes` counter of a memory by +1 in Firestore.
-  /// - Parameters:
-  ///   - ownerID: UID of the memory's owner (the user under `/users/{ownerID}`)
-  ///   - memoryID: The memory document ID
-  /// - Note: No SwiftData updates are performed. Fire-and-forget.
-  static func like(
-    ownerID: String,
-    memoryID: String,
-    db: Firestore = Firestore.firestore()
-  ) async throws {
-    let memRef = db.collection("users")
-      .document(ownerID)
-      .collection("memories")
-      .document(memoryID)
-    
-    try await memRef.updateData([
-      "likes": FieldValue.increment(Int64(1)),
-      "updatedAt": FieldValue.serverTimestamp()
-    ])
-  }
-  
-  /// Convenience overload if you have the model (still no SwiftData write).
-  static func like(
+  /// Toggles the current user's like on a memory using arrayUnion/arrayRemove.
+  /// Idempotent — safe to call even if the user already liked/unliked.
+  /// Returns the new liked state (true = now liked).
+  @discardableResult
+  static func toggleLike(
     memory: MemoryModel,
-    db: Firestore = Firestore.firestore()
-  ) async throws {
-    try await like(ownerID: memory.userID, memoryID: memory.id, db: db)
+    db: Firestore = .firestore()
+  ) async throws -> Bool {
+    guard let uid = Auth.auth().currentUser?.uid else { return false }
+    let ref = db.collection("users").document(memory.userID)
+      .collection("memories").document(memory.id)
+    let isCurrentlyLiked = memory.likedBy.contains(uid)
+    if isCurrentlyLiked {
+      try await ref.updateData([
+        "likedBy": FieldValue.arrayRemove([uid]),
+        "likes":   FieldValue.increment(Int64(-1))
+      ])
+    } else {
+      try await ref.updateData([
+        "likedBy": FieldValue.arrayUnion([uid]),
+        "likes":   FieldValue.increment(Int64(1))
+      ])
+    }
+    return !isCurrentlyLiked
   }
 }

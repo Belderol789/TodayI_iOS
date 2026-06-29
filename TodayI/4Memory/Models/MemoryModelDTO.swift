@@ -8,7 +8,8 @@ struct MemoryDTO: Codable {
   let mood: String
   let journalText: String
   let likes: Int
-  
+  var likedBy: [String]
+
   // media
   var remoteImagePaths: [String]
   var videoRemoteURL: String?
@@ -27,7 +28,7 @@ struct MemoryDTO: Codable {
   let dayKey: String
   
   enum CodingKeys: String, CodingKey {
-    case id, username, userID, date, mood, journalText, likes,
+    case id, username, userID, date, mood, journalText, likes, likedBy,
          remoteImagePaths, videoRemoteURL, audioRemoteURL, linkURL,
          remoteProfilePhotoURL,
          isPublic, isPremium, createdAt, updatedAt, authorTZ, dayKey
@@ -43,6 +44,7 @@ extension MemoryDTO {
     self.mood = model.moodRaw
     self.journalText = model.journalText
     self.likes = model.likes
+    self.likedBy = model.likedBy
     self.remoteImagePaths = model.remoteImagePaths
     self.videoRemoteURL = model.videoRemoteURL
     self.audioRemoteURL = model.audioRemoteURL
@@ -65,6 +67,7 @@ extension MemoryDTO {
     self.mood = payload.mood.rawValue
     self.journalText = payload.text
     self.likes = 0
+    self.likedBy = []
     self.remoteImagePaths = []
     self.videoRemoteURL = nil
     self.audioRemoteURL = nil

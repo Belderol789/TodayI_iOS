@@ -12,6 +12,7 @@ struct MemoryRow: View {
   @Environment(\.modelContext) private var modelContext
   @Environment(\.colorScheme) private var scheme
   @State private var hasLiked = false
+  @State private var likeTask: Task<Void, Never>? = nil
   @State private var isUpdatingPrivacy = false
   @State private var isBlocking = false
   @State private var showReportSheet = false
@@ -69,9 +70,8 @@ struct MemoryRow: View {
       .accessibilityLabel(rowSummaryA11y)
     
       .onAppear {
-        if memory.userID == auth.userID {
-          hasLiked = true
-          memory.likes = memory.likes == 0 ? 1 : memory.likes
+        if let uid = auth.userID {
+          hasLiked = memory.likedBy.contains(uid)
         }
       }
       .sheet(isPresented: $showReportSheet) { reportSheet }
@@ -432,23 +432,33 @@ private extension MemoryRow {
 
   var likeButton: some View {
     Button {
-      guard !hasLiked else { return }
-      hasLiked = true
-      memory.likes += 1
-      Task {
+      // Optimistic UI update
+      hasLiked.toggle()
+      memory.likes += hasLiked ? 1 : -1
+
+      // Cancel any pending write and schedule a new one after 800ms.
+      // If the user taps again before the delay fires, only the final
+      // state is written — preventing rapid back-and-forth Firestore calls.
+      likeTask?.cancel()
+      likeTask = Task {
+        try? await Task.sleep(for: .milliseconds(800))
+        guard !Task.isCancelled else { return }
         do {
-          try await MemoryService.like(memory: memory)
+          try await MemoryService.toggleLike(memory: memory)
         } catch {
-          print("⚠️ Failed to like post:", error)
-          hasLiked = false
-          memory.likes -= 1
+          // Roll back on failure
+          await MainActor.run {
+            hasLiked.toggle()
+            memory.likes += hasLiked ? 1 : -1
+          }
+          print("⚠️ Failed to toggle like:", error)
         }
       }
     } label: {
       HStack(spacing: 5) {
         Image(systemName: hasLiked ? "heart.fill" : "heart")
           .accessibilityHidden(true)
-        Text("\(memory.likes)")
+        Text("\(max(0, memory.likes))")
           .font(.caption.weight(.semibold))
           .accessibilityHidden(true)
       }
@@ -456,12 +466,12 @@ private extension MemoryRow {
       .padding(.vertical, 8)
       .background(Capsule().fill(hasLiked ? Color.pink.opacity(0.15) : moodColor.opacity(0.12)))
       .foregroundStyle(hasLiked ? Color.pink : .secondary)
+      .animation(.easeInOut(duration: 0.15), value: hasLiked)
     }
     .buttonStyle(.plain)
-    .disabled(hasLiked)
     .accessibilityLabel(hasLiked ? "Liked" : "Like")
     .accessibilityValue("\(memory.likes) likes")
-    .accessibilityHint(hasLiked ? "Already liked." : "Adds one like.")
+    .accessibilityHint(hasLiked ? "Tap to unlike." : "Tap to like.")
   }
 
   var commentButton: some View {

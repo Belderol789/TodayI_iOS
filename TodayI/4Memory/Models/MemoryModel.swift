@@ -19,6 +19,7 @@ final class MemoryModel {
   
   var journalText: String
   var likes: Int
+  var likedBy: [String]
   
   // Media
   var localImageNames: [String]
@@ -55,6 +56,7 @@ final class MemoryModel {
     mood: Mood,
     journalText: String,
     likes: Int,
+    likedBy: [String] = [],
     localImageNames: [String] = [],
     remoteImagePaths: [String] = [],
     videoLocalPath: String? = nil,
@@ -76,6 +78,7 @@ final class MemoryModel {
     self.moodRaw = mood.rawValue
     self.journalText = journalText
     self.likes = likes
+    self.likedBy = likedBy
     self.localImageNames = localImageNames
     self.remoteImagePaths = remoteImagePaths
     self.videoLocalPath = videoLocalPath
@@ -110,6 +113,8 @@ extension MemoryModel {
       m.remoteProfilePhotoURL = dto.remoteProfilePhotoURL
       m.mood = Mood(rawValue: dto.mood) ?? .neutral
       m.journalText = dto.journalText
+      m.likes = dto.likes
+      m.likedBy = dto.likedBy
       m.remoteImagePaths = dto.remoteImagePaths
       m.videoRemoteURL = dto.videoRemoteURL
       m.audioRemoteURL = dto.audioRemoteURL
@@ -128,6 +133,7 @@ extension MemoryModel {
         mood: Mood(rawValue: dto.mood) ?? .neutral,
         journalText: dto.journalText,
         likes: dto.likes,
+        likedBy: dto.likedBy,
         localImageNames: [],
         remoteImagePaths: dto.remoteImagePaths,
         videoLocalPath: nil,
