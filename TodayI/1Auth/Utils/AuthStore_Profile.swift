@@ -18,14 +18,14 @@ extension AuthStore {
 
     // 1. Firestore: delete subcollections then the user doc.
     //    Cloud Firestore doesn't cascade-delete subcollections, so we delete them explicitly.
+    //    Order matters: least-recoverable data last, so if a delete is denied or fails
+    //    partway we abort with the user's memories still intact and the account still
+    //    alive — a consistent state they can retry from.
     let db = Firestore.firestore()
     let userDoc = db.collection("users").document(uid)
 
-    for sub in ["memories", "notifications", "dates"] {
-      let snap = try await userDoc.collection(sub).getDocuments()
-      let batch = db.batch()
-      snap.documents.forEach { batch.deleteDocument($0.reference) }
-      try await batch.commit()
+    for sub in ["notifications", "dates", "memories"] {
+      try await deleteAll(in: userDoc.collection(sub), db: db)
     }
 
     try await userDoc.delete()
@@ -38,16 +38,37 @@ extension AuthStore {
       }
     }
 
-    // 3. SwiftData: wipe local records for this user.
-    wipeLocalData(uid: uid)
-
-    // 4. Firebase Auth: delete the account itself.
-    //    This will throw requiresRecentLogin if the session is stale.
+    // 3. Firebase Auth: delete the account itself.
+    //    This will throw requiresRecentLogin if the session is stale. It runs before the
+    //    local wipe so a stale session doesn't leave the user looking at an empty app
+    //    while still signed in — their local data survives until the account is really gone.
     try await user.delete()
+
+    // 4. SwiftData: wipe local records for this user.
+    wipeLocalData(uid: uid)
 
     // 5. Reset published state and sign in anonymously so the app has a valid session.
     NotificationManager.shared.unsubscribePreviousUserTopicIfNeeded()
     await ensureSignedIn()
+  }
+
+  // MARK: - Subcollection delete
+
+  /// Deletes every document in a collection, 500 at a time.
+  /// A `WriteBatch` caps at 500 operations, so committing one batch over the whole
+  /// collection fails for any user with more documents than that.
+  private func deleteAll(in collection: CollectionReference, db: Firestore) async throws {
+    let pageSize = 500
+    while true {
+      let snap = try await collection.limit(to: pageSize).getDocuments()
+      guard !snap.documents.isEmpty else { return }
+
+      let batch = db.batch()
+      snap.documents.forEach { batch.deleteDocument($0.reference) }
+      try await batch.commit()
+
+      if snap.documents.count < pageSize { return }
+    }
   }
 
   // MARK: - Local wipe

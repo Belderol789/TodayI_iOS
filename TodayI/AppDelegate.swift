@@ -11,6 +11,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
     print("👋 AppDelegate didFinishLaunching")
     FirebaseApp.configure()
+    // Crashlytics only exists after configure() — send anything TodayIApp.init buffered.
+    StartupDiagnostics.flush()
     UNUserNotificationCenter.current().delegate = self
     Messaging.messaging().delegate = self
     return true

@@ -7,6 +7,10 @@ struct MemoryRow: View {
   var onTapImage: ((Int) -> Void)? = nil
   var onBlockUser: ((String) -> Void)? = nil
   var onDelete: (() -> Void)? = nil
+  /// Set false inside `CommentThreadView` — you're already in the thread, and the
+  /// button would push a second copy of it. Everything else (like, privacy, menu)
+  /// stays live so the header card isn't inert.
+  var showsCommentButton: Bool = true
   
   @EnvironmentObject private var auth: AuthStore
   @Environment(\.modelContext) private var modelContext
@@ -61,8 +65,11 @@ struct MemoryRow: View {
   // MARK: - Body
   var body: some View {
     content
-      .padding(14)
+      .padding(.vertical, 14)
       .frame(maxWidth: .infinity, alignment: .leading)
+      // Clip before the card modifier so full-bleed media follows the card's corner
+      // radius, while the card's shadow (applied inside the modifier) stays outside.
+      .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
       .premiumMoodCard(color: moodColor, isPremium: isPremium, scheme: scheme)
     
     // ✅ Make the whole row understandable as a single element…
@@ -194,14 +201,21 @@ struct ReportSheet: View {
 
 // MARK: - Composition
 private extension MemoryRow {
+  /// Only the media is full-bleed; everything else keeps a text inset.
+  /// `MemoryRow.body` supplies the vertical padding, so the photo can reach the
+  /// card's left and right edges the way it does on Instagram/Facebook.
+  static let textInset: CGFloat = 16
+
   var content: some View {
     VStack(alignment: .leading, spacing: 12) {
       headerRow
+        .padding(.horizontal, Self.textInset)
       journalText
+        .padding(.horizontal, Self.textInset)
       mediaSection
       actionRow
+        .padding(.horizontal, Self.textInset)
     }
-    .padding(.horizontal, 12)
   }
 }
 
@@ -339,49 +353,36 @@ private extension MemoryRow {
   @ViewBuilder
   var mediaSection: some View {
     let cornerRadius: CGFloat = 14
-    let cardPadding: CGFloat = 14
 
     if let audio = memory.audioSource {
+      // Audio stays inset — it's a transport control, not a photo.
       MediaTile(source: audio, cornerRadius: cornerRadius, minHeight: 80, accentColor: moodColor)
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .padding(.horizontal, Self.textInset)
         .accessibilityLabel("Voice note.")
         .accessibilityHint("Double tap to play or pause.")
 
     } else if let video = memory.videoSource {
+      // Full-bleed 16:9, matching how video reads in a social feed.
       Color.clear
-        .frame(height: 220)
+        .aspectRatio(16.0 / 9.0, contentMode: .fit)
         .overlay {
-          MediaTile(source: video, cornerRadius: cornerRadius, minHeight: 220)
-            .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .shadow(color: isPremium ? moodColor.opacity(0.12) : .clear,
-                    radius: isPremium ? 10 : 0, x: 0, y: 6)
-            .padding(.horizontal, -cardPadding)
+          MediaTile(source: video, cornerRadius: 0, minHeight: 0)
         }
         .clipped()
       // ✅ Media is actionable / informative — label it.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Video attachment.")
         .accessibilityHint("Double tap to play the video.")
-      
+
     } else if !memory.imageSources.isEmpty {
-      Color.clear
-        .frame(height: 220)
-        .overlay {
-          MediaBlock(sources: memory.imageSources, onTap: onTapImage)
-            .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .shadow(color: isPremium ? moodColor.opacity(0.12) : .clear,
-                    radius: isPremium ? 10 : 0, x: 0, y: 6)
-            .padding(.horizontal, -cardPadding)
-        }
-        .clipped()
+      // Edge-to-edge 4:5. MediaBlock owns its own sizing and paging now.
+      MediaBlock(sources: memory.imageSources, onTap: onTapImage)
       // ✅ Let VO know how many images & what to do
-        .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(memory.imageSources.count) image attachment\(memory.imageSources.count == 1 ? "" : "s").")
         .accessibilityHint("Double tap an image to view it full screen.")
-      
+
     } else if let urlString = memory.linkURL,
               !urlString.isEmpty,
               let url = URL(string: urlString) {
@@ -395,6 +396,7 @@ private extension MemoryRow {
                   radius: isPremium ? 10 : 0, x: 0, y: 6)
       }
       .buttonStyle(.plain)
+      .padding(.horizontal, Self.textInset)
       // ✅ Link should be announced clearly
       .accessibilityLabel("Link attachment.")
       .accessibilityHint("Opens in your browser.")
@@ -405,7 +407,7 @@ private extension MemoryRow {
   var actionRow: some View {
     HStack(spacing: 12) {
       likeButton
-      commentButton
+      if showsCommentButton { commentButton }
       Spacer()
       if canEditPrivacy {
         PrivacyBadge(isPublic: $memory.isPublic)

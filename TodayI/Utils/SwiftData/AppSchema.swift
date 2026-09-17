@@ -2,8 +2,14 @@ import SwiftData
 
 // MARK: - V1  (initial release schema)
 // Contains: UserModel, MemoryModel, DateModel, BlockedUserList
-// Fields added since dev start are all optional, so no lightweight migration
-// is needed from previous simulator builds — SQLite adds the columns silently.
+//
+// Verified 2026-09-17 by building the pre-audio commit (dc74a61, before this file
+// existed), generating a store from it, and opening that store with current HEAD:
+// SwiftData lightweight-migrates added properties — optional, defaulted, AND plain
+// non-optional (`likedBy: [String]` back-fills with no default) — and adopting a
+// VersionedSchema over a store written without one is also fine. So a
+// `loadIssueModelContainer` here is NOT a schema-evolution problem; look at disk
+// space, file protection, or a corrupted store instead.
 enum AppSchemaV1: VersionedSchema {
   static var versionIdentifier = Schema.Version(1, 0, 0)
   static var models: [any PersistentModel.Type] {

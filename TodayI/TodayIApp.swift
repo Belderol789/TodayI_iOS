@@ -47,7 +47,14 @@ struct TodayIApp: App {
     } catch {
       // Migration failed — fall back to in-memory so the app still opens.
       // User data is NOT deleted; the on-disk store is left intact for recovery.
+      //
+      // This fallback is silent to the user but destructive in effect: nothing written
+      // this session survives the next launch. Report it so we find out when real users
+      // hit it. Firebase isn't configured yet here, so it's buffered until it is.
       print("❌ ModelContainer failed (\(error)); running in-memory for this session.")
+      MainActor.assumeIsolated {
+        StartupDiagnostics.record(error, domain: .modelContainerLoadFailed)
+      }
       container = try! ModelContainer(
         for: Schema(versionedSchema: AppSchemaV1.self),
         configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
@@ -71,6 +78,10 @@ struct TodayIApp: App {
         .environmentObject(iapStore)
         .environment(\.swiftDataManager, manager)
         .task {
+          // Self-heals stores written by builds that stamped dayKey from `Date()`.
+          let repaired = manager.repairMismatchedDayKeys()
+          if repaired > 0 { print("🩹 Repaired \(repaired) mismatched dayKey(s)") }
+
           store.observeUpdates()
 
           let activated = await FirebaseFirestoreManager.activateDeviceTrialIfNeeded()

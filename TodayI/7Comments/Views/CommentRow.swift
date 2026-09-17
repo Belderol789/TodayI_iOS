@@ -5,6 +5,11 @@ struct CommentRow: View {
   let comment: CommentDTO
   let dataManager: SwiftDataManager
   let auth: AuthStore
+  /// The mood of the memory this thread belongs to — used as the avatar when the
+  /// commenter has no profile photo. A commenter's *own* mood isn't available here:
+  /// their `dates/{dayKey}` is owner-read-only and their memories are only readable
+  /// when public, so per-commenter moods would need rules changes and a read each.
+  let mood: Mood
 
   let onDeleted: (String) -> Void
   let onBlocked: (String) -> Void
@@ -26,15 +31,35 @@ struct CommentRow: View {
 
 // MARK: - Subviews
 private extension CommentRow {
+  /// Photo if we have one, otherwise the memory's mood icon — same fallback shape
+  /// `MemoryRow.avatar` uses, so a thread reads as one piece with its card.
+  @ViewBuilder
   var avatar: some View {
+    if let urlString = comment.photoURL, let url = URL(string: urlString) {
+      AsyncImage(url: url) { phase in
+        switch phase {
+        case .success(let image):
+          image.resizable().scaledToFill()
+            .frame(width: 32, height: 32)
+            .clipShape(Circle())
+        case .empty:
+          Circle().fill(Color(.systemGray5)).frame(width: 32, height: 32)
+            .overlay(ProgressView().scaleEffect(0.5))
+        default:
+          moodAvatar
+        }
+      }
+    } else {
+      moodAvatar
+    }
+  }
+
+  var moodAvatar: some View {
     Circle()
-      .fill(Color.secondary.opacity(0.15))
+      .fill(mood.adaptiveColor.opacity(0.18))
       .frame(width: 32, height: 32)
-      .overlay(
-        Text(String(comment.username.prefix(1)).uppercased())
-          .font(.subheadline.weight(.semibold))
-          .foregroundStyle(.secondary)
-      )
+      .overlay(MoodIcon(mood: mood, size: 16).opacity(0.9))
+      .accessibilityHidden(true)
   }
 
   var bubble: some View {

@@ -47,7 +47,12 @@ struct PremiumView: View {
         VStack(spacing: 24) {
           header
           featuresCard
-          pricingButtons
+          // A subscriber doesn't need a sales pitch — show them what they're on.
+          if entitlements.isPremium {
+            subscriptionCard
+          } else {
+            pricingButtons
+          }
           legalLinks
         }
         .padding(.vertical, 24)
@@ -62,25 +67,35 @@ struct PremiumView: View {
   
   // MARK: - Sections
   
+  private var headline: String {
+    entitlements.isPremium ? "You're Premium" : "Go Premium"
+  }
+
+  private var subhead: String {
+    entitlements.isPremium
+    ? "Multiple memories per day, premium feed flair, videos and galleries, and a monthly mood summary — all unlocked."
+    : "Unlock multiple memories per day, premium feed flair, videos and galleries, and a monthly mood summary."
+  }
+
   private var header: some View {
     VStack(spacing: 10) {
       // Gradient text is visual; provide a clean VO label
-      Text("Go Premium")
+      Text(headline)
         .font(.largeTitle.bold())
         .foregroundStyle(stripeGradient)
         .overlay {
           LinearGradient(colors: palette, startPoint: .leading, endPoint: .trailing)
-            .mask(Text("Go Premium").font(.largeTitle.bold()))
+            .mask(Text(headline).font(.largeTitle.bold()))
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Go Premium")
+        .accessibilityLabel(headline)
         .accessibilityAddTraits(.isHeader)
-      
-      Text("Unlock multiple memories per day, premium feed flair, videos and galleries, and a monthly mood summary.")
+
+      Text(subhead)
         .multilineTextAlignment(.center)
         .foregroundStyle(.secondary)
         .padding(.horizontal, 20)
-        .accessibilityLabel("Unlock multiple memories per day, premium feed flair, videos and galleries, and a monthly mood summary.")
+        .accessibilityLabel(subhead)
       
       iconRibbon
         .accessibilityHidden(true) // decorative icons; features list explains benefits
@@ -116,6 +131,132 @@ struct PremiumView: View {
     .accessibilityLabel("Premium features")
   }
   
+  // MARK: - Subscription status (shown instead of pricing when already Premium)
+
+  /// The StoreKit entitlement backing Premium, if there is one. Premium can also be
+  /// on without a purchase (device trial, or the entitlement override in
+  /// `EntitlementStore`), in which case there are no dates to show and the card says
+  /// so rather than inventing a renewal.
+  private var activeSubscription: Entitlement? {
+    entitlements.active.first {
+      $0.productId == IAP.monthlyID || $0.productId == IAP.yearlyID
+    }
+  }
+
+  private var isYearlyPlan: Bool { activeSubscription?.productId == IAP.yearlyID }
+
+  private var subscriptionProduct: Product? {
+    guard activeSubscription != nil else { return nil }
+    return isYearlyPlan ? iap.yearly : iap.monthly
+  }
+
+  private var daysLeft: Int? {
+    guard let expiry = activeSubscription?.expiresAt else { return nil }
+    guard let days = Calendar.current.dateComponents([.day], from: Date(), to: expiry).day
+    else { return nil }
+    return max(0, days)
+  }
+
+  var subscriptionCard: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      HStack {
+        Text(activeSubscription == nil ? "Premium" : (isYearlyPlan ? "Yearly plan" : "Monthly plan"))
+          .font(.headline)
+        Spacer()
+        Text("Active")
+          .font(.caption.weight(.semibold))
+          .padding(.horizontal, 10)
+          .padding(.vertical, 4)
+          .background(Capsule().fill(.green.opacity(0.22)))
+      }
+
+      if activeSubscription != nil {
+        if let product = subscriptionProduct {
+          statusRow("Price", "\(product.displayPrice) / \(isYearlyPlan ? "year" : "month")")
+        }
+        if let days = daysLeft {
+          statusRow("Days left", days == 1 ? "1 day" : "\(days) days")
+        }
+        if let expiry = activeSubscription?.expiresAt {
+          // "Ends", not "Renews" — the entitlement carries an expiry date but not
+          // whether auto-renew is still on, so claiming it will renew could be wrong
+          // for someone who has already cancelled.
+          statusRow("Current period ends",
+                    expiry.formatted(date: .abbreviated, time: .omitted))
+          Text("Renews automatically unless you cancel.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      } else {
+        Text("Premium is active on this device but isn't linked to an App Store subscription, so there's no renewal date to show.")
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+      }
+
+      Button {
+        Task { await openManageSubscriptions() }
+      } label: {
+        Text(activeSubscription == nil ? "Manage Subscriptions" : "Manage or Cancel")
+          .font(.subheadline.weight(.semibold))
+          .frame(maxWidth: .infinity)
+          .padding(.vertical, 12)
+          .background(Capsule().fill(Color.primary.opacity(0.12)))
+      }
+      .buttonStyle(.plain)
+      .accessibilityHint("Opens your Apple subscription settings.")
+
+      Button("Restore Purchases") {
+        Task { await iap.restore() }
+      }
+      .font(.footnote)
+      .frame(maxWidth: .infinity)
+      .accessibilityHint("Restores purchases made with your Apple ID.")
+    }
+    .padding(20)
+    .background(
+      RoundedRectangle(cornerRadius: 20, style: .continuous)
+        .fill(Color.white.opacity(scheme == .dark ? 0.08 : 0.12))
+        .overlay(
+          RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .stroke(stripeGradient.opacity(0.35), lineWidth: 1)
+        )
+        .accessibilityHidden(true)
+    )
+    .padding(.horizontal, 20)
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel("Your subscription")
+  }
+
+  private func statusRow(_ label: String, _ value: String) -> some View {
+    HStack {
+      Text(label).foregroundStyle(.secondary)
+      Spacer()
+      Text(value).fontWeight(.semibold)
+    }
+    .font(.subheadline)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(label): \(value)")
+  }
+
+  /// Apple's own sheet, so cancelling happens where Apple requires it.
+  /// Falls back to the App Store subscriptions page if no scene is available.
+  @MainActor
+  private func openManageSubscriptions() async {
+    let scene = UIApplication.shared.connectedScenes
+      .first { $0.activationState == .foregroundActive } as? UIWindowScene
+    if let scene {
+      do {
+        try await AppStore.showManageSubscriptions(in: scene)
+        return
+      } catch {
+        print("⚠️ showManageSubscriptions failed:", error)
+      }
+    }
+    if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+      await UIApplication.shared.open(url)
+    }
+  }
+
   var pricingButtons: some View {
     VStack(spacing: 12) {
       

@@ -30,17 +30,13 @@ struct GlassMoodFilter: View {
         Image(systemName: "square.grid.2x2")
           .imageScale(.small)
         Text("All")
-          .fontWeight(.semibold)
+          .font(.subheadline.weight(.semibold))
       }
-      .font(.subheadline)
       .padding(.horizontal, 14)
-      .padding(.vertical, 8)
+      .padding(.vertical, 10)
+      .foregroundStyle(isSelected ? .white : Color.accentColor)
       .background(
-        Capsule().fill(isSelected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.07))
-      )
-      .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-      .overlay(
-        Capsule().stroke(isSelected ? Color.accentColor.opacity(0.35) : Color.clear, lineWidth: 1)
+        Capsule().fill(isSelected ? Color.accentColor : Color.accentColor.opacity(0.12))
       )
       .contentShape(Capsule())
     }
@@ -61,26 +57,34 @@ struct GlassMoodFilter: View {
         vm.toggleMood(mood)
       }
     } label: {
+      // Matches `CreateMemoryView.moodChip`: icon with a white backing when selected,
+      // the mood's name, and a capsule filled with the mood colour.
       HStack(spacing: 5) {
-        MoodIcon(mood: mood, size: 18)
+        mood.image
+          .resizable()
+          .scaledToFit()
+          .frame(width: 16, height: 16)
+          .padding(isSelected ? 3 : 0)
+          .background(Circle().fill(.white.opacity(isSelected ? 0.35 : 0)))
+        Text(mood.rawValue)
+          .font(.subheadline.weight(.semibold))
+          .lineLimit(1)
         if pct > 0 {
           Text("\(pct)%")
             .font(.caption.weight(.semibold))
-            .foregroundStyle(isSelected ? mood.adaptiveColor : .secondary)
+            .opacity(0.75)
         }
       }
-      .font(.subheadline)
       .padding(.horizontal, 14)
-      .padding(.vertical, 8)
+      .padding(.vertical, 10)
+      .foregroundStyle(isSelected ? .white : mood.adaptiveColor)
       .background(
-        Capsule().fill(isSelected ? mood.adaptiveColor.opacity(0.18) : Color.primary.opacity(0.07))
-      )
-      .overlay(
-        Capsule().stroke(isSelected ? mood.adaptiveColor.opacity(0.4) : Color.clear, lineWidth: 1)
+        Capsule().fill(isSelected ? mood.adaptiveColor : mood.adaptiveColor.opacity(0.12))
       )
       .contentShape(Capsule())
     }
     .buttonStyle(.plain)
+    .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isSelected)
     .disabled(disabled)
     .opacity(disabled ? 0.35 : 1)
     .accessibilityLabel(mood.rawValue)

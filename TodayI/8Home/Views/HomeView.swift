@@ -9,6 +9,8 @@ struct HomeView: View {
   @Environment(\.swiftDataManager) private var swiftManager
   @State private var memories: [MemoryModel] = []
   @State private var yearModels: [DateModel] = []
+  @State private var randomMemory: MemoryModel?
+  @State private var isLoadingRandom = false
   @State private var navigateToCreate = false
   @State private var showSetting = false
   
@@ -51,11 +53,45 @@ struct HomeView: View {
             .padding(.top, 4)
           // Treat the dynamic content as its own “section” for VO navigation
             .accessibilityElement(children: .contain)
-          
+
+          // MARK: - Random Memory
+          // Hidden entirely until there's something to show, so a new install
+          // doesn't stare at an empty box.
+          if randomMemory != nil || isLoadingRandom {
+            InsetDivider()
+              .accessibilityHidden(true)
+
+            HStack(alignment: .center) {
+              SectionTitleView(title: "Random Memory", systemImage: "shuffle")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Random Memory")
+                .accessibilityAddTraits(.isHeader)
+
+              Spacer()
+
+              Button {
+                Task { await loadRandomMemory(reshuffle: true) }
+              } label: {
+                Label("Shuffle", systemImage: "arrow.triangle.2.circlepath")
+                  .labelStyle(.iconOnly)
+                  .padding(8)
+                  .background(.ultraThinMaterial)
+                  .clipShape(Circle())
+              }
+              .disabled(isLoadingRandom)
+              .accessibilityLabel("Shuffle")
+              .accessibilityHint("Shows a different memory from the past.")
+            }
+
+            randomContent
+              .padding(.top, 4)
+              .accessibilityElement(children: .contain)
+          }
+
           InsetDivider()
           // Divider is purely visual
             .accessibilityHidden(true)
-          
+
           // MARK: - Yearly Mood Breakdown
           SectionTitleView(title: "Dominant Mood", systemImage: "face.smiling")
             .accessibilityElement(children: .ignore)
@@ -84,13 +120,22 @@ struct HomeView: View {
       }
       .onAppear {
         Task {
-          await loadYear(Date().year)
+          // Order matters: both imports write into SwiftData, and loadYear only reads
+          // from it. Running loadYear first is why the mood charts used to stay empty
+          // until you switched tabs and came back.
           await loadTodayMemories()
+          await seedDatesIfNeeded()
+          await loadYear(Date().year)
+          await loadRandomMemory()
         }
       }
       .onChange(of: auth.userID) { _, _ in
         Task {
           await loadTodayMemories()
+          await seedDatesIfNeeded()
+          await loadYear(Date().year)
+          // Different account, different history.
+          await loadRandomMemory(reshuffle: true)
         }
       }
       .sheet(isPresented: $showSetting) {
@@ -140,6 +185,26 @@ private extension HomeView {
         .accessibilityHidden(true)
     }
   }
+
+  @ViewBuilder
+  var randomContent: some View {
+    if let memory = randomMemory {
+      VStack(alignment: .leading, spacing: 8) {
+        Text(memory.date.formatted("MMM d, yyyy"))
+          .font(.subheadline)
+          .foregroundColor(.secondary)
+          .accessibilityLabel("Date \(memory.date.formatted(.dateTime.month(.abbreviated).day().year()))")
+
+        MemoryRow(memory: memory)
+      }
+      .accessibilityHint("A memory from an earlier day.")
+    } else if isLoadingRandom {
+      ProgressView()
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
+        .accessibilityLabel("Looking for a past memory.")
+    }
+  }
 }
 
 // MARK: - Load memories
@@ -167,6 +232,58 @@ private extension HomeView {
     }
   }
   
+  /// Picks a memory from some earlier day.
+  ///
+  /// Local first, which is free and covers the normal case. Only when this device has
+  /// never imported a past day does it hit the network, and then for a *single* day
+  /// chosen from the `DateModel` list `seedDatesIfNeeded` already syncs — never the
+  /// whole history. Capped at two attempts so an unlucky shuffle can't fan out.
+  func loadRandomMemory(reshuffle: Bool = false) async {
+    guard reshuffle || randomMemory == nil else { return }
+    guard let swiftManager else { return }
+    let todayKey = dayKey
+
+    if let local = try? swiftManager.randomPastMemory(excluding: todayKey, userID: auth.userID) {
+      randomMemory = local
+      return
+    }
+
+    guard let uid = auth.userID,
+          let candidates = try? swiftManager.pastDayKeys(before: today),
+          !candidates.isEmpty
+    else { return }
+
+    isLoadingRandom = true
+    for key in candidates.shuffled().prefix(2) {
+      guard let dtos = try? await MemoryService.fetchMemories(for: uid, dayKeyLocal: key),
+            !dtos.isEmpty
+      else { continue }
+      try? swiftManager.importMemoriesIfNeeded(dtos)
+      if let picked = try? swiftManager.randomPastMemory(excluding: todayKey, userID: uid) {
+        randomMemory = picked
+        break
+      }
+    }
+    isLoadingRandom = false
+  }
+
+  /// Pulls the year's mood dots down once per launch.
+  /// Home only ever *read* `DateModel`, so before this the mood charts stayed empty
+  /// until the user visited the Calendar tab, which was doing the seeding.
+  /// Shares `needsDateSync` with `CalendarView`, so whichever tab appears first pays
+  /// for the single fetch and the other skips it.
+  func seedDatesIfNeeded() async {
+    guard let uid = auth.userID else { return }
+    guard swiftManager?.needsDateSync == true else { return }
+    do {
+      let dtos = try await MemoryService.fetchDates(for: uid)
+      try swiftManager?.importDatesIfNeeded(dtos)
+      swiftManager?.markDatesSynced()
+    } catch {
+      print("⚠️ Home seedDatesIfNeeded error:", error)
+    }
+  }
+
   func loadYear(_ year: Int) async {
     guard let swiftManager else { return }
     do {

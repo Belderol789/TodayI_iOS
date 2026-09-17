@@ -8,42 +8,29 @@
 import FirebaseFirestore
 
 extension MemoryService {
+  /// The `moods/{dayKey}` payload for a post, as a mergeable dictionary.
+  ///
+  /// The tally lives in a **nested map** rather than a dotted `"tally.happy"` key:
+  /// `setData` treats dots as literal characters in a field name (only `updateData`
+  /// reads them as paths), and `updateData` would fail on a day nobody has posted
+  /// yet. A merged nested map with `increment` creates the day or adds to it, which
+  /// is what lets this ride along in `postMemory`'s batch with no read.
+  static func moodTallyPayload(for memory: MemoryModel) -> [String: Any] {
+    let moodField = memory.mood.rawValue.lowercased()   // "angry", "sad", …
+    return [
+      "date": Calendar.current.startOfDay(for: memory.date),
+      "updatedAt": FieldValue.serverTimestamp(),
+      "tally": [moodField: FieldValue.increment(Int64(1))]
+    ]
+  }
+
+  /// Standalone version, kept for any caller that isn't already batching.
   static func incrementDailyMoodTally(for memory: MemoryModel,
                                       db: Firestore = Firestore.firestore()) async throws {
-    // Normalize keys/timestamps
-    let dayKey = Date().formattedDayKeyLocal()
-    let startOfDay = Calendar.current.startOfDay(for: memory.date)
-    
-    // moods/{dayKey}
-    let moodsDoc  = db.collection("moods").document(dayKey)
-    let moodField = String(describing: memory.mood).lowercased() // e.g. "angry", "sad"
-    let incKey    = "tally.\(moodField)"                         // nested dict key
-    
-    _ = try await db.runTransaction { txn, errorPtr -> Any? in
-      let snap: DocumentSnapshot
-      do {
-        snap = try txn.getDocument(moodsDoc)
-      } catch {
-        errorPtr?.pointee = error as NSError
-        return nil
-      }
-      
-      if !snap.exists {
-        // First write — stamp base metadata; no need to pre-seed all moods
-        txn.setData([
-          "date": startOfDay,
-          "createdAt": FieldValue.serverTimestamp()
-        ], forDocument: moodsDoc, merge: true)
-      }
-      
-      txn.updateData([
-        incKey: FieldValue.increment(Int64(1)),
-        "updatedAt": FieldValue.serverTimestamp()
-      ], forDocument: moodsDoc)
-      
-      return nil
-    }
+    try await db.collection("moods").document(memory.dayKey)
+      .setData(moodTallyPayload(for: memory), merge: true)
   }
+
 }
 
 extension MemoryService {

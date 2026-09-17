@@ -41,6 +41,59 @@ extension SwiftDataManager {
     let fetch = FetchDescriptor<MemoryModel>()
     return try context.fetch(fetch)
   }
+
+  /// A random memory from any day *before* `todayKey`, drawn from what's already
+  /// stored locally — no network. Returns nil when this device has never imported a
+  /// past day, which is the cue for `HomeView` to pull one day down.
+  func randomPastMemory(excluding todayKey: String, userID: String?) throws -> MemoryModel? {
+    let predicate: Predicate<MemoryModel>
+    if let id = userID, !id.isEmpty {
+      predicate = #Predicate { $0.userID == id && $0.dayKey != todayKey }
+    } else {
+      predicate = #Predicate { $0.dayKey != todayKey }
+    }
+    return try context.fetch(FetchDescriptor<MemoryModel>(predicate: predicate)).randomElement()
+  }
+
+  /// Day keys the user has recorded a mood on, before today. `DateModel` is synced
+  /// once per launch, so this is a free index of which past days are worth fetching.
+  func pastDayKeys(before today: Date, in tz: TimeZone = .current) throws -> [String] {
+    let start = today.startOfDay(in: tz)
+    let rows = try context.fetch(
+      FetchDescriptor<DateModel>(predicate: #Predicate { $0.date < start })
+    )
+    return rows.map { $0.date.formattedDayKeyLocal(in: tz) }
+  }
+
+  /// Repairs rows whose `dayKey` disagrees with their own `date`.
+  ///
+  /// `MemoryModel.init` used to stamp `dayKey` from `Date()`, and `upsert` never
+  /// overrode it on insert — so every memory imported from Firestore was filed under
+  /// the day it happened to be imported, and opening any day showed the whole history.
+  /// Both are fixed, but stores written by earlier builds still hold the bad keys, so
+  /// correct them in place. The key is recomputed in the memory's *author* timezone,
+  /// which is the one `date` was normalized to when it was created.
+  @discardableResult
+  func repairMismatchedDayKeys() -> Int {
+    do {
+      let rows = try fetchAllMemories()
+      var fixed = 0
+      for row in rows {
+        let tz = TimeZone(identifier: row.authorTZ) ?? .current
+        let expected = row.date.formattedDayKeyLocal(in: tz)
+        if row.dayKey != expected {
+          print("🩹 dayKey repair \(row.id.prefix(8)): \(row.dayKey) → \(expected)")
+          row.dayKey = expected
+          fixed += 1
+        }
+      }
+      if fixed > 0 { try context.save() }
+      return fixed
+    } catch {
+      print("⚠️ repairMismatchedDayKeys error:", error)
+      return 0
+    }
+  }
   
 }
 

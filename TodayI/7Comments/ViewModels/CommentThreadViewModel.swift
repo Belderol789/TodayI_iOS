@@ -5,10 +5,16 @@ import FirebaseAuth
 @MainActor
 final class CommentThreadViewModel: ObservableObject {
   @Published var comments: [CommentDTO] = []
-  @Published var newComment: String = ""
+  @Published var newComment: String = "" { didSet { enforceLimit() } }
   @Published var isLoading = false
   @Published var isLoadingMore = false
   @Published var reachedEnd = false
+
+  /// Mirrors the Firestore rule on `comments/{memoryID}/comments/{commentID}`,
+  /// which rejects a create when `text.size() > 1000`. Keep the two in sync —
+  /// without the client cap an over-long comment is denied with no UI feedback.
+  let maxChars: Int = 1000
+  @Published private(set) var remaining: Int = 1000
 
   private let memoryID: String
   private let db = Firestore.firestore()
@@ -58,32 +64,47 @@ final class CommentThreadViewModel: ObservableObject {
     }
   }
 
-  func postComment(username: String?) async {
+  func postComment(username: String?, photoURL: String? = nil) async {
     let trimmed = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty, let uid = Auth.auth().currentUser?.uid else { return }
     let name = username ?? Auth.auth().currentUser?.displayName ?? "Anonymous"
+    let photo = (photoURL?.isEmpty ?? true) ? nil : photoURL
     let tempID = UUID().uuidString
     let optimistic = CommentDTO(id: tempID, userID: uid, username: name,
-                                text: trimmed, createdAt: Date())
+                                text: trimmed, createdAt: Date(), photoURL: photo)
 
     // Show immediately — don't wait for Firestore
     comments.append(optimistic)
     newComment = ""
 
-    let data: [String: Any] = [
+    var data: [String: Any] = [
       "userID": uid,
       "username": name,
       "text": trimmed,
       "createdAt": FieldValue.serverTimestamp()
     ]
+    // Extra keys are fine: the Firestore rule validates the required fields by type
+    // but doesn't restrict the key set with hasOnly.
+    if let photo { data["photoURL"] = photo }
     do {
-      let ref = try await db
-        .collection("comments").document(memoryID)
-        .collection("comments").addDocument(data: data)
+      // One batch instead of three round trips (hub create-or-merge → add comment →
+      // bump the hub counter). The comment's id is generated client-side so the
+      // document reference exists before the write.
+      let hub = db.collection("comments").document(memoryID)
+      let ref = hub.collection("comments").document()
+      let batch = db.batch()
+      batch.setData(data, forDocument: ref)
+      batch.setData([
+        "memoryID": memoryID,
+        "commentCount": FieldValue.increment(Int64(1)),
+        "updatedAt": FieldValue.serverTimestamp()
+      ], forDocument: hub, merge: true)
+      try await batch.commit()
       // Swap temp ID for the real Firestore document ID
       if let idx = comments.firstIndex(where: { $0.id == tempID }) {
         comments[idx] = CommentDTO(id: ref.documentID, userID: uid, username: name,
-                                   text: trimmed, createdAt: optimistic.createdAt)
+                                   text: trimmed, createdAt: optimistic.createdAt,
+                                   photoURL: photo)
       }
     } catch {
       // Roll back the optimistic insert
@@ -91,5 +112,14 @@ final class CommentThreadViewModel: ObservableObject {
       newComment = trimmed
       print("⚠️ Failed to post comment:", error)
     }
+  }
+
+  // MARK: - Character limit
+
+  private func enforceLimit() {
+    if newComment.count > maxChars {
+      newComment = String(newComment.prefix(maxChars))
+    }
+    remaining = max(0, maxChars - newComment.count)
   }
 }

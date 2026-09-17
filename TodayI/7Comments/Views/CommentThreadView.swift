@@ -57,9 +57,11 @@ struct CommentThreadView: View {
 // MARK: - Memory preview
 private extension CommentThreadView {
   var memoryPreview: some View {
-    MemoryRow(memory: memory)
+    // Interactive: `allowsHitTesting(false)` here used to disable the privacy toggle
+    // and the like button along with everything else. Only the comment button is
+    // dropped, since tapping it from inside the thread would just push another one.
+    MemoryRow(memory: memory, showsCommentButton: false)
       .padding(.horizontal, 16)
-      .allowsHitTesting(false)  // preview only — actions disabled
   }
 }
 
@@ -130,6 +132,7 @@ private extension CommentThreadView {
         comment: comment,
         dataManager: manager,
         auth: auth,
+        mood: memory.mood,
         onDeleted: handleDeleted(id:),
         onBlocked: handleBlocked(userID:)
       )
@@ -145,52 +148,93 @@ private extension CommentThreadView {
       AuthRequiredView { showSetting = true }
         .background(.ultraThinMaterial)
     } else {
-      HStack(alignment: .bottom, spacing: 10) {
-        Circle()
-          .fill(Color.secondary.opacity(0.15))
-          .frame(width: 32, height: 32)
-          .overlay(
-            Text(String((auth.username ?? "?").prefix(1)).uppercased())
-              .font(.subheadline.weight(.semibold))
-              .foregroundStyle(.secondary)
+      VStack(alignment: .trailing, spacing: 4) {
+        // Only appears as the cap gets close, so the bar stays clean normally.
+        if vm.remaining <= 100 {
+          Text("\(vm.remaining)")
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(vm.remaining == 0 ? Color.red : Color.secondary)
+            .accessibilityLabel("\(vm.remaining) characters remaining")
+        }
+
+        HStack(alignment: .bottom, spacing: 10) {
+          // Matches CommentRow's avatar so your draft looks like your posted comment.
+          composerAvatar
+
+          ZStack(alignment: .leading) {
+            if vm.newComment.isEmpty {
+              Text("Add a comment…")
+                .font(.subheadline)
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 4)
+                .allowsHitTesting(false)
+            }
+            TextField("", text: $vm.newComment, axis: .vertical)
+              .font(.subheadline)
+              .lineLimit(1...5)
+              .focused($inputFocused)
+          }
+          .padding(.horizontal, 12)
+          .padding(.vertical, 9)
+          .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+              .fill(Color(.secondarySystemBackground))
           )
 
-        ZStack(alignment: .leading) {
-          if vm.newComment.isEmpty {
-            Text("Add a comment…")
-              .font(.subheadline)
-              .foregroundStyle(.tertiary)
-              .padding(.leading, 4)
-              .allowsHitTesting(false)
+          Button {
+            Task { await vm.postComment(username: auth.username, photoURL: auth.photoURL) }
+            inputFocused = false
+          } label: {
+            Image(systemName: "arrow.up.circle.fill")
+              .font(.system(size: 28))
+              .foregroundStyle(vm.newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                               ? Color.secondary : Color.accentColor)
           }
-          TextField("", text: $vm.newComment, axis: .vertical)
-            .font(.subheadline)
-            .lineLimit(1...5)
-            .focused($inputFocused)
+          .disabled(vm.newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+          .animation(.easeInOut(duration: 0.15), value: vm.newComment.isEmpty)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(
-          RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(Color(.secondarySystemBackground))
-        )
-
-        Button {
-          Task { await vm.postComment(username: auth.username) }
-          inputFocused = false
-        } label: {
-          Image(systemName: "arrow.up.circle.fill")
-            .font(.system(size: 28))
-            .foregroundStyle(vm.newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                             ? Color.secondary : Color.accentColor)
-        }
-        .disabled(vm.newComment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        .animation(.easeInOut(duration: 0.15), value: vm.newComment.isEmpty)
       }
       .padding(.horizontal, 12)
       .padding(.vertical, 10)
       .background(.ultraThinMaterial)
+      .animation(.easeInOut(duration: 0.15), value: vm.remaining <= 100)
     }
+  }
+}
+
+// MARK: - Composer avatar
+private extension CommentThreadView {
+  /// Your own cached profile image first, then your remote photo, then the memory's
+  /// mood icon — the same fallback order `CommentRow` uses.
+  @ViewBuilder
+  var composerAvatar: some View {
+    if let image = auth.profileImage {
+      Image(uiImage: image)
+        .resizable()
+        .scaledToFill()
+        .frame(width: 32, height: 32)
+        .clipShape(Circle())
+    } else if let urlString = auth.photoURL, let url = URL(string: urlString) {
+      AsyncImage(url: url) { phase in
+        if case .success(let image) = phase {
+          image.resizable().scaledToFill()
+            .frame(width: 32, height: 32)
+            .clipShape(Circle())
+        } else {
+          moodAvatar
+        }
+      }
+    } else {
+      moodAvatar
+    }
+  }
+
+  var moodAvatar: some View {
+    Circle()
+      .fill(memory.mood.adaptiveColor.opacity(0.18))
+      .frame(width: 32, height: 32)
+      .overlay(MoodIcon(mood: memory.mood, size: 16).opacity(0.9))
+      .accessibilityHidden(true)
   }
 }
 

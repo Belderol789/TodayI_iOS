@@ -18,24 +18,38 @@ extension MemoryService {
     dayKey: String,
     db: Firestore = .firestore()
   ) async throws {
-    let hub = db.collection("comments").document(memoryID)
-    // Cheap & idempotent: create-or-merge; increment(0) guarantees numeric field.
-    try await hub.setData([
+    try await db.collection("comments").document(memoryID)
+      .setData(commentsHubPayload(memoryID: memoryID, ownerID: ownerID,
+                                  isPublic: isPublic, dayKey: dayKey),
+               merge: true)
+  }
+
+  /// Hub fields as a mergeable dictionary so `postMemory` can batch this write
+  /// rather than spending a separate round trip on it.
+  /// Cheap & idempotent: create-or-merge; `increment(0)` guarantees a numeric field.
+  /// `createdAt` is deliberately omitted — including it would rewrite the value on
+  /// every call.
+  static func commentsHubPayload(
+    memoryID: String,
+    ownerID: String,
+    isPublic: Bool,
+    dayKey: String
+  ) -> [String: Any] {
+    [
       "memoryID": memoryID,
       "ownerID": ownerID,
       "isPublic": isPublic,
       "dayKey": dayKey,
       "commentCount": FieldValue.increment(Int64(0)),
-      "updatedAt": FieldValue.serverTimestamp(),
-      // createdAt will be overwritten on subsequent calls if we include it every time,
-      // so omit it here to avoid churn. If you want a stable createdAt, use the txn version below.
-    ], merge: true)
+      "updatedAt": FieldValue.serverTimestamp()
+    ]
   }
   
   static func postComment(
     memoryID: String,
     text: String,
     username: String,
+    photoURL: String? = nil,
     db: Firestore = .firestore()
   ) async throws {
     guard
@@ -46,13 +60,15 @@ extension MemoryService {
     let hub = db.collection("comments").document(memoryID)
     let ref = hub.collection("comments").document() // auto-id
     
-    let data: [String: Any] = [
+    var data: [String: Any] = [
       "id": ref.documentID,
       "userID": uid,
       "username": username,
       "text": text,
       "createdAt": FieldValue.serverTimestamp()
     ]
+    // Keep in sync with CommentThreadViewModel.postComment, which is the live path.
+    if let photoURL, !photoURL.isEmpty { data["photoURL"] = photoURL }
     
     // Create the hub (if somehow missing) and add the comment
     try await hub.setData([

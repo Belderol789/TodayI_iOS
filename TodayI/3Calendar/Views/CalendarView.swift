@@ -173,19 +173,17 @@ struct CalendarView: View {
     }
   }
   
-  // MARK: - Firestore seeding (lightweight) once per user
+  // MARK: - Firestore seeding (lightweight) once per launch
   private func seedDatesIfNeeded() async {
     guard let uid = auth.userID else { return }
+    // Once per launch, not once per install — the old "do we have any DateModel"
+    // check meant a day added later never showed up on the calendar at all.
+    guard swiftManager?.needsDateSync == true else { return }
     do {
-      // Cheap existence check: if we already have any DateModel, we can skip
-      var check = FetchDescriptor<DateModel>()
-      check.fetchLimit = 1
-      let existing = try context.fetch(check)
-      guard existing.isEmpty else { return }
-      
       isSyncing = true; errorText = nil
       let dtos = try await MemoryService.fetchDates(for: uid) // [DateDTO]
       try swiftManager?.importDatesIfNeeded(dtos)             // upsert to SwiftData
+      swiftManager?.markDatesSynced()
       isSyncing = false
     } catch {
       isSyncing = false
@@ -201,6 +199,7 @@ struct CalendarView: View {
       isSyncing = true; errorText = nil
       let dtos = try await MemoryService.fetchDates(for: uid)
       try swiftManager?.importDatesIfNeeded(dtos)
+      swiftManager?.markDatesSynced()
       isSyncing = false
     } catch {
       isSyncing = false

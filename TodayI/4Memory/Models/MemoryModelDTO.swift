@@ -35,6 +35,39 @@ struct MemoryDTO: Codable {
   }
 }
 
+// MARK: - Decoding
+extension MemoryDTO {
+  /// Hand-written so a missing field defaults instead of failing the whole document.
+  /// `postMemory` did not write `likedBy` until after the like system shipped, so every
+  /// memory created before that has no such key — synthesized decoding threw
+  /// `keyNotFound` on all of them and `fetchMemories` silently returned an empty list.
+  /// Defaults here must stay in sync with `GlobalFeedService.decodeDTOManually`.
+  init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    id                    = try c.decode(String.self, forKey: .id)
+    username              = try c.decode(String.self, forKey: .username)
+    userID                = try c.decode(String.self, forKey: .userID)
+    date                  = try c.decode(Date.self, forKey: .date)
+    mood                  = try c.decode(String.self, forKey: .mood)
+    journalText           = try c.decode(String.self, forKey: .journalText)
+    isPublic              = try c.decode(Bool.self, forKey: .isPublic)
+    createdAt             = try c.decode(Date.self, forKey: .createdAt)
+    updatedAt             = try c.decode(Date.self, forKey: .updatedAt)
+
+    likes                 = try c.decodeIfPresent(Int.self, forKey: .likes) ?? 0
+    likedBy               = try c.decodeIfPresent([String].self, forKey: .likedBy) ?? []
+    remoteImagePaths      = try c.decodeIfPresent([String].self, forKey: .remoteImagePaths) ?? []
+    videoRemoteURL        = try c.decodeIfPresent(String.self, forKey: .videoRemoteURL)
+    audioRemoteURL        = try c.decodeIfPresent(String.self, forKey: .audioRemoteURL)
+    linkURL               = try c.decodeIfPresent(String.self, forKey: .linkURL)
+    remoteProfilePhotoURL = try c.decodeIfPresent(String.self, forKey: .remoteProfilePhotoURL)
+    isPremium             = try c.decodeIfPresent(Bool.self, forKey: .isPremium)
+
+    authorTZ = try c.decodeIfPresent(String.self, forKey: .authorTZ) ?? TimeZone.current.identifier
+    dayKey   = try c.decodeIfPresent(String.self, forKey: .dayKey) ?? date.formattedDayKeyLocal()
+  }
+}
+
 extension MemoryDTO {
   init(from model: MemoryModel) {
     self.id = model.id
@@ -77,7 +110,8 @@ extension MemoryDTO {
     self.createdAt = Date()
     self.updatedAt = Date()
     self.authorTZ = TimeZone.current.identifier
-    self.dayKey = Date().formattedDayKeyLocal()
+    // From `day`, not `Date()` — see the note in `MemoryModel.init`.
+    self.dayKey = day.formattedDayKeyLocal()
   }
   
 }

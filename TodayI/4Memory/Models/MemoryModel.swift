@@ -19,7 +19,9 @@ final class MemoryModel {
   
   var journalText: String
   var likes: Int
-  var likedBy: [String]
+  /// Default matches `init(likedBy:)`. Note SwiftData migrates this fine either way —
+  /// a legacy store with no `ZLIKEDBY` column back-fills on open, tested directly.
+  var likedBy: [String] = []
   
   // Media
   var localImageNames: [String]
@@ -91,7 +93,10 @@ final class MemoryModel {
     self.createdAt = createdAt
     self.updatedAt = updatedAt
     self.authorTZ = TimeZone.current.identifier
-    self.dayKey = Date().formattedDayKeyLocal()
+    // Derived from the memory's own date, never from `Date()` — otherwise a memory
+    // written for any day but today files itself under today and no lookup by
+    // dayKey (Home, MemoryContainer, the global feed) can ever find it again.
+    self.dayKey = date.formattedDayKeyLocal()
   }
 }
 
@@ -145,6 +150,12 @@ extension MemoryModel {
         createdAt: dto.createdAt,
         updatedAt: dto.updatedAt
       )
+      // The server's key wins, exactly as it does in the update branch above.
+      // `init` can only *derive* a key from `date`; on an imported memory the DTO
+      // already carries the authoritative one, and letting init's guess stand is
+      // what put every fetched memory under whichever day it was imported on.
+      m.dayKey = dto.dayKey
+      m.authorTZ = dto.authorTZ
       context.insert(m)
       return m
     }

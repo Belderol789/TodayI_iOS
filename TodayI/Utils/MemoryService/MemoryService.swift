@@ -23,8 +23,10 @@ struct MemoryService {
     let userDoc  = db.collection("users").document(memory.userID)
     let memRef   = userDoc.collection("memories").document(memory.id)
     
-    // Normalize the day key for the DateModel doc id (UTC-safe)
-    let dayKey = Date().formattedDayKeyLocal()
+    // The memory's own key — derived from its date at init, not recomputed from `Date()`.
+    // Recomputing here meant a post written just after midnight, or for any past day,
+    // landed under the wrong dayKey and under the wrong `dates/{dayKey}` document.
+    let dayKey = memory.dayKey
     let dateRef = userDoc.collection("dates").document(dayKey)
     
     // --- Memory payload (omit local-only paths) ---
@@ -39,6 +41,8 @@ struct MemoryService {
       "mood": memory.mood.rawValue,
       "journalText": memory.journalText,
       "likes": memory.likes,
+      "likedBy": memory.likedBy,          // ✅ must be written — toggleLike and the
+                                          // Firestore rule both read this field back
       "remoteImagePaths": memory.remoteImagePaths,
       "videoRemoteURL": memory.videoRemoteURL as Any,
       "audioRemoteURL": memory.audioRemoteURL as Any,
@@ -60,18 +64,25 @@ struct MemoryService {
     ]
     
     MemoryService.assertMemoryPayload(memory)
-    // Write memory first, then upsert the date entry
-    try await memRef.setData(memData, merge: true)
-    try await dateRef.setData(dateData, merge: true)
-//    
-//    // NEW: bump global mood tally for that day in top-level "moods/{dayKey}"
-    try await incrementDailyMoodTally(for: memory, db: db)
-    try await MemoryService.ensureCommentsHub(
-      memoryID: memory.id,
-      ownerID: memory.userID,
-      isPublic: memory.isPublic,
-      dayKey: dayKey
-    )
+
+    // One batch instead of four sequential round trips (memory → date → mood tally
+    // transaction → comments hub). Also removes the tally's read: `increment` inside
+    // a merged nested map creates the document when absent, so the transaction that
+    // existed only to check `snap.exists` isn't needed. Being atomic is a bonus —
+    // a post can no longer half-land as a memory with no matching date entry.
+    let batch = db.batch()
+    batch.setData(memData, forDocument: memRef, merge: true)
+    batch.setData(dateData, forDocument: dateRef, merge: true)
+    batch.setData(moodTallyPayload(for: memory),
+                  forDocument: db.collection("moods").document(dayKey),
+                  merge: true)
+    batch.setData(commentsHubPayload(memoryID: memory.id,
+                                     ownerID: memory.userID,
+                                     isPublic: memory.isPublic,
+                                     dayKey: dayKey),
+                  forDocument: db.collection("comments").document(memory.id),
+                  merge: true)
+    try await batch.commit()
   }
   
   private static func assertMemoryPayload(_ m: MemoryModel) {
