@@ -8,19 +8,17 @@
 import FirebaseMessaging
 
 extension NotificationManager {
+  /// Subscribes to the per-user topic that carries like and comment milestones.
+  /// Goes through the APNs-aware queue — firing this straight at Messaging on a cold
+  /// launch is what silently dropped it, since the FCM token usually lands first.
   func subscribeUserTopic(uid: String) {
-    let topic = "user_\(uid)"
-    Messaging.messaging().subscribe(toTopic: topic) { err in
-      if let err = err { print("user topic subscribe failed:", err) }
-      else { print("Subscribed to", topic) }
-    }
-    UserDefaults.standard.set(uid, forKey: "lastUserTopicUid")
+    enqueueSubscribe(topic: "user_\(uid)", persistKey: "lastUserTopicUid")
   }
   
   func unsubscribePreviousUserTopicIfNeeded() {
     let key = "lastUserTopicUid"
-    guard let old = UserDefaults.standard.string(forKey: key) else { return }
-    let topic = "user_\(old)"
+    // Holds the full topic ("user_<uid>"), written only after a subscribe succeeds.
+    guard let topic = UserDefaults.standard.string(forKey: key) else { return }
     Messaging.messaging().unsubscribe(fromTopic: topic) { err in
       if let err = err { print("user topic unsubscribe failed:", err) }
       else { print("Unsubscribed from", topic) }

@@ -8,6 +8,18 @@
 import FirebaseFirestore
 
 extension MemoryService {
+  /// Fetches a single memory by id. Used when opening a notification, where the
+  /// milestone names a `postId` but the device may not have that day cached.
+  static func fetchMemory(userID: String,
+                          memoryID: String,
+                          db: Firestore = Firestore.firestore()) async throws -> MemoryDTO? {
+    LoggerManager.instance.logFirebaseCall()
+    let doc = try await db.collection("users").document(userID)
+      .collection("memories").document(memoryID).getDocument()
+    guard doc.exists else { return nil }
+    return try? doc.data(as: MemoryDTO.self)
+  }
+
   /// Fetches all lightweight date entries for a user.
   static func fetchDates(for userID: String, db: Firestore = Firestore.firestore()) async throws -> [DateDTO] {
     LoggerManager.instance.logFirebaseCall()

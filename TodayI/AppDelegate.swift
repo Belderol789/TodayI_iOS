@@ -22,6 +22,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
     print("APNs token length:", deviceToken.count)
     Messaging.messaging().apnsToken = deviceToken
+    // Topics queued before this point can now be subscribed — see the gate in
+    // NotificationManager. Without this, a cold launch lost every subscription.
+    NotificationManager.shared.apnsTokenDidRegister()
   }
   
   func application(_ application: UIApplication,

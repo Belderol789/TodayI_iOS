@@ -33,21 +33,71 @@ final class NotificationManager: NSObject {
     }
   }
   
+  // MARK: - Topic subscription gating
+  //
+  // FCM refuses `subscribe(toTopic:)` until an APNS token has been handed to
+  // Messaging, failing with code 505 ("No APNS token specified before fetching FCM
+  // Token"). On a cold launch the FCM *registration* token normally arrives first,
+  // so every subscribe fired at that moment was lost — including `user_{uid}`, which
+  // is the only way like and comment milestones reach the device, and the per-offset
+  // timezone topics behind the 8PM and 6PM nudges. Nothing retried them.
+  //
+  // So every subscribe now goes through this queue: run it if APNS is ready, park it
+  // if not, and flush when `apnsTokenDidRegister()` fires from the app delegate. If
+  // the user denies notifications APNS never registers and the queue simply never
+  // drains, which is correct — there is no push to receive.
+
+  private struct PendingTopic {
+    let topic: String
+    let persistKey: String?
+  }
+
+  private var isAPNSTokenReady = false
+  private var pendingTopics: [PendingTopic] = []
+
+  /// Call from `didRegisterForRemoteNotificationsWithDeviceToken`, after handing the
+  /// token to `Messaging`.
+  func apnsTokenDidRegister() {
+    isAPNSTokenReady = true
+    guard !pendingTopics.isEmpty else { return }
+    let queued = pendingTopics
+    pendingTopics.removeAll()
+    print("📡 APNs ready — flushing \(queued.count) queued topic subscription(s)")
+    queued.forEach { performSubscribe(topic: $0.topic, persistKey: $0.persistKey) }
+  }
+
+  /// Subscribes now, or as soon as APNs is available.
+  func enqueueSubscribe(topic: String, persistKey: String? = nil) {
+    guard isAPNSTokenReady else {
+      if !pendingTopics.contains(where: { $0.topic == topic }) {
+        pendingTopics.append(PendingTopic(topic: topic, persistKey: persistKey))
+        print("⏳ Queued topic until APNs is ready:", topic)
+      }
+      return
+    }
+    performSubscribe(topic: topic, persistKey: persistKey)
+  }
+
+  private func performSubscribe(topic: String, persistKey: String?) {
+    Messaging.messaging().subscribe(toTopic: topic) { error in
+      if let error {
+        print("❌ Topic subscribe failed (\(topic)):", error)
+        return
+      }
+      print("✅ Subscribed to topic:", topic)
+      // Only remember it once the server actually accepted the subscription;
+      // persisting eagerly meant a failed subscribe still looked done, and the
+      // unsubscribe path would later target a topic we were never on.
+      if let persistKey { UserDefaults.standard.set(topic, forKey: persistKey) }
+    }
+  }
+
   // MARK: - FCM helpers
   func setFCMToken(_ token: String?) {
     cachedFCMToken = token
-    // Example: subscribe to a topic when available
-    if let token = token, !token.isEmpty {
-      Messaging.messaging().subscribe(toTopic: "general") { error in
-        if let error = error {
-          print("Topic subscribe failed:", error)
-        } else {
-          print("Subscribed to topic 'general' with token:", token)
-        }
-      }
+    if let token, !token.isEmpty {
+      enqueueSubscribe(topic: "general")
     }
-    
-    // ✅ NEW: subscribe to timezone topic
     subscribeToTimezoneTopicIfNeeded()
   }
   
@@ -67,21 +117,14 @@ final class NotificationManager: NSObject {
   
   private func subscribe(topic: String, key: String) {
     let last = UserDefaults.standard.string(forKey: key)
-    
-    if last != topic {
-      if let last {
-        Messaging.messaging().unsubscribe(fromTopic: last) { _ in
-          print("Unsubscribed from \(last)")
-        }
-      }
-      Messaging.messaging().subscribe(toTopic: topic) { err in
-        if let err = err { print("Subscribe failed:", err) }
-        else {
-          print("Subscribed topic:", topic)
-          UserDefaults.standard.set(topic, forKey: key)
-        }
+    guard last != topic else { return }
+
+    if let last {
+      Messaging.messaging().unsubscribe(fromTopic: last) { _ in
+        print("Unsubscribed from \(last)")
       }
     }
+    enqueueSubscribe(topic: topic, persistKey: key)
   }
   
   func currentFCMToken() -> String? {

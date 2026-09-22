@@ -6,7 +6,10 @@ struct GlobalFeedView: View {
   @EnvironmentObject private var auth: AuthStore
   @Environment(\.swiftDataManager) private var swiftManager
 
-  @StateObject private var vm: GlobalFeedViewModel
+  /// Owned by `RootView`, not by this view. The tab bar rebuilds `GlobalFeedView`
+  /// on every visit, so a `@StateObject` here meant a fresh view model and a full
+  /// re-read of the feed each time you came back.
+  @ObservedObject var vm: GlobalFeedViewModel
   @Binding var tabSelection: AppTab
   @State private var showPremium = false
 
@@ -17,8 +20,8 @@ struct GlobalFeedView: View {
     vm.rows.filter { !blockedIDs.contains($0.userID) }
   }
 
-  init(tabSelection: Binding<AppTab>, day: Date = Date()) {
-    _vm = StateObject(wrappedValue: GlobalFeedViewModel(day: day))
+  init(vm: GlobalFeedViewModel, tabSelection: Binding<AppTab>) {
+    self.vm = vm
     _tabSelection = tabSelection
   }
 
@@ -62,7 +65,8 @@ struct GlobalFeedView: View {
         PremiumPill(isPremium: entitlements.isPremium) { showPremium = true }
           .accessibilityLabel(entitlements.isPremium ? "Premium active" : "Go Premium")
       }
-      .task { await vm.refresh() }
+      // Cached across tab switches; pull-to-refresh still forces a live read.
+      .task { await vm.loadIfNeeded() }
       .refreshable { await vm.refresh() }
       .sheet(isPresented: $showPremium) {
         PremiumView()

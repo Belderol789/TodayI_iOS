@@ -81,6 +81,27 @@ final class GlobalFeedViewModel: ObservableObject {
   
   /// Backward-compatible alias for legacy calls.
   func loadFirstPage() async { await refresh() }
+
+  /// True once a live load has populated the feed for `day`.
+  private var hasLoaded = false
+
+  /// Loads only when there's nothing to show, or when the calendar day has rolled
+  /// over since the last load.
+  ///
+  /// `.task` fires every time the World tab appears, and `RootView` tears the tab
+  /// down when you switch away — so this used to re-read a 30-document page plus
+  /// the mood tally on *every visit*. Pull-to-refresh and `loadMore` are unchanged;
+  /// they still go to the network on purpose.
+  func loadIfNeeded() async {
+    let today = Date()
+    if !Calendar.current.isDate(day, inSameDayAs: today) {
+      day = today
+      hasLoaded = false
+    }
+    guard !hasLoaded || allRows.isEmpty else { return }
+    await refresh()
+    hasLoaded = !allRows.isEmpty || errorText == nil
+  }
   
   /// Paginates through additional feed pages.
   func loadMore() async {

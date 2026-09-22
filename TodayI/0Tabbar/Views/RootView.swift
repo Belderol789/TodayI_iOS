@@ -6,6 +6,9 @@ struct RootView: View {
   @State private var selection: AppTab = .home
   @State private var splashDone = false
   @Namespace private var tabNS
+  /// Held here so the feed survives tab switches — `mainContent` rebuilds the
+  /// selected tab's view each time, which would otherwise discard the loaded page.
+  @StateObject private var globalFeedVM = GlobalFeedViewModel(day: Date())
 
   var body: some View {
     Group {
@@ -31,10 +34,7 @@ struct RootView: View {
       case .create:
         CreateMemoryView()
       case .global:
-        GlobalFeedView(
-          tabSelection: $selection,
-          day: Date()
-        )
+        GlobalFeedView(vm: globalFeedVM, tabSelection: $selection)
       case .notifications:
         NotificationView(tabSelection: $selection)
       }

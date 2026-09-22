@@ -75,6 +75,14 @@ old negative-horizontal-padding bleed hack.
 `ZStack`. `auth.hideTabBar` is the global escape hatch for full-screen surfaces (comment thread);
 set it on appear, clear it on disappear.
 
+**The World feed is loaded once per launch.** `RootView` owns `GlobalFeedViewModel` so the model
+survives tab switches — it used to be a `@StateObject` inside `GlobalFeedView`, and since the custom
+tab bar tears down non-selected tabs, every visit rebuilt it and re-read a 30-document page plus the
+mood tally. `.task` calls `loadIfNeeded()`, which returns early unless the feed is empty or the
+calendar day rolled over; pull-to-refresh and `loadMore` still go to the network deliberately. The
+notification inbox follows the same idea: one snapshot listener, no redundant one-shot fetch, and
+the unread filter applied in memory.
+
 **Date syncing is once per launch.** `SwiftDataManager.needsDateSync` / `markDatesSynced()` gate a
 single `fetchDates` per launch, shared by Home and Calendar — whichever appears first pays for it.
 This was once per *install* (callers checked "do we have any `DateModel`"), which meant a day added
@@ -182,6 +190,15 @@ so half-hour zones (India, Nepal) are not covered.
 
 Per-user notifications (comment and like milestones in `socialMilestones.ts`) use the
 `user_{uid}` topic instead.
+
+**Every topic subscribe must go through `NotificationManager.enqueueSubscribe`.** FCM rejects
+`subscribe(toTopic:)` until an APNs token has reached `Messaging`, failing with code 505 ("No APNS
+token specified before fetching FCM Token"). On a cold launch the FCM *registration* token normally
+arrives first, so subscribes fired from `didReceiveRegistrationToken` were silently lost with no
+retry — `user_{uid}` included, which is the only path for like and comment milestones. The queue
+parks topics until `AppDelegate` calls `apnsTokenDidRegister()`, then flushes. Calling
+`Messaging.messaging().subscribe` directly reintroduces the bug. Topic keys in `UserDefaults` store
+the full topic string and are written only after the server accepts the subscribe.
 
 ## Auth
 

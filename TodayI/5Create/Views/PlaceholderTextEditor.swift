@@ -19,20 +19,21 @@ struct PlaceholderTextEditor: View {
       
       TextEditor(text: $text)
         .font(.body)                       // <- ensure consistent text metrics
+        // Set on the view, never through `UITextView.appearance()`. The appearance
+        // proxy applies once, as a view enters a window, so the colour it resolved
+        // at that moment stuck — text stayed dark in dark mode until a light/dark
+        // round trip rebuilt the view. It was also global: it repainted every
+        // UITextView in the app, not just this one.
+        .foregroundStyle(.primary)
+        .tint(.primary)                    // caret, was appearance().tintColor
         .scrollContentBackground(.hidden)  // <- hide UIKit bg
         .background(Color.clear)           // <- keep editor itself clear
         .padding(.horizontal, 8)
         .padding(.top, 8)
         .textInputAutocapitalization(.sentences)
         .disableAutocorrection(false)
-        .compositingGroup()                // <- nudge renderer to redraw
-        .opacity(0.999)                    // <- tiny hack to avoid caching glitch
     }
     .frame(minHeight: minHeight, maxHeight: maxHeight)
-    .onAppear {
-      UITextView.appearance().textColor = UIColor.label
-      UITextView.appearance().tintColor = UIColor.label
-    }
     .background(                           // <- your rounded container bg
       RoundedRectangle(cornerRadius: 12, style: .continuous)
         .fill(Color(.secondarySystemBackground))
