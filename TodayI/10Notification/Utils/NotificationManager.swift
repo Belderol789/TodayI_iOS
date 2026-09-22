@@ -95,10 +95,25 @@ final class NotificationManager: NSObject {
   // MARK: - FCM helpers
   func setFCMToken(_ token: String?) {
     cachedFCMToken = token
-    if let token, !token.isEmpty {
-      enqueueSubscribe(topic: "general")
-    }
+    unsubscribeFromLegacyGeneralTopicOnce()
     subscribeToTimezoneTopicIfNeeded()
+  }
+
+  /// Every install used to subscribe to a `general` topic that nothing in
+  /// `functions/` ever published to. Devices stay subscribed server-side once
+  /// they've asked, so drop it — otherwise a future broadcast on that topic would
+  /// reach people who never opted into one.
+  private func unsubscribeFromLegacyGeneralTopicOnce() {
+    let key = "didUnsubscribeGeneralTopic"
+    guard !UserDefaults.standard.bool(forKey: key) else { return }
+    Messaging.messaging().unsubscribe(fromTopic: "general") { error in
+      if let error {
+        print("⚠️ Could not unsubscribe from legacy 'general' topic:", error)
+        return
+      }
+      print("🧹 Unsubscribed from legacy 'general' topic")
+      UserDefaults.standard.set(true, forKey: key)
+    }
   }
   
   private func subscribeToTimezoneTopicIfNeeded() {
