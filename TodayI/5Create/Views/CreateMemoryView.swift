@@ -51,7 +51,11 @@ struct CreateMemoryView: View {
       .navigationTitle("Create")
       .navigationBarTitleDisplayMode(.large)
       .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
+        // Both live in the nav bar so they stay reachable while the keyboard is up —
+        // the privacy control used to sit under the editor, which the keyboard covers
+        // exactly when you're most likely to reconsider posting publicly.
+        ToolbarItemGroup(placement: .topBarTrailing) {
+          privacyToolbarButton
           postToolbarButton
         }
       }
@@ -323,19 +327,23 @@ struct CreateMemoryView: View {
     )
   }
 
+  /// Icon-only toggle that rides in the navigation bar; the globe/padlock carries
+  /// the state. The badge itself lives under the editor no longer.
+  private var privacyToolbarButton: some View {
+    PrivacyBadge(isPublic: privacyBinding, compact: true)
+      .disabled(auth.isRestricted)
+      .opacity(auth.isRestricted ? 0.5 : 1)
+  }
+
+  /// Only the restriction notice remains inline — it's an explanation, not a control.
+  @ViewBuilder
   private var privacyRow: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      HStack {
-        PrivacyBadge(isPublic: privacyBinding)
-          .disabled(auth.isRestricted)
-        Spacer()
-      }
-      if auth.isRestricted {
-        Text("Your account is currently restricted from public posts.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .padding(.leading, 4)
-      }
+    if auth.isRestricted {
+      Text("Your account is currently restricted from public posts.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.leading, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 
