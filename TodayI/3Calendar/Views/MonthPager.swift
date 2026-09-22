@@ -50,7 +50,7 @@ struct MonthPager: View {
       MonthView(
         month: month,
         models: bucket,
-        isPremium: $entitlements.isPremium,
+        isPremium: entitlements.isPremium,
         onSelectDate: { date in
           presentedDay = Calendar.current.startOfDay(for: date)
         }

@@ -6,10 +6,8 @@ import UserNotifications
 
 struct NotificationView: View {
   @EnvironmentObject private var auth: AuthStore
-  @EnvironmentObject private var entitlements: EntitlementStore
   @Environment(\.modelContext) private var context
   @Binding var tabSelection: AppTab
-  @State private var showPremium = false
   /// Set when a notification is tapped; drives the push to that post's thread.
   @State private var openedMemory: MemoryModel?
 
@@ -50,16 +48,12 @@ struct NotificationView: View {
       }
       .navigationTitle("Notifications")
       .toolbar {
-        ToolbarItem(placement: .topBarLeading) {
+        ToolbarItem(placement: .topBarTrailing) {
           if unreadCount > 0, !auth.isGuest, let uid = Auth.auth().currentUser?.uid {
             Button("Mark all read") {
               NotificationManager.shared.markNotificationsRead(uid: uid, ids: items.map(\.id))
             }
           }
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-          PremiumPill(isPremium: entitlements.isPremium) { showPremium = true }
-            .accessibilityLabel(entitlements.isPremium ? "Premium active" : "Go Premium")
         }
       }
       .onAppear {
@@ -75,12 +69,6 @@ struct NotificationView: View {
       }
       .sheet(isPresented: $showSetting) {
         NavigationStack { AuthView() }
-      }
-      .sheet(isPresented: $showPremium) {
-        PremiumView()
-          .presentationDetents([.large])
-          .presentationDragIndicator(.visible)
-          .presentationCornerRadius(20)
       }
     }
   }

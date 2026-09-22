@@ -216,14 +216,29 @@ StoreKit 2 subscriptions (`IAP.monthlyID` / `IAP.yearlyID`), entitlements cached
 device-scoped free trial keyed on a Keychain UUID (`TrialDeviceID`) and validated server-side by
 `FirebaseFirestoreManager.activateDeviceTrialIfNeeded()`.
 
-⚠️ **`EntitlementStore.isPremium` is hardcoded `true` on purpose** (see `EntitlementStore.swift:19`,
-with the real derivation commented out at ~:39 and ~:174). Everyone is premium for now. This is
-intentional — **do not "fix" it**. When it is time to switch on real gating, uncomment those two
-lines rather than writing new logic.
+`EntitlementStore.isPremium` is **derived** from StoreKit entitlements via a single
+`recomputeIsPremium(reason:)`, and is `private(set)` — nothing outside the store may assign it. It was
+hardcoded `true` through most of 2026 while the paywall was being built; that is over, and gating is
+live. For development, a **DEBUG-only** `devForcePremium` (a `UserDefaults`-backed computed property,
+compiled out of release) is surfaced as "Force Premium" in Settings → Developer. A real subscription
+keeps Premium on regardless of that switch.
 
-The free/premium line, when enabled: free users get one memory per day
-(`SwiftData_Memories.loadMemories` returns only `rows.last`), premium gets multiple per day, video and
-galleries, feed flair, and a monthly mood summary.
+The free/premium line: free users get **one memory per day** — the most recent — plus a 300-character
+cap and no video or gallery. Premium adds every memory, video, galleries, feed flair and a monthly
+mood summary.
+
+**Never hide a user's own data silently.** Free tier used to enforce the one-per-day limit with
+`fetchLimit = 1`, so a second memory vanished from `MemoryContainer` while still sitting in SwiftData
+and Firestore — indistinguishable from data loss. That screen now loads the whole day and renders a
+locked row ("N more memories from this day") that opens Premium. `HomeView` still fetches only the
+latest for free users, which is *consistent* rather than hiding: the latest is exactly the one the
+free tier can reach.
+
+Upsell entry points, deliberately few: the Premium pill in the World Feed and Calendar toolbars, the
+Create screen's Video/Gallery gates, its "Unlock" button and "Premium removes the limit" line, the
+locked-memories row, and a non-blocking notice on Create when today already has a memory. The
+Notifications tab deliberately has **no** pill — four entry points for a one-screen product is
+already plenty, and the notification inbox is not where value is demonstrated.
 
 ## Moderation
 

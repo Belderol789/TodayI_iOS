@@ -16,7 +16,43 @@ struct Entitlement: Codable, Equatable {
 @MainActor
 final class EntitlementStore: ObservableObject {
   @Published private(set) var active: [Entitlement] = []
-  @Published var isPremium: Bool = true
+
+  /// Derived from StoreKit entitlements — never set directly.
+  ///
+  /// This was hardcoded `true` through 2026 so everyone got Premium while the
+  /// paywall was being built. Real gating is back on; the DEBUG-only override below
+  /// replaces the hardcode for development, and is compiled out of release builds.
+  @Published private(set) var isPremium: Bool = false
+
+#if DEBUG
+  /// Developer toggle, surfaced in Settings under DEBUG only. Persisted so it
+  /// survives relaunches while you're working on gated surfaces.
+  static let devForcePremiumKey = "devForcePremium"
+
+  var devForcePremium: Bool {
+    get { UserDefaults.standard.bool(forKey: Self.devForcePremiumKey) }
+    set {
+      UserDefaults.standard.set(newValue, forKey: Self.devForcePremiumKey)
+      recomputeIsPremium(reason: "dev toggle")
+    }
+  }
+#endif
+
+  /// Single place that decides Premium, so the entitlement scan and the dev toggle
+  /// can't drift apart.
+  private func recomputeIsPremium(reason: String) {
+    let entitled = active.contains {
+      $0.productId == IAP.monthlyID || $0.productId == IAP.yearlyID
+    }
+#if DEBUG
+    let resolved = entitled || devForcePremium
+#else
+    let resolved = entitled
+#endif
+    guard resolved != isPremium else { return }
+    print("isPremium \(isPremium) -> \(resolved) (\(reason))")
+    isPremium = resolved
+  }
   
   private let cacheService = "entitlements.v1"
   private let cacheAccount = "current"
@@ -34,9 +70,10 @@ final class EntitlementStore: ObservableObject {
     } else {
       print("No cached entitlements found in Keychain")
     }
-    
-    // Derive isPremium from cached immediately
-    //self.isPremium = self.active.contains { $0.productId == IAP.monthlyID || $0.productId == IAP.yearlyID }
+
+    // Derive from the cache immediately so the first frame isn't wrongly un-gated
+    // while the StoreKit scan is still in flight.
+    recomputeIsPremium(reason: "cached entitlements")
     
     // Bootstrap current status on launch.
     // Wrapped in a timeout so a stuck StoreKit call on beta OSes
@@ -168,13 +205,7 @@ final class EntitlementStore: ObservableObject {
       }
       
       // Always recompute premium from the latest scan result (not from prior cached state).
-      let newPremium = active.contains { $0.productId == IAP.monthlyID || $0.productId == IAP.yearlyID }
-      if newPremium != isPremium {
-        print("isPremium changed: \(isPremium) -> \(newPremium)")
-        //isPremium = newPremium
-      } else {
-        print("isPremium stays: \(isPremium)")
-      }
+      recomputeIsPremium(reason: "StoreKit scan")
       
     } catch {
       print("Error while iterating currentEntitlements: \(error)")

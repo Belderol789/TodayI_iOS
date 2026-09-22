@@ -5,7 +5,8 @@ import Charts
 struct MonthView: View {
   let month: Date
   let models: [DateModel]
-  @Binding var isPremium: Bool
+  /// Read-only — was a `@Binding` but nothing here ever wrote to it.
+  let isPremium: Bool
   var onSelectDate: (Date) -> Void = { _ in }
   
   // hover state lives at parent level so cells can scale above neighbors

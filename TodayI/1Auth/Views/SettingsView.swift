@@ -122,8 +122,20 @@ struct SettingsView: View {
 
       // MARK: - Debug (only in non-release builds)
       #if DEBUG
-      Section("Developer") {
-        Toggle("Premium", isOn: $entitlements.isPremium)
+      Section {
+        // Drives the DEBUG-only override, not `isPremium` itself — that is derived
+        // from StoreKit now and has no setter. A real subscription keeps Premium on
+        // regardless of this switch.
+        Toggle("Force Premium", isOn: Binding(
+          get: { entitlements.devForcePremium },
+          set: { entitlements.devForcePremium = $0 }
+        ))
+      } header: {
+        Text("Developer")
+      } footer: {
+        Text(entitlements.isPremium
+             ? "Premium is ON. Turn this off to see the free-tier gates."
+             : "Premium is OFF — free-tier gates are active.")
       }
       #endif
 

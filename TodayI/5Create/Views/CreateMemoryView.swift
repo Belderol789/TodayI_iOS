@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import PhotosUI
 import AVKit
 import UserNotifications
@@ -6,6 +7,7 @@ import UserNotifications
 struct CreateMemoryView: View {
   @EnvironmentObject private var entitlements: EntitlementStore
   @EnvironmentObject private var auth: AuthStore
+  @Environment(\.modelContext) private var context
   @Environment(\.swiftDataManager) private var swiftManager
   @Environment(\.dismiss) private var dismiss
   @Environment(\.openURL) private var openURL
@@ -23,12 +25,16 @@ struct CreateMemoryView: View {
 
   @AppStorage("hasPostedOnce") private var hasPostedOnce = false
   @State private var showNotifPrompt = false
+  /// How many memories today already holds — drives the free-tier notice.
+  @State private var todayMemoryCount = 0
 
   var body: some View {
     NavigationStack {
       ScrollView {
 
         VStack(spacing: 0) {
+          secondMemoryNotice
+
           moodPicker
             .padding(.top, 8)
             .padding(.bottom, 20)
@@ -59,7 +65,10 @@ struct CreateMemoryView: View {
           postToolbarButton
         }
       }
-      .onAppear(perform: configureViewModel)
+      .onAppear {
+        configureViewModel()
+        refreshTodayMemoryCount()
+      }
       .onChange(of: entitlements.isPremium) { _, new in vm.isPremium = new }
       .onChange(of: auth.isRegisteredUser) { _, isRegistered in
         if isRegistered && !auth.isRestricted { vm.isPublic = true }
@@ -93,6 +102,63 @@ struct CreateMemoryView: View {
         Text("Want to get notified to create a habit of journalling daily?")
       }
     }
+  }
+
+  // MARK: - Free-tier notice
+
+  /// Non-blocking: posting a second memory still works, it just won't be visible on
+  /// the free tier. Saying so up front beats letting the entry quietly disappear —
+  /// and the upsell lands at the moment of demonstrated intent, without interrupting
+  /// the writing itself.
+  @ViewBuilder
+  private var secondMemoryNotice: some View {
+    if !entitlements.isPremium && todayMemoryCount > 0 {
+      Button { showPremium = true } label: {
+        HStack(spacing: 10) {
+          Image(systemName: "sparkles")
+            .foregroundStyle(.white)
+          VStack(alignment: .leading, spacing: 2) {
+            Text("You've already captured today")
+              .font(.subheadline.weight(.semibold))
+            Text("Free keeps your latest memory. Premium keeps every one.")
+              .font(.caption)
+              .opacity(0.9)
+          }
+          Spacer(minLength: 8)
+          Text("Unlock")
+            .font(.caption.weight(.bold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(.white.opacity(0.22)))
+        }
+        .foregroundStyle(.white)
+        .padding(12)
+        .background(
+          RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(moodGradient)
+        )
+      }
+      .buttonStyle(.plain)
+      .padding(.horizontal, 16)
+      .padding(.top, 8)
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel("You have already captured today. Premium keeps every memory.")
+      .accessibilityHint("Opens Premium.")
+    }
+  }
+
+  /// Local count only — no network. Cheap enough to redo on every appearance.
+  private func refreshTodayMemoryCount() {
+    let key = Date().today.formattedDayKeyLocal()
+    var fetch: FetchDescriptor<MemoryModel>
+    if let uid = auth.userID {
+      fetch = FetchDescriptor<MemoryModel>(
+        predicate: #Predicate { $0.dayKey == key && $0.userID == uid }
+      )
+    } else {
+      fetch = FetchDescriptor<MemoryModel>(predicate: #Predicate { $0.dayKey == key })
+    }
+    todayMemoryCount = (try? context.fetch(fetch).count) ?? 0
   }
 
   // MARK: - Mood picker (fixed 2-row grid — no scroll bias)
@@ -218,6 +284,10 @@ struct CreateMemoryView: View {
       // Character counter (non-premium)
       if !entitlements.isPremium {
         HStack {
+          Button("Premium removes the limit") { showPremium = true }
+            .font(.caption2.weight(.semibold))
+            .buttonStyle(.plain)
+            .foregroundStyle(vm.selectedMood?.adaptiveColor ?? Color.accentColor)
           Spacer()
           Text("\(vm.remaining) left")
             .font(.caption)

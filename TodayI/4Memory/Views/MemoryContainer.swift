@@ -18,9 +18,20 @@ struct MemoryContainer: View {
   @State private var memories: [MemoryModel] = []
   @State private var isLoading = false
   @State private var errorText: String?
+  @State private var showPremium = false
   
   private var dayKey: String {
     day.formattedDayKeyLocal()   // make sure you have this helper
+  }
+
+  /// Free tier sees the most recent memory of the day; the rest are locked, not gone.
+  private var visibleMemories: [MemoryModel] {
+    guard !entitlements.isPremium else { return memories }
+    return memories.suffix(1).map { $0 }
+  }
+
+  private var lockedCount: Int {
+    entitlements.isPremium ? 0 : max(0, memories.count - 1)
   }
   
   // Keep the heavy formatter out of `body`
@@ -69,6 +80,62 @@ struct MemoryContainer: View {
     .onChange(of: entitlements.isPremium) { _, _ in
       Task { await load(dayKey: dayKey) }
     }
+    .sheet(isPresented: $showPremium) {
+      PremiumView()
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(20)
+    }
+  }
+}
+
+// MARK: - Locked memories
+private extension MemoryContainer {
+  /// Their own words, visible but out of reach — a far stronger case for Premium
+  /// than a feature list, and honest about the fact that nothing was lost.
+  var lockedMemoriesRow: some View {
+    Button {
+      showPremium = true
+    } label: {
+      HStack(spacing: 12) {
+        Image(systemName: "lock.fill")
+          .font(.title3)
+          .foregroundStyle(.secondary)
+
+        VStack(alignment: .leading, spacing: 2) {
+          Text(lockedCount == 1
+               ? "1 more memory from this day"
+               : "\(lockedCount) more memories from this day")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.primary)
+          Text("Premium keeps every moment you capture.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+
+        Spacer()
+
+        Text("Unlock")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.white)
+          .padding(.horizontal, 12)
+          .padding(.vertical, 6)
+          .background(Capsule().fill(Color.accentColor))
+      }
+      .padding(14)
+      .background(
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+          .fill(Color(.secondarySystemBackground))
+      )
+      .padding(.horizontal, 4)
+      .padding(.vertical, 8)
+    }
+    .buttonStyle(.plain)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(lockedCount == 1
+                        ? "1 more memory from this day, locked"
+                        : "\(lockedCount) more memories from this day, locked")
+    .accessibilityHint("Opens Premium.")
   }
 }
 
@@ -110,7 +177,7 @@ private extension MemoryContainer {
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) // ✅ key
     } else {
       List {
-        ForEach(memories, id: \.id) { mem in
+        ForEach(visibleMemories, id: \.id) { mem in
           MemoryRow(memory: mem, onDelete: {
             withAnimation(.easeOut(duration: 0.25)) {
               memories.removeAll { $0.id == mem.id }
@@ -121,6 +188,13 @@ private extension MemoryContainer {
           .listRowInsets(EdgeInsets())
           .listRowSeparator(.hidden)
           .listRowBackground(Color.clear)
+        }
+
+        if lockedCount > 0 {
+          lockedMemoriesRow
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
         }
       }
       .contentMargins(.horizontal, 0, for: .scrollContent)
@@ -166,15 +240,13 @@ private extension MemoryContainer {
         predicate = #Predicate<MemoryModel> { $0.userID == uid && $0.dayKey == dayKey }
       }
       
+      // Always load the whole day. Free users used to get `fetchLimit = 1`, which
+      // meant a second memory silently vanished from this screen — it was still in
+      // SwiftData and Firestore, just unreachable, which reads as data loss rather
+      // than a paywall. The view now shows what's locked instead of hiding it.
       var fetch = FetchDescriptor<MemoryModel>(predicate: predicate)
-      
-      if entitlements.isPremium {
-        fetch.sortBy = [SortDescriptor(\.createdAt, order: .forward)]
-      } else {
-        fetch.sortBy = [SortDescriptor(\.createdAt, order: .reverse)]
-        fetch.fetchLimit = 1
-      }
-      
+      fetch.sortBy = [SortDescriptor(\.createdAt, order: .forward)]
+
       let items = try context.fetch(fetch)
       
       await MainActor.run {
