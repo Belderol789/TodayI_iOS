@@ -2,6 +2,11 @@
 #
 # gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
 
+## macOS
+# Finder metadata. These were tracked by mistake and are now untracked; the files
+# still exist locally, git just stops noticing them.
+.DS_Store
+
 ## User settings
 xcuserdata/
 
