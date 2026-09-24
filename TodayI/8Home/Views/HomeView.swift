@@ -11,6 +11,7 @@ struct HomeView: View {
   @State private var yearModels: [DateModel] = []
   @State private var randomMemory: MemoryModel?
   @State private var isLoadingRandom = false
+  @State private var streak: StreakInfo = .none
   @State private var navigateToCreate = false
   @State private var showSetting = false
   
@@ -33,7 +34,12 @@ struct HomeView: View {
               .accessibilityAddTraits(.isHeader)
             
             Spacer()
-            
+
+            if streak.days > 0 {
+              StreakPill(streak: streak)
+                .transition(.scale.combined(with: .opacity))
+            }
+
             Button {
               showSetting = true
             } label: {
@@ -120,6 +126,10 @@ struct HomeView: View {
       }
       .onAppear {
         Task {
+          // Local-only and instant — show it before anything touches the network,
+          // then recompute once the imports below may have added days.
+          refreshStreak()
+
           // Order matters: both imports write into SwiftData, and loadYear only reads
           // from it. Running loadYear first is why the mood charts used to stay empty
           // until you switched tabs and came back.
@@ -127,6 +137,8 @@ struct HomeView: View {
           await seedDatesIfNeeded()
           await loadYear(Date().year)
           await loadRandomMemory()
+          // After the imports, so a fresh install counts its synced history too.
+          refreshStreak()
         }
       }
       .onChange(of: auth.userID) { _, _ in
@@ -136,6 +148,7 @@ struct HomeView: View {
           await loadYear(Date().year)
           // Different account, different history.
           await loadRandomMemory(reshuffle: true)
+          refreshStreak()
         }
       }
       .sheet(isPresented: $showSetting) {
@@ -265,6 +278,14 @@ private extension HomeView {
       }
     }
     isLoadingRandom = false
+  }
+
+  /// Local only — `DateModel` already holds every day the user journaled.
+  func refreshStreak() {
+    guard let swiftManager else { return }
+    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+      streak = swiftManager.currentStreak()
+    }
   }
 
   /// Pulls the year's mood dots down once per launch.

@@ -83,6 +83,14 @@ calendar day rolled over; pull-to-refresh and `loadMore` still go to the network
 notification inbox follows the same idea: one snapshot listener, no redundant one-shot fetch, and
 the unread filter applied in memory.
 
+**The streak is computed from `DateModel`, never gated.** `SwiftDataManager.currentStreak()` counts
+back over the one-row-per-journaled-day table, which is written on every local save and refilled from
+Firestore once per launch — so the flame costs zero reads and survives a reinstall. Today being
+missing does *not* break the run (the day isn't over); it renders hollow and muted as the nudge, and
+fills once today is written. `HomeView` computes it before any network await so it paints
+immediately, then again after the imports. It is deliberately free: a paywalled streak would work
+against the retention it exists to create.
+
 **Date syncing is once per launch.** `SwiftDataManager.needsDateSync` / `markDatesSynced()` gate a
 single `fetchDates` per launch, shared by Home and Calendar — whichever appears first pays for it.
 This was once per *install* (callers checked "do we have any `DateModel`"), which meant a day added
