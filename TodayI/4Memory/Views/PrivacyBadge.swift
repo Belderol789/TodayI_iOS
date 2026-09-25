@@ -46,14 +46,22 @@ struct PrivacyBadge: View {
             .transition(.opacity.combined(with: .move(edge: .trailing)))
         }
       }
-      .foregroundStyle(.white)
-      .padding(.horizontal, compact ? 8 : 10)
-      .padding(.vertical, 6)
-      .background(
-        Capsule().fill(isPublic ? Color.green : Color.gray)
-      )
-      .shadow(color: shadowColor, radius: 4, x: 0, y: 2)
-      .scaleEffect(isPublic ? 1.05 : 1.0)
+      // Compact lives in a navigation bar, where a filled capsule sits awkwardly
+      // outside the toolbar's own glass grouping and crowds the button beside it.
+      // A tinted glyph reads as a native toolbar control; colour plus globe-vs-lock
+      // still carries the state, and the transient word spells it out on change.
+      .foregroundStyle(compact ? (isPublic ? Color.green : Color.secondary) : .white)
+      .padding(.horizontal, compact ? 2 : 10)
+      .padding(.vertical, compact ? 2 : 6)
+      .background {
+        if !compact {
+          Capsule().fill(isPublic ? Color.green : Color.gray)
+        }
+      }
+      .shadow(color: compact ? .clear : shadowColor, radius: 4, x: 0, y: 2)
+      // `scaleEffect` grows the drawing without growing the layout bounds, so in a
+      // navigation bar it spills over the neighbouring button.
+      .scaleEffect(!compact && isPublic ? 1.05 : 1.0)
       .animation(.easeOut(duration: 0.15), value: isPublic)
     }
     .buttonStyle(.plain)
