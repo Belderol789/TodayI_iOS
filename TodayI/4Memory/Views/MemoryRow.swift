@@ -413,7 +413,7 @@ private extension MemoryRow {
         PrivacyBadge(isPublic: $memory.isPublic)
           .disabled(isUpdatingPrivacy)
           .accessibilityLabel("Privacy")
-          .accessibilityValue(memory.isPublic ? "Public" : "Private")
+          .accessibilityValue(memory.isPublic ? "Global" : "Personal")
           .accessibilityHint("Double tap to change visibility.")
           .onChange(of: memory.isPublic) { _, newValue in
             guard !isUpdatingPrivacy else { return }

@@ -11,8 +11,8 @@ import SwiftUI
 
 struct PrivacyBadge: View {
   @Binding var isPublic: Bool
-  /// Icon only, no "Public"/"Private" label — for tight spots like the Create
-  /// screen's navigation bar, where the globe/padlock has to carry the meaning.
+  /// Icon only, no written label — for tight spots like the Create screen's
+  /// navigation bar, where the globe/padlock has to carry the meaning.
   var compact: Bool = false
   @Environment(\.colorScheme) private var scheme
 
@@ -22,7 +22,10 @@ struct PrivacyBadge: View {
   @State private var showTransientLabel = false
   @State private var labelTask: Task<Void, Never>?
 
-  private var transientLabel: String { isPublic ? "Global" : "Personal" }
+  /// One vocabulary everywhere: "Global" pairs with the World Feed, and "Personal"
+  /// is warmer than "Private" for something that is mostly a diary. Used by the
+  /// full badge and by compact mode's transient reveal alike.
+  private var label: String { isPublic ? "Global" : "Personal" }
 
   var body: some View {
     Button {
@@ -34,10 +37,10 @@ struct PrivacyBadge: View {
         Image(systemName: isPublic ? "globe.americas.fill" : "lock.fill")
           .font(.subheadline.weight(.semibold))
         if !compact {
-          Text(isPublic ? "Public" : "Private")
+          Text(label)
             .font(.subheadline.weight(.semibold))
         } else if showTransientLabel {
-          Text(transientLabel)
+          Text(label)
             .font(.subheadline.weight(.semibold))
             .fixedSize()
             .transition(.opacity.combined(with: .move(edge: .trailing)))
@@ -62,9 +65,9 @@ struct PrivacyBadge: View {
     // Carries the meaning when `compact` hides the word. Callers that set their own
     // label (MemoryRow) still override these.
     .accessibilityLabel("Privacy")
-    .accessibilityValue(isPublic ? "Public" : "Private")
-    .accessibilityHint(isPublic ? "Double tap to make this private."
-                                : "Double tap to make this public.")
+    .accessibilityValue(label)
+    .accessibilityHint(isPublic ? "Double tap to make this personal."
+                                : "Double tap to make this global.")
   }
 
   /// Slides the word in, holds, slides it out. Re-toggling restarts the timer

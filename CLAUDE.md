@@ -273,6 +273,10 @@ Firestore, and blocked/reported authors are filtered out of the feed immediately
   `formattedDayKeyLocal(in:)`). Use them instead of building `Calendar` math inline.
 - Mood colors come from `Mood.adaptiveColor`, which resolves light/dark through `UIColor`. Never
   hardcode a mood color.
+- **Privacy reads "Personal" / "Global" in the UI, never "Private" / "Public".** "Global" pairs with
+  the World Feed and "Personal" is warmer than "Private" for what is mostly a diary. `PrivacyBadge`
+  owns the single `label` used by the full badge, compact mode's transient reveal and the
+  accessibility value. The model field stays `isPublic` — this is wording, not data.
 - `TestManager` and `GlobalFeedService.generateTestPage` seed fake data for previews; they are dev
   tools, not test infrastructure.
 
