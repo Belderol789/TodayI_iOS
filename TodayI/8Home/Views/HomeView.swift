@@ -28,6 +28,10 @@ struct HomeView: View {
           // MARK: - Today
           HStack(alignment: .center) {
             SectionTitleView(title: "Today's Memory", systemImage: "sun.max.fill")
+            // Keep the title on one line; the trailing buttons below are fixed at
+            // their intrinsic width, so the title is what flexes.
+              .lineLimit(1)
+              .minimumScaleFactor(0.8)
             // Override accessibility so VO doesn’t read the icon name or internal structure
               .accessibilityElement(children: .ignore)
               .accessibilityLabel("Today's Memory")
@@ -35,10 +39,13 @@ struct HomeView: View {
             
             Spacer()
 
-            if streak.days > 0 {
-              StreakPill(streak: streak)
-                .transition(.scale.combined(with: .opacity))
-            }
+            // Always shown, zero included — hiding it at zero meant a new user
+            // never discovered the mechanic. Tapping goes straight to Create while
+            // today is still unwritten.
+            StreakPill(streak: streak,
+                       onTap: streak.loggedToday ? nil : { navigateToCreate = true })
+              .fixedSize()
+              .transition(.scale.combined(with: .opacity))
 
             Button {
               showSetting = true
@@ -49,12 +56,21 @@ struct HomeView: View {
                 .background(.ultraThinMaterial)
                 .clipShape(Capsule())
             }
+            .fixedSize()
             // Make it speak like a real action
             .accessibilityLabel(auth.isRegisteredUser ? "Profile" : "Sign in or profile")
             .accessibilityHint("Opens settings.")
             .accessibilityAddTraits(.isButton)
           }
           
+          if streak.days == 0 {
+            Text("Keep posting daily and get a streak going.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .transition(.opacity)
+              .accessibilityHidden(true)   // the pill already says this to VoiceOver
+          }
+
           content
             .padding(.top, 4)
           // Treat the dynamic content as its own “section” for VO navigation

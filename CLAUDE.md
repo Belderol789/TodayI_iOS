@@ -87,7 +87,10 @@ the unread filter applied in memory.
 back over the one-row-per-journaled-day table, which is written on every local save and refilled from
 Firestore once per launch — so the flame costs zero reads and survives a reinstall. Today being
 missing does *not* break the run (the day isn't over); it renders hollow and muted as the nudge, and
-fills once today is written. `HomeView` computes it before any network await so it paints
+fills once today is written. The pill is shown **at zero too** — hiding it meant a new user never
+discovered the mechanic — reading "Start" rather than a bare 0, with a caption under the header. Both
+it and the Profile button are `.fixedSize()`; the title flexes, because the wider "Start" label
+otherwise wraps "Today's Memory" onto two lines. `HomeView` computes it before any network await so it paints
 immediately, then again after the imports. It is deliberately free: a paywalled streak would work
 against the retention it exists to create.
 
