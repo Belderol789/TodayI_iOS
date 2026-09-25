@@ -67,6 +67,33 @@ extension NotificationManager {
     return true
   }
 
+#if DEBUG
+  /// Fires the check-in locally in a few seconds so the mood buttons can be tested
+  /// without waiting for 8pm — or for a functions deploy, since the server push
+  /// can't be triggered from the device at all.
+  func debugSendCheckInPreview(after seconds: TimeInterval = 5) async {
+    _ = await configure()   // no-op if already authorised; prompts if not
+
+    let content = UNMutableNotificationContent()
+    content.title = "How was your day?"
+    content.body = "Log a quick memory in TodayI."
+    content.sound = .default
+    content.categoryIdentifier = DailyCheckIn.category
+
+    let request = UNNotificationRequest(
+      identifier: "debug-checkin-\(UUID().uuidString)",
+      content: content,
+      trigger: UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false)
+    )
+    do {
+      try await UNUserNotificationCenter.current().add(request)
+      print("🧪 Check-in preview scheduled in \(Int(seconds))s — background the app to see it")
+    } catch {
+      print("❌ Could not schedule check-in preview:", error)
+    }
+  }
+#endif
+
   /// Writes a mood-only memory for today, private by default.
   ///
   /// Private because a one-tap answer is not an informed choice to publish. Mood-only

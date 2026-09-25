@@ -7,6 +7,7 @@ import UserNotifications
 struct SettingsView: View {
   @EnvironmentObject private var auth: AuthStore
   @EnvironmentObject private var entitlements: EntitlementStore
+  @Environment(\.swiftDataManager) private var swiftManager
   @Environment(\.dismiss) private var dismiss
   
   @AppStorage("requireFaceID") private var requireFaceID = false
@@ -130,12 +131,37 @@ struct SettingsView: View {
           get: { entitlements.devForcePremium },
           set: { entitlements.devForcePremium = $0 }
         ))
+
+        // The check-in otherwise only arrives at 8pm local, and the server push
+        // additionally needs a functions deploy — neither is testable on demand.
+        Button("Send check-in notification (5s)") {
+          Task {
+            await NotificationManager.shared.debugSendCheckInPreview()
+            dismiss()   // so the app can be backgrounded to see the banner
+          }
+        }
+
+        // The streak states depend on which days already have entries, so they
+        // can't be reached by tapping around on a single day.
+        Button("Seed 7-day streak (today logged)") {
+          swiftManager?.debugSeedStreak(count: 7, includingToday: true)
+        }
+        Button("Seed 3-day streak (today still open)") {
+          swiftManager?.debugSeedStreak(count: 3, includingToday: false)
+        }
+        Button("Clear local mood days", role: .destructive) {
+          swiftManager?.debugClearMoodDays()
+        }
       } header: {
         Text("Developer")
       } footer: {
-        Text(entitlements.isPremium
-             ? "Premium is ON. Turn this off to see the free-tier gates."
-             : "Premium is OFF — free-tier gates are active.")
+        Text("""
+        \(entitlements.isPremium
+          ? "Premium is ON. Turn this off to see the free-tier gates."
+          : "Premium is OFF — free-tier gates are active.")
+
+        Seeding writes mood days locally only — no posts, nothing uploaded. Existing         days are never overwritten. Clearing removes the local cache; Calendar         pull-to-refresh restores it from Firestore.
+        """)
       }
       #endif
 
