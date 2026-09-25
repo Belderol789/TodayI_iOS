@@ -227,8 +227,15 @@ Per-user notifications (comment and like milestones in `socialMilestones.ts`) us
 token specified before fetching FCM Token"). On a cold launch the FCM *registration* token normally
 arrives first, so subscribes fired from `didReceiveRegistrationToken` were silently lost with no
 retry — `user_{uid}` included, which is the only path for like and comment milestones. The queue
-parks topics until `AppDelegate` calls `apnsTokenDidRegister()`, then flushes. Calling
-`Messaging.messaging().subscribe` directly reintroduces the bug. Topic keys in `UserDefaults` store
+parks topics until `AppDelegate` calls `apnsTokenDidRegister()`, then flushes. **Unsubscribe needs
+the token too** — `enqueueUnsubscribe` exists for that reason; calling
+`Messaging.messaging().subscribe`/`unsubscribe` directly reintroduces the bug.
+
+Equally important: `AppDelegate` calls `registerForRemoteNotificationsIfAuthorized()` on **every**
+launch. `registerForRemoteNotifications()` used to be reachable only from `configure()`, which only
+runs from the first-post prompt — so for anyone who had already granted permission no APNs token
+ever arrived again, the queue never flushed, and push silently stopped working. A launch log showing
+`⏳ Queued …` with no `📡 APNs ready` is that failure. Topic keys in `UserDefaults` store
 the full topic string and are written only after the server accepts the subscribe.
 
 **The daily nudge carries mood buttons.** `NotificationManager_Actions.swift` registers the

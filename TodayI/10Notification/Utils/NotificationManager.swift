@@ -10,6 +10,26 @@ final class NotificationManager: NSObject {
   private var cachedFCMToken: String?
   
   // MARK: - Bootstrap
+
+  /// Registers with APNs when permission was granted in an earlier session, without
+  /// prompting.
+  ///
+  /// `configure()` was the only caller of `registerForRemoteNotifications()`, and it
+  /// only runs from the first-post prompt — so on every later launch no APNs token
+  /// ever arrived, the topic queue never flushed, and push silently stopped working
+  /// for users who had already said yes. Call this on every launch instead.
+  func registerForRemoteNotificationsIfAuthorized() async {
+    let settings = await UNUserNotificationCenter.current().notificationSettings()
+    switch settings.authorizationStatus {
+    case .authorized, .provisional, .ephemeral:
+      await MainActor.run { UIApplication.shared.registerForRemoteNotifications() }
+    default:
+      // Not determined or denied: registering here would be wrong (or a no-op).
+      // `configure()` handles asking, when the app has earned the right to.
+      break
+    }
+  }
+
   func configure() async -> Bool {
     let center = UNUserNotificationCenter.current()
     let current = await center.notificationSettings()
@@ -47,9 +67,14 @@ final class NotificationManager: NSObject {
   // the user denies notifications APNS never registers and the queue simply never
   // drains, which is correct — there is no push to receive.
 
+  private enum TopicOp: String { case subscribe, unsubscribe }
+
   private struct PendingTopic {
+    let op: TopicOp
     let topic: String
-    let persistKey: String?
+    /// Runs only if the server accepts. Persisting eagerly made a failed call look
+    /// done, which left the unsubscribe path aiming at a topic we were never on.
+    let onSuccess: (() -> Void)?
   }
 
   private var isAPNSTokenReady = false
@@ -62,33 +87,49 @@ final class NotificationManager: NSObject {
     guard !pendingTopics.isEmpty else { return }
     let queued = pendingTopics
     pendingTopics.removeAll()
-    print("📡 APNs ready — flushing \(queued.count) queued topic subscription(s)")
-    queued.forEach { performSubscribe(topic: $0.topic, persistKey: $0.persistKey) }
+    print("📡 APNs ready — flushing \(queued.count) queued topic operation(s)")
+    queued.forEach(perform)
   }
 
   /// Subscribes now, or as soon as APNs is available.
   func enqueueSubscribe(topic: String, persistKey: String? = nil) {
-    guard isAPNSTokenReady else {
-      if !pendingTopics.contains(where: { $0.topic == topic }) {
-        pendingTopics.append(PendingTopic(topic: topic, persistKey: persistKey))
-        print("⏳ Queued topic until APNs is ready:", topic)
-      }
-      return
-    }
-    performSubscribe(topic: topic, persistKey: persistKey)
+    enqueue(PendingTopic(op: .subscribe, topic: topic, onSuccess: persistKey.map { key in
+      { UserDefaults.standard.set(topic, forKey: key) }
+    }))
   }
 
-  private func performSubscribe(topic: String, persistKey: String?) {
-    Messaging.messaging().subscribe(toTopic: topic) { error in
+  /// Unsubscribes now, or as soon as APNs is available. **Unsubscribe needs the APNs
+  /// token just as much as subscribe does** — calling Messaging directly fails with
+  /// the same 505 and, because nothing retries, silently leaves the device on a topic.
+  func enqueueUnsubscribe(topic: String, onSuccess: (() -> Void)? = nil) {
+    enqueue(PendingTopic(op: .unsubscribe, topic: topic, onSuccess: onSuccess))
+  }
+
+  private func enqueue(_ pending: PendingTopic) {
+    guard isAPNSTokenReady else {
+      // A later op on the same topic supersedes an earlier one, so a queued
+      // subscribe followed by an unsubscribe doesn't run both.
+      pendingTopics.removeAll { $0.topic == pending.topic }
+      pendingTopics.append(pending)
+      print("⏳ Queued \(pending.op.rawValue) until APNs is ready:", pending.topic)
+      return
+    }
+    perform(pending)
+  }
+
+  private func perform(_ pending: PendingTopic) {
+    let handler: (Error?) -> Void = { error in
       if let error {
-        print("❌ Topic subscribe failed (\(topic)):", error)
+        print("❌ Topic \(pending.op.rawValue) failed (\(pending.topic)):", error)
         return
       }
-      print("✅ Subscribed to topic:", topic)
-      // Only remember it once the server actually accepted the subscription;
-      // persisting eagerly meant a failed subscribe still looked done, and the
-      // unsubscribe path would later target a topic we were never on.
-      if let persistKey { UserDefaults.standard.set(topic, forKey: persistKey) }
+      print("✅ \(pending.op.rawValue.capitalized)d topic:", pending.topic)
+      pending.onSuccess?()
+    }
+
+    switch pending.op {
+    case .subscribe:   Messaging.messaging().subscribe(toTopic: pending.topic, completion: handler)
+    case .unsubscribe: Messaging.messaging().unsubscribe(fromTopic: pending.topic, completion: handler)
     }
   }
 
@@ -106,12 +147,7 @@ final class NotificationManager: NSObject {
   private func unsubscribeFromLegacyGeneralTopicOnce() {
     let key = "didUnsubscribeGeneralTopic"
     guard !UserDefaults.standard.bool(forKey: key) else { return }
-    Messaging.messaging().unsubscribe(fromTopic: "general") { error in
-      if let error {
-        print("⚠️ Could not unsubscribe from legacy 'general' topic:", error)
-        return
-      }
-      print("🧹 Unsubscribed from legacy 'general' topic")
+    enqueueUnsubscribe(topic: "general") {
       UserDefaults.standard.set(true, forKey: key)
     }
   }
@@ -134,11 +170,7 @@ final class NotificationManager: NSObject {
     let last = UserDefaults.standard.string(forKey: key)
     guard last != topic else { return }
 
-    if let last {
-      Messaging.messaging().unsubscribe(fromTopic: last) { _ in
-        print("Unsubscribed from \(last)")
-      }
-    }
+    if let last { enqueueUnsubscribe(topic: last) }
     enqueueSubscribe(topic: topic, persistKey: key)
   }
   

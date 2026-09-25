@@ -18,6 +18,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     // Must be registered before any notification carrying this category arrives,
     // otherwise iOS shows it with no buttons.
     NotificationManager.shared.registerNotificationCategories()
+    // Without this, APNs only ever registered during the first-post prompt, so the
+    // queued topic subscriptions never flushed on subsequent launches.
+    Task { await NotificationManager.shared.registerForRemoteNotificationsIfAuthorized() }
     return true
   }
   

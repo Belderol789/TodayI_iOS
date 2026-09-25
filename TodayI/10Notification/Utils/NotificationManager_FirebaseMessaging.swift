@@ -19,10 +19,8 @@ extension NotificationManager {
     let key = "lastUserTopicUid"
     // Holds the full topic ("user_<uid>"), written only after a subscribe succeeds.
     guard let topic = UserDefaults.standard.string(forKey: key) else { return }
-    Messaging.messaging().unsubscribe(fromTopic: topic) { err in
-      if let err = err { print("user topic unsubscribe failed:", err) }
-      else { print("Unsubscribed from", topic) }
+    enqueueUnsubscribe(topic: topic) {
+      UserDefaults.standard.removeObject(forKey: key)
     }
-    UserDefaults.standard.removeObject(forKey: key)
   }
 }
