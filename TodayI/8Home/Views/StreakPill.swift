@@ -16,8 +16,6 @@ struct StreakPill: View {
   /// should also be the shortcut. No-op once today is logged.
   var onTap: (() -> Void)? = nil
 
-  private var hasStreak: Bool { streak.days > 0 }
-
   /// Lit once today is written; hollow and muted while the streak is at risk or
   /// not yet started, which is the whole nudge.
   private var tint: Color {
@@ -32,17 +30,10 @@ struct StreakPill: View {
         Image(systemName: streak.loggedToday ? "flame.fill" : "flame")
           .font(.subheadline.weight(.semibold))
 
-        if hasStreak {
-          Text("\(streak.days)")
-            .font(.subheadline.weight(.bold))
-            .monospacedDigit()
-            .contentTransition(.numericText())
-        } else {
-          // "Start" rather than a bare 0 — a zero reads as failure, and the header
-          // has no room for a longer phrase beside the title and Profile button.
-          Text("Start")
-            .font(.subheadline.weight(.semibold))
-        }
+        Text("\(streak.days)")
+          .font(.subheadline.weight(.bold))
+          .monospacedDigit()
+          .contentTransition(.numericText())
       }
       .foregroundStyle(tint)
       .padding(.horizontal, 12)
@@ -60,7 +51,7 @@ struct StreakPill: View {
   }
 
   private var accessibilityText: String {
-    guard hasStreak else { return "No streak yet. Post today to start one." }
+    guard streak.days > 0 else { return "No streak yet. Post today to start one." }
     let base = streak.days == 1 ? "1 day streak" : "\(streak.days) day streak"
     return streak.loggedToday
     ? "\(base). Today is logged."
