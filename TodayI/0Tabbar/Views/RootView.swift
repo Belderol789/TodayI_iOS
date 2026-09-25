@@ -28,13 +28,13 @@ struct RootView: View {
     ZStack {
       switch selection {
       case .home:
-        HomeView()
+        HomeView(tabSelection: $selection)
       case .calendar:
         CalendarView(tabSelection: $selection)
       case .create:
-        CreateMemoryView()
+        CreateMemoryView(tabSelection: $selection)
       case .global:
-        GlobalFeedView(vm: globalFeedVM, tabSelection: $selection)
+        GlobalFeedView(tabSelection: $selection)
       case .notifications:
         NotificationView(tabSelection: $selection)
       }
@@ -47,6 +47,9 @@ struct RootView: View {
           .transition(.move(edge: .bottom).combined(with: .opacity))
       }
     }
+    // Shared so `CreateMemoryView` can hand a just-posted public memory straight to
+    // the feed, and so the feed itself survives tab switches.
+    .environmentObject(globalFeedVM)
     .animation(.easeInOut(duration: 0.2), value: auth.hideTabBar)
   }
 }

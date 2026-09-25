@@ -9,6 +9,8 @@ struct CreateMemoryView: View {
   @EnvironmentObject private var auth: AuthStore
   @Environment(\.modelContext) private var context
   @Environment(\.swiftDataManager) private var swiftManager
+  @EnvironmentObject private var globalFeed: GlobalFeedViewModel
+  @Binding var tabSelection: AppTab
   @Environment(\.dismiss) private var dismiss
   @Environment(\.openURL) private var openURL
   @Environment(\.colorScheme) private var scheme
@@ -622,9 +624,23 @@ struct CreateMemoryView: View {
           username: username,
           remoteProfilePhotoURL: auth.photoURL
         ) as MemoryModel? {
-          postedMemory = model
-          showPreview = true
           vm.clearAll()
+          refreshTodayMemoryCount()
+
+          if model.isPublic {
+            // A public post belongs in the feed, not behind a modal. Hand it to the
+            // shared feed model so it's already at the top when the tab appears —
+            // the upload is async and the feed query has no ordering, so waiting on
+            // the server would be slower and wouldn't put it first anyway.
+            globalFeed.prepend(MemoryDTO(from: model))
+            tabSelection = .global
+            // The notification prompt normally rides on the preview's dismissal,
+            // which never happens down this path.
+            handlePreviewDismiss()
+          } else {
+            postedMemory = model
+            showPreview = true
+          }
         }
       } catch {
         print("Save failed: \(error)")

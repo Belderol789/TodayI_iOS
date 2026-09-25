@@ -9,7 +9,7 @@ struct GlobalFeedView: View {
   /// Owned by `RootView`, not by this view. The tab bar rebuilds `GlobalFeedView`
   /// on every visit, so a `@StateObject` here meant a fresh view model and a full
   /// re-read of the feed each time you came back.
-  @ObservedObject var vm: GlobalFeedViewModel
+  @EnvironmentObject private var vm: GlobalFeedViewModel
   @Binding var tabSelection: AppTab
   @State private var showPremium = false
 
@@ -20,8 +20,7 @@ struct GlobalFeedView: View {
     vm.rows.filter { !blockedIDs.contains($0.userID) }
   }
 
-  init(vm: GlobalFeedViewModel, tabSelection: Binding<AppTab>) {
-    self.vm = vm
+  init(tabSelection: Binding<AppTab>) {
     _tabSelection = tabSelection
   }
 

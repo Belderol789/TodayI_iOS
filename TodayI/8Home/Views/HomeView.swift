@@ -7,6 +7,9 @@ struct HomeView: View {
   @EnvironmentObject private var auth: AuthStore
   @Environment(\.modelContext) private var context
   @Environment(\.swiftDataManager) private var swiftManager
+  /// Needed so the Create screen pushed from here can send the user to the feed
+  /// after a public post, the same as the Create tab does.
+  @Binding var tabSelection: AppTab
   @State private var memories: [MemoryModel] = []
   @State private var yearModels: [DateModel] = []
   @State private var randomMemory: MemoryModel?
@@ -137,7 +140,7 @@ struct HomeView: View {
       }
       .accessibilityLabel("Home")
       .navigationDestination(isPresented: $navigateToCreate) {
-        CreateMemoryView()
+        CreateMemoryView(tabSelection: $tabSelection)
           .accessibilityLabel("Create a Memory")
       }
       .onAppear {

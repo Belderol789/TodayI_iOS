@@ -75,10 +75,17 @@ old negative-horizontal-padding bleed hack.
 `ZStack`. `auth.hideTabBar` is the global escape hatch for full-screen surfaces (comment thread);
 set it on appear, clear it on disappear.
 
-**The World feed is loaded once per launch.** `RootView` owns `GlobalFeedViewModel` so the model
-survives tab switches — it used to be a `@StateObject` inside `GlobalFeedView`, and since the custom
-tab bar tears down non-selected tabs, every visit rebuilt it and re-read a 30-document page plus the
-mood tally. `.task` calls `loadIfNeeded()`, which returns early unless the feed is empty or the
+**The World feed is loaded once per launch.** `RootView` owns `GlobalFeedViewModel` and injects it as
+an `@EnvironmentObject` so the model survives tab switches — it used to be a `@StateObject` inside
+`GlobalFeedView`, and since the custom tab bar tears down non-selected tabs, every visit rebuilt it
+and re-read a 30-document page plus the mood tally. `CreateMemoryView` reads the same object: posting
+a **public** memory skips the preview modal, calls `prepend(_:)` and switches to the Global tab, so
+the post is already on top when the tab appears. That is local on purpose — the upload is
+fire-and-forget so the document may not exist server-side yet, and `fetchPublicMemories` has **no
+`order(by:)`**, so rows come back in document-ID (UUID) order and a re-fetch wouldn't put it first
+anyway. `justPosted` is re-merged after every refresh until the server returns the row. Ordering the
+feed by `createdAt` would need a composite index on (`isPublic`, `dayKey`, `createdAt`) in the
+console. A **private** post still shows the preview modal. `.task` calls `loadIfNeeded()`, which returns early unless the feed is empty or the
 calendar day rolled over; pull-to-refresh and `loadMore` still go to the network deliberately. The
 notification inbox follows the same idea: one snapshot listener, no redundant one-shot fetch, and
 the unread filter applied in memory.

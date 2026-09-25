@@ -16,6 +16,14 @@ struct PrivacyBadge: View {
   var compact: Bool = false
   @Environment(\.colorScheme) private var scheme
 
+  /// Compact mode shows its word only just after a toggle, then collapses back to
+  /// the icon. An icon-only switch leaves people guessing which state they just
+  /// chose; a permanent label doesn't fit the navigation bar. This says it, briefly.
+  @State private var showTransientLabel = false
+  @State private var labelTask: Task<Void, Never>?
+
+  private var transientLabel: String { isPublic ? "Global" : "Personal" }
+
   var body: some View {
     Button {
       withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -28,6 +36,11 @@ struct PrivacyBadge: View {
         if !compact {
           Text(isPublic ? "Public" : "Private")
             .font(.subheadline.weight(.semibold))
+        } else if showTransientLabel {
+          Text(transientLabel)
+            .font(.subheadline.weight(.semibold))
+            .fixedSize()
+            .transition(.opacity.combined(with: .move(edge: .trailing)))
         }
       }
       .foregroundStyle(.white)
@@ -41,12 +54,33 @@ struct PrivacyBadge: View {
       .animation(.easeOut(duration: 0.15), value: isPublic)
     }
     .buttonStyle(.plain)
+    .onChange(of: isPublic) { _, _ in
+      guard compact else { return }
+      revealLabelBriefly()
+    }
+    .onDisappear { labelTask?.cancel() }
     // Carries the meaning when `compact` hides the word. Callers that set their own
     // label (MemoryRow) still override these.
     .accessibilityLabel("Privacy")
     .accessibilityValue(isPublic ? "Public" : "Private")
     .accessibilityHint(isPublic ? "Double tap to make this private."
                                 : "Double tap to make this public.")
+  }
+
+  /// Slides the word in, holds, slides it out. Re-toggling restarts the timer
+  /// rather than stacking hides on top of each other.
+  private func revealLabelBriefly() {
+    labelTask?.cancel()
+    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+      showTransientLabel = true
+    }
+    labelTask = Task { @MainActor in
+      try? await Task.sleep(for: .seconds(1.6))
+      guard !Task.isCancelled else { return }
+      withAnimation(.easeInOut(duration: 0.25)) {
+        showTransientLabel = false
+      }
+    }
   }
 
   private var shadowColor: Color {

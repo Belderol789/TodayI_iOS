@@ -69,8 +69,9 @@ final class GlobalFeedViewModel: ObservableObject {
         self.reachedEnd = page.items.isEmpty
         updateGlobalTally(from: counts)
       }
-      
-      applyFilter()
+
+      // Keep the user's own just-posted memories on top until the server returns them.
+      mergeJustPosted()
     } catch {
       errorText = error.localizedDescription
       print("⚠️ GlobalFeedViewModel.refresh failed:", error)
@@ -84,6 +85,36 @@ final class GlobalFeedViewModel: ObservableObject {
 
   /// True once a live load has populated the feed for `day`.
   private var hasLoaded = false
+
+  /// Memories posted from this device that the server query hasn't returned yet.
+  /// Kept so a refresh doesn't make the user's own post vanish from under them.
+  private var justPosted: [MemoryDTO] = []
+
+  /// Puts a memory the user just posted at the top of the feed immediately.
+  ///
+  /// Two reasons this is local rather than a re-fetch: the upload is fire-and-forget
+  /// so the document may not exist server-side yet, and `fetchPublicMemories` has no
+  /// `order(by:)` — results come back in document-ID order, which is a UUID, so even
+  /// a successful re-fetch wouldn't put the new post anywhere near the top.
+  func prepend(_ dto: MemoryDTO) {
+    guard dto.isPublic, Calendar.current.isDate(dto.date, inSameDayAs: day) else { return }
+    justPosted.removeAll { $0.id == dto.id }
+    justPosted.insert(dto, at: 0)
+    mergeJustPosted()
+    // Stops `loadIfNeeded` from immediately replacing this with a server page that
+    // doesn't contain it yet; pull-to-refresh still forces a real load.
+    hasLoaded = true
+  }
+
+  /// Re-applies local posts on top of whatever the server returned, dropping any the
+  /// server has caught up on so they aren't shown twice.
+  private func mergeJustPosted() {
+    guard !justPosted.isEmpty else { applyFilter(); return }
+    let serverIDs = Set(allRows.map(\.id))
+    justPosted.removeAll { serverIDs.contains($0.id) }
+    allRows.insert(contentsOf: justPosted, at: 0)
+    applyFilter()
+  }
 
   /// Loads only when there's nothing to show, or when the calendar day has rolled
   /// over since the last load.
