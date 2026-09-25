@@ -65,9 +65,22 @@ struct TodayIApp: App {
     let context = container.mainContext
     let entitlements = EntitlementStore()
     _store = StateObject(wrappedValue: entitlements)
+    // Left as an autoclosure on purpose: `AuthStore.init` builds a Firestore handle,
+    // and StateObject defers evaluation until the view installs it — which happens
+    // after `FirebaseApp.configure()`. Hoisting it into a `let` here crashes at
+    // launch with FIRIllegalStateException.
     _authStore = StateObject(wrappedValue: AuthStore(context: context))
     _iapStore = StateObject(wrappedValue: IAPStore(entitlements: entitlements))
     manager = SwiftDataManager(context: context, store: entitlements)
+
+    // Reachable from AppDelegate, which handles notification actions and has no
+    // access to the SwiftUI environment. Only Firebase-free stores go here — the
+    // action handler reads the uid from FirebaseAuth directly, so it works even on a
+    // background launch where no scene, and therefore no AuthStore, ever exists.
+    MainActor.assumeIsolated {
+      AppServices.shared.swiftDataManager = manager
+      AppServices.shared.entitlements = entitlements
+    }
   }
 
   var body: some Scene {

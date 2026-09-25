@@ -45,7 +45,9 @@ export const sendDaily8pmByTZ = onSchedule(
           type: "daily_journal_prompt",
           deeplink: "todayi://new-memory",
         },
-        apns: { payload: { aps: { sound: "default" } } },
+        // `category` must match NotificationManager.DailyCheckIn.category so the
+        // mood buttons appear on this push, not just the local reminder.
+        apns: { payload: { aps: { sound: "default", category: "DAILY_CHECKIN" } } },
       };
 
       console.log(`📤 Sending to ${topic}`);

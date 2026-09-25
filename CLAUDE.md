@@ -217,6 +217,21 @@ parks topics until `AppDelegate` calls `apnsTokenDidRegister()`, then flushes. C
 `Messaging.messaging().subscribe` directly reintroduces the bug. Topic keys in `UserDefaults` store
 the full topic string and are written only after the server accepts the subscribe.
 
+**The daily nudge carries mood buttons.** `NotificationManager_Actions.swift` registers the
+`DAILY_CHECKIN` category — three moods plus "Something else…", because iOS shows only about four
+actions. Tapping a mood writes a **private, mood-only** memory for today without foregrounding the
+app, and posts `.memoryDidChangeLocally` so Home refreshes its card and streak; without that the UI
+keeps insisting today is empty. Two constraints hold this together:
+
+- The handler reads the uid from `Auth.auth().currentUser`, not `AuthStore`. A notification action
+  can launch the app into the background where no SwiftUI scene — and therefore no `AuthStore` —
+  ever exists. `AppServices` bridges the delegate to `SwiftDataManager`/`EntitlementStore`, and only
+  Firebase-free stores may go in it: `AuthStore.init` builds a Firestore handle, so constructing it
+  during `TodayIApp.init` crashes with `FIRIllegalStateException` before `FirebaseApp.configure()`
+  runs. `_authStore = StateObject(wrappedValue:)` takes an **autoclosure** and must stay one.
+- The push must carry `apns.payload.aps.category = "DAILY_CHECKIN"` (see `dailyByTz.ts`) or the
+  buttons appear only on the local reminder. **Requires a functions deploy to take effect.**
+
 ## Auth
 
 Anonymous by default — first launch creates a Firebase anonymous user with a `guest-XXXX` username

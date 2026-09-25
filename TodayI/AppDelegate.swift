@@ -15,6 +15,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     StartupDiagnostics.flush()
     UNUserNotificationCenter.current().delegate = self
     Messaging.messaging().delegate = self
+    // Must be registered before any notification carrying this category arrives,
+    // otherwise iOS shows it with no buttons.
+    NotificationManager.shared.registerNotificationCategories()
     return true
   }
   
@@ -34,8 +37,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
   
   func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
     print("Tapped notification:", response.notification.request.identifier,
-          response.notification.request.content.userInfo)
-    completionHandler()
+          response.notification.request.content.userInfo,
+          "action:", response.actionIdentifier)
+    // A mood button writes the entry and leaves the user where they were; anything
+    // else falls through to the default open behaviour.
+    Task { @MainActor in
+      await NotificationManager.shared.handleNotificationResponse(response)
+      completionHandler()
+    }
   }
   
   func userNotificationCenter(_ center: UNUserNotificationCenter,

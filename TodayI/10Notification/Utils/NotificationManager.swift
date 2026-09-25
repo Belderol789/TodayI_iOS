@@ -158,6 +158,8 @@ final class NotificationManager: NSObject {
     content.title = title
     content.body = body
     content.sound = .default
+    // Gives the reminder its mood buttons.
+    content.categoryIdentifier = DailyCheckIn.category
     
     var dateComponents = DateComponents()
     dateComponents.hour = hour
@@ -193,6 +195,8 @@ final class NotificationManager: NSObject {
     content.title = title
     content.body = body
     content.sound = .default
+    // Gives the reminder its mood buttons.
+    content.categoryIdentifier = DailyCheckIn.category
     
     let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
     let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)

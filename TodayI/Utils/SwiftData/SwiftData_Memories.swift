@@ -37,6 +37,25 @@ extension SwiftDataManager {
     return store.isPremium ? rows : (rows.last.map { [$0] } ?? [])
   }
   
+  /// The cached profile row, if this device has one. Used by paths that must not
+  /// touch the network, such as the notification mood actions.
+  func localUser(id: String) -> UserModel? {
+    var fetch = FetchDescriptor<UserModel>(predicate: #Predicate { $0.id == id })
+    fetch.fetchLimit = 1
+    return (try? context.fetch(fetch))?.first
+  }
+
+  /// Cheap existence check for today, used by the notification mood actions before
+  /// they write — the app may be running in the background with no view loaded.
+  func hasMemoryToday(userID: String, in tz: TimeZone = .current) -> Bool {
+    let key = Date().today.formattedDayKeyLocal(in: tz)
+    var fetch = FetchDescriptor<MemoryModel>(
+      predicate: #Predicate { $0.dayKey == key && $0.userID == userID }
+    )
+    fetch.fetchLimit = 1
+    return ((try? context.fetch(fetch).first) ?? nil) != nil
+  }
+
   func fetchAllMemories() throws -> [MemoryModel] {
     let fetch = FetchDescriptor<MemoryModel>()
     return try context.fetch(fetch)

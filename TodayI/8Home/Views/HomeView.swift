@@ -160,6 +160,14 @@ struct HomeView: View {
           refreshStreak()
         }
       }
+      // A mood logged from a notification lands straight in SwiftData, bypassing
+      // every view lifecycle hook — so refresh today's card and the streak on it.
+      .onReceive(NotificationCenter.default.publisher(for: .memoryDidChangeLocally)) { _ in
+        Task {
+          await load(dayKey: dayKey)
+          refreshStreak()
+        }
+      }
       .onChange(of: auth.userID) { _, _ in
         Task {
           await loadTodayMemories()
