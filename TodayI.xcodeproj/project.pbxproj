@@ -27,10 +27,40 @@
 		9C6658392E6B2BC000354821 /* FirebaseStorageCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = 9C6658382E6B2BC000354821 /* FirebaseStorageCombine-Community */; };
 		9C6B01562FEC6A3F00B59C5D /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 9C6B01552FEC6A3F00B59C5D /* GoogleSignIn */; };
 		9C6B01582FEC6A3F00B59C5D /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 9C6B01572FEC6A3F00B59C5D /* GoogleSignInSwift */; };
+		9C983F283066A9EF00CB249A /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9C983F273066A9EF00CB249A /* WidgetKit.framework */; };
+		9C983F2A3066A9EF00CB249A /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9C983F293066A9EF00CB249A /* SwiftUI.framework */; };
+		9C983F393066A9F100CB249A /* TodayIWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9C983F263066A9EE00CB249A /* TodayIWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		9C983F373066A9F100CB249A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9CBE3C4F2E68134D007D4772 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9C983F253066A9EE00CB249A;
+			remoteInfo = TodayIWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		9C983F3E3066A9F100CB249A /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				9C983F393066A9F100CB249A /* TodayIWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		9C54A1862EA7E81E00BE4D00 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		9C983F263066A9EE00CB249A /* TodayIWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TodayIWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		9C983F273066A9EF00CB249A /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		9C983F293066A9EF00CB249A /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		9CBE3C572E68134D007D4772 /* TodayI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TodayI.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -42,9 +72,24 @@
 			);
 			target = 9CBE3C562E68134D007D4772 /* TodayI */;
 		};
+		9C983F3D3066A9F100CB249A /* Exceptions for "TodayIWidget" folder in "TodayIWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 9C983F253066A9EE00CB249A /* TodayIWidgetExtension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		9C983F2B3066A9EF00CB249A /* TodayIWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				9C983F3D3066A9F100CB249A /* Exceptions for "TodayIWidget" folder in "TodayIWidgetExtension" target */,
+			);
+			path = TodayIWidget;
+			sourceTree = "<group>";
+		};
 		9CBE3C592E68134D007D4772 /* TodayI */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -56,6 +101,15 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		9C983F233066A9EE00CB249A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9C983F2A3066A9EF00CB249A /* SwiftUI.framework in Frameworks */,
+				9C983F283066A9EF00CB249A /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9CBE3C542E68134D007D4772 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -90,6 +144,8 @@
 			isa = PBXGroup;
 			children = (
 				9C54A1862EA7E81E00BE4D00 /* StoreKit.framework */,
+				9C983F273066A9EF00CB249A /* WidgetKit.framework */,
+				9C983F293066A9EF00CB249A /* SwiftUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -98,6 +154,7 @@
 			isa = PBXGroup;
 			children = (
 				9CBE3C592E68134D007D4772 /* TodayI */,
+				9C983F2B3066A9EF00CB249A /* TodayIWidget */,
 				9C54A1852EA7E81E00BE4D00 /* Frameworks */,
 				9CBE3C582E68134D007D4772 /* Products */,
 			);
@@ -107,6 +164,7 @@
 			isa = PBXGroup;
 			children = (
 				9CBE3C572E68134D007D4772 /* TodayI.app */,
+				9C983F263066A9EE00CB249A /* TodayIWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -114,6 +172,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		9C983F253066A9EE00CB249A /* TodayIWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9C983F3A3066A9F100CB249A /* Build configuration list for PBXNativeTarget "TodayIWidgetExtension" */;
+			buildPhases = (
+				9C983F223066A9EE00CB249A /* Sources */,
+				9C983F233066A9EE00CB249A /* Frameworks */,
+				9C983F243066A9EE00CB249A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				9C983F2B3066A9EF00CB249A /* TodayIWidget */,
+			);
+			name = TodayIWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = TodayIWidgetExtension;
+			productReference = 9C983F263066A9EE00CB249A /* TodayIWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		9CBE3C562E68134D007D4772 /* TodayI */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 9CBE3C672E681350007D4772 /* Build configuration list for PBXNativeTarget "TodayI" */;
@@ -121,10 +201,12 @@
 				9CBE3C532E68134D007D4772 /* Sources */,
 				9CBE3C542E68134D007D4772 /* Frameworks */,
 				9CBE3C552E68134D007D4772 /* Resources */,
+				9C983F3E3066A9F100CB249A /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				9C983F383066A9F100CB249A /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				9CBE3C592E68134D007D4772 /* TodayI */,
@@ -162,9 +244,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1610;
+				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 1610;
 				TargetAttributes = {
+					9C983F253066A9EE00CB249A = {
+						CreatedOnToolsVersion = 26.2;
+					};
 					9CBE3C562E68134D007D4772 = {
 						CreatedOnToolsVersion = 16.1;
 					};
@@ -189,11 +274,19 @@
 			projectRoot = "";
 			targets = (
 				9CBE3C562E68134D007D4772 /* TodayI */,
+				9C983F253066A9EE00CB249A /* TodayIWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		9C983F243066A9EE00CB249A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9CBE3C552E68134D007D4772 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -204,6 +297,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		9C983F223066A9EE00CB249A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9CBE3C532E68134D007D4772 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -213,7 +313,79 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		9C983F383066A9F100CB249A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9C983F253066A9EE00CB249A /* TodayIWidgetExtension */;
+			targetProxy = 9C983F373066A9F100CB249A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		9C983F3B3066A9F100CB249A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = TodayIWidget/TodayIWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XUN95V9WDZ;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TodayIWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TodayIWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kuzostudiosph.TodayI.TodayIWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		9C983F3C3066A9F100CB249A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = TodayIWidget/TodayIWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XUN95V9WDZ;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TodayIWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TodayIWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kuzostudiosph.TodayI.TodayIWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		9CBE3C652E681350007D4772 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -426,6 +598,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		9C983F3A3066A9F100CB249A /* Build configuration list for PBXNativeTarget "TodayIWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9C983F3B3066A9F100CB249A /* Debug */,
+				9C983F3C3066A9F100CB249A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		9CBE3C522E68134D007D4772 /* Build configuration list for PBXProject "TodayI" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

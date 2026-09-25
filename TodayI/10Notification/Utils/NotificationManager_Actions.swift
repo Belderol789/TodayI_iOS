@@ -116,6 +116,9 @@ extension NotificationManager {
       print("✅ Logged \(mood.rawValue) from notification")
       // Home may already be on screen; without this it keeps insisting today is empty.
       NotificationCenter.default.post(name: .memoryDidChangeLocally, object: nil)
+      // The app may never foreground on this path, so refresh the widget here rather
+      // than waiting for a view to appear.
+      manager.refreshStreakSnapshot()
     } catch {
       print("❌ Failed to log mood from notification:", error)
     }

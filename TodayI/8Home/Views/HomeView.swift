@@ -311,7 +311,7 @@ private extension HomeView {
   func refreshStreak() {
     guard let swiftManager else { return }
     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-      streak = swiftManager.currentStreak()
+      streak = swiftManager.refreshStreakSnapshot()
     }
   }
 

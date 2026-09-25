@@ -19,6 +19,17 @@ struct StreakInfo: Equatable {
 }
 
 extension SwiftDataManager {
+  /// Computes the streak and publishes it to the widget in one step.
+  ///
+  /// Single entry point on purpose: every caller that recomputes the streak should
+  /// also refresh the widget, and splitting the two invites one to drift.
+  @discardableResult
+  func refreshStreakSnapshot(asOf now: Date = Date()) -> StreakInfo {
+    let info = currentStreak(asOf: now)
+    StreakSnapshot.write(days: info.days, loggedToday: info.loggedToday)
+    return info
+  }
+
   /// Counts back from today over `DateModel`, which holds one row per day the user
   /// recorded a mood. That table is written on every local save and refilled from
   /// Firestore once per launch, so the streak costs no reads and survives a reinstall.

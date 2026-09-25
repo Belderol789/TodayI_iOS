@@ -100,6 +100,20 @@ are `.fixedSize()` and the title flexes, so a wider label can't wrap "Today's Me
 immediately, then again after the imports. It is deliberately free: a paywalled streak would work
 against the retention it exists to create.
 
+**The widget reads a snapshot, not the store.** `TodayIWidget` is a separate process and can only
+reach an App Group container, so rather than migrating the SwiftData store into one — a real
+migration on a shipped app whose container has already failed to open once — the app publishes three
+values (`streak.days`, `streak.loggedToday`, `streak.updatedAt`) into
+`UserDefaults(suiteName: "group.com.kuzostudiosph.TodayI")`.
+`SwiftDataManager.refreshStreakSnapshot()` computes and publishes in one step and is the only thing
+callers should use; it also calls `WidgetCenter.reloadTimelines`. The contract is **duplicated** in
+`TodayIWidget/StreakSnapshotReader.swift` because sharing one file across two synchronised folder
+groups means hand-editing the Xcode project — three string literals are cheaper to keep in step than
+a corrupted `project.pbxproj`, but they must be kept in step, along with
+`StreakSnapshot.widgetKind` ↔ `TodayIWidget.kind`. Entitlements are committed for both targets;
+**device and TestFlight builds also need App Groups ticked in Signing & Capabilities** so the
+provisioning profile carries it. Simulator works without.
+
 **Date syncing is once per launch.** `SwiftDataManager.needsDateSync` / `markDatesSynced()` gate a
 single `fetchDates` per launch, shared by Home and Calendar — whichever appears first pays for it.
 This was once per *install* (callers checked "do we have any `DateModel`"), which meant a day added
