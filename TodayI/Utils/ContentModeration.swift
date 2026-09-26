@@ -4,7 +4,8 @@
 //
 //  Client half of a two-layer filter. This one is fast and bypassable — it exists to
 //  give feedback while someone is still typing. `moderation.ts` re-runs the same
-//  categories server-side on public posts, which is the half that actually enforces.
+//  categories server-side on public posts, reading the same Firestore document, which
+//  is the half that actually enforces.
 //
 
 import Foundation
@@ -36,44 +37,12 @@ enum ContentModeration {
   static let blocking: Set<Finding> = [.hateSpeech, .violentThreat]
 
   // MARK: - Term lists
+  //
+  // Sourced from `ModerationList`, which caches `config/moderation` from Firestore. That
+  // means the lists change by editing one document — no App Store release — and the
+  // server-side enforcer reads the *same* document, so the two layers can't drift.
 
-  /// Clinical and colloquial phrasings that suggest self-harm or suicidal intent.
-  ///
-  /// Tuned to over-match rather than under-match: a false positive costs someone a
-  /// dismissable card of support, a false negative costs the only moment we had to show
-  /// it. Phrases, not single words, so "I could kill for a coffee" doesn't trip it.
-  private static let selfHarmPhrases = [
-    "kill myself", "killing myself", "end my life", "ending my life",
-    "want to die", "wanna die", "better off dead", "no reason to live",
-    "nothing to live for", "take my own life", "suicidal", "suicide",
-    "hurt myself", "hurting myself", "self harm", "self-harm",
-    "cut myself", "cutting myself", "don't want to be here anymore",
-    "dont want to be here anymore", "can't go on", "cant go on"
-  ]
-
-  /// Loaded from `HateTerms.txt` in the bundle rather than hardcoded.
-  ///
-  /// A slur list is a maintenance burden with real consequences in both directions, and
-  /// it should come from a maintained source (Shutterstock's `List-of-Dirty-Naughty-...`
-  /// or a vendor feed) and be updatable without an App Store release. Shipping an empty
-  /// file is honest: the plumbing is live and the list is a content decision.
-  /// **`moderation.ts` holds the authoritative copy — this one is only for fast feedback.**
-  private static let hateTerms: [String] = loadList(named: "HateTerms")
-
-  private static let violentPhrases = [
-    "kill you", "kill him", "kill her", "kill them",
-    "hunt you down", "beat you up", "i will find you",
-    "you should die", "hope you die"
-  ]
-
-  private static func loadList(named name: String) -> [String] {
-    guard let url = Bundle.main.url(forResource: name, withExtension: "txt"),
-          let raw = try? String(contentsOf: url, encoding: .utf8) else { return [] }
-    return raw
-      .split(separator: "\n")
-      .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
-      .filter { !$0.isEmpty && !$0.hasPrefix("#") }
-  }
+  private static var terms: ModerationTerms { ModerationList.current }
 
   // MARK: - Detectors
 
@@ -92,9 +61,10 @@ enum ContentModeration {
     let haystack = normalise(text)
     var findings: Set<Finding> = []
 
-    if selfHarmPhrases.contains(where: haystack.contains) { findings.insert(.selfHarm) }
-    if violentPhrases.contains(where: haystack.contains) { findings.insert(.violentThreat) }
-    if !hateTerms.isEmpty, hateTerms.contains(where: { containsWord($0, in: haystack) }) {
+    let list = terms
+    if list.selfHarmPhrases.contains(where: haystack.contains) { findings.insert(.selfHarm) }
+    if list.blockedPhrases.contains(where: haystack.contains) { findings.insert(.violentThreat) }
+    if list.hateTerms.contains(where: { containsWord($0, in: haystack) }) {
       findings.insert(.hateSpeech)
     }
     if containsContactDetails(text) { findings.insert(.personalInfo) }

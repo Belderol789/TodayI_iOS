@@ -392,12 +392,29 @@ Keep `normalise()` identical in both or the client will pass text the server the
   a modal would teach them this is a bad place to be honest, which is the opposite of the product.
 - **Contact details** warn before a public post, never block.
 
-The slur list is deliberately empty in both `TodayI/Utils/HateTerms.txt` and `moderation.ts` — it is
-a live content decision that belongs in a maintained source. The server copy is authoritative because
-a functions deploy updates it without an App Store release. `moderatePublicMemory` hides a violating
-post (`isPublic: false`, `moderationHidden: true`) rather than deleting it, and writes the author an
-inbox notification; a post that silently vanishes reads as a bug and teaches nothing. Private
-memories are never scanned.
+**The word lists live in Firestore at `config/moderation`, and both layers read that one
+document.** `ModerationList` fetches it once per launch and caches it in `UserDefaults`;
+`moderation.ts` reads the same doc and caches it on the warm instance for 5 minutes. So a new term
+takes effect within minutes, on both layers, by editing one document — no App Store release and no
+functions deploy. Don't reintroduce a second copy in either place; the whole point is that they
+can't drift.
+
+Shape: `{ version: Int, hateTerms: [String], blockedPhrases: [String], selfHarmPhrases: [String] }`.
+`hateTerms` matches whole-word after leetspeak normalisation (so `h4te` finds `hate`, and no
+variants need listing); `blockedPhrases` matches as a substring so multi-word threats work.
+`version` is for cache invalidation and log legibility only — it is deliberately *not* a separate
+version-check request, because that would cost an extra read to save a read.
+
+`hateTerms` ships empty. Both sides fall back to built-in `blockedPhrases` so a fresh install is
+never completely unfiltered before its first fetch, and both **fail open** on a fetch error: the
+client keeps its cached list, the server keeps its warm one. Failing closed would hide every public
+post in the app over one failed read.
+
+**This needs a rule** — `config/{doc}` is signed-in read, no client write (console edits only).
+
+`moderatePublicMemory` hides a violating post (`isPublic: false`, `moderationHidden: true`) rather
+than deleting it, and writes the author an inbox notification; a post that silently vanishes reads
+as a bug and teaches nothing. Private memories are never scanned.
 
 ## Deletion
 

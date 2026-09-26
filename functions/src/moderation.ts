@@ -17,22 +17,57 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 const REGION = "asia-southeast1";
 
 /**
- * Slurs and dehumanising terms. Intentionally empty in the repo.
+ * The lists, read from `config/moderation` — the same document the client caches through
+ * `ModerationList`. One place to edit, and the two layers cannot drift apart.
  *
- * A slur list is a live content decision with real costs in both directions, and it
- * belongs in a maintained source (a vendor feed, or Shutterstock's
- * List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words) rather than in application
- * code written once and forgotten. Populate it here — a functions deploy updates it
- * without an App Store release, which is the main reason enforcement lives server-side.
+ * Cached on the warm instance so a busy period doesn't pay a read per post. `refreshMs`
+ * bounds how stale that can get: add a term and it takes effect within five minutes
+ * without a deploy, which is the whole point of putting the list in Firestore.
  */
-const HATE_TERMS: string[] = [];
+type Lists = { hateTerms: string[]; blockedPhrases: string[] };
 
-/** Threats aimed at another person. Phrases, so ordinary venting doesn't match. */
-const VIOLENT_PHRASES = [
-  "kill you", "kill him", "kill her", "kill them",
-  "hunt you down", "beat you up", "i will find you",
-  "you should die", "hope you die",
-];
+const FALLBACK: Lists = {
+  hateTerms: [],
+  blockedPhrases: [
+    "kill you", "kill him", "kill her", "kill them",
+    "hunt you down", "beat you up", "i will find you",
+    "you should die", "hope you die",
+  ],
+};
+
+let cached: Lists = FALLBACK;
+let cachedAt = 0;
+const refreshMs = 5 * 60 * 1000;
+
+function clean(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+        .map((v) => v.trim().toLowerCase())
+        .filter(Boolean)
+    : [];
+}
+
+async function lists(): Promise<Lists> {
+  if (Date.now() - cachedAt < refreshMs) return cached;
+  try {
+    const snap = await admin.firestore().collection("config").doc("moderation").get();
+    const data = snap.data();
+    if (data) {
+      cached = {
+        hateTerms: clean(data.hateTerms),
+        blockedPhrases: clean(data.blockedPhrases).length
+          ? clean(data.blockedPhrases)
+          : FALLBACK.blockedPhrases,
+      };
+    }
+    cachedAt = Date.now();
+  } catch (err) {
+    // Keep whatever is cached. Failing open here is right: the alternative is hiding
+    // every public post in the app because one Firestore read failed.
+    console.error("⚠️ moderation list fetch failed, using cached:", err);
+  }
+  return cached;
+}
 
 /**
  * Mirrors `ContentModeration.normalise` — lowercase, strip accents, undo leetspeak,
@@ -61,10 +96,15 @@ function containsWord(term: string, haystack: string): boolean {
 }
 
 /** True when this text may not appear in the Global feed. */
-export function violatesFeedPolicy(text: string): boolean {
+export function violatesWith(text: string, list: Lists): boolean {
   const haystack = normalise(text);
-  if (VIOLENT_PHRASES.some((p) => haystack.includes(p))) return true;
-  return HATE_TERMS.some((t) => containsWord(t, haystack));
+  if (list.blockedPhrases.some((p) => haystack.includes(p))) return true;
+  return list.hateTerms.some((t) => containsWord(t, haystack));
+}
+
+/** Convenience wrapper that fetches (or reuses) the current lists. */
+export async function violatesFeedPolicy(text: string): Promise<boolean> {
+  return violatesWith(text, await lists());
 }
 
 export const moderatePublicMemory = onDocumentWritten(
@@ -90,7 +130,7 @@ export const moderatePublicMemory = onDocumentWritten(
     if (!textChanged && !becamePublic) return;
 
     const text = String(data.journalText ?? "");
-    if (!text || !violatesFeedPolicy(text)) return;
+    if (!text || !(await violatesFeedPolicy(text))) return;
 
     const { uid, memoryId } = event.params;
     console.log(`🚫 hiding public memory ${memoryId} from ${uid} — feed policy`);

@@ -107,6 +107,7 @@ struct TodayIApp: App {
         }
         .task {
           await maintenance.refresh()
+          await ModerationList.refresh()
 
           // Self-heals stores written by builds that stamped dayKey from `Date()`.
           let repaired = manager.repairMismatchedDayKeys()
