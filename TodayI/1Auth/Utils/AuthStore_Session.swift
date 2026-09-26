@@ -59,6 +59,13 @@ extension AuthStore {
         }
 
         syncBlockedUsers(remoteBlocked)
+        // If the server purged this user's backup while Premium was lapsed, every local
+        // memory has to go back in the upload queue — otherwise resubscribing restores
+        // nothing written before the purge.
+        CloudBackupService.reflagIfPurged(
+          backupPrunedAt: (data["backupPrunedAt"] as? Timestamp)?.dateValue(),
+          context: context
+        )
         upsertLocalUser(uid: uid, username: uname, email: email, isAnonymous: isAnon)
         publish(uid: uid, username: uname, email: email, isAnonymous: isAnon, photoURL: photoURL, isRestricted: isRestricted)
         return

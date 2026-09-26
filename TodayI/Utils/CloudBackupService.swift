@@ -104,6 +104,40 @@ enum CloudBackupService {
     }
   }
 
+  // MARK: - Re-flagging after a server-side purge
+
+  private static let prunedMarkerKey = "cloudBackup.lastSeenPrunedAt"
+
+  /// Re-queues every local memory when the server has purged the cloud backup.
+  ///
+  /// Without this, a lapsed-then-resubscribed user silently loses their history.
+  /// `pruneLapsedBackups` deletes the remote copies, but the local records still carry
+  /// `needsCloudBackup == false` from their original upload — so the drain finds nothing
+  /// to do and the old entries are never restored to the backup. The user pays again and
+  /// quietly gets a backup containing only what they wrote *after* resubscribing.
+  ///
+  /// The server stamps `backupPrunedAt`; the client compares it to what it last saw.
+  /// Called from `loadOrCreateProfile`, which already reads the user document, so this
+  /// costs no extra read.
+  @MainActor
+  static func reflagIfPurged(backupPrunedAt: Date?, context: ModelContext) {
+    guard let backupPrunedAt else { return }
+    let seen = UserDefaults.standard.object(forKey: prunedMarkerKey) as? Date
+    guard seen == nil || backupPrunedAt > seen! else { return }
+
+    do {
+      let all = try context.fetch(FetchDescriptor<MemoryModel>())
+      for memory in all where !memory.needsCloudBackup {
+        memory.needsCloudBackup = true
+      }
+      try context.save()
+      UserDefaults.standard.set(backupPrunedAt, forKey: prunedMarkerKey)
+      print("☁️ Cloud backup was purged — re-queued \(all.count) memory(ies)")
+    } catch {
+      print("❌ reflagIfPurged failed:", error)
+    }
+  }
+
   // MARK: - Premium window (for server-side retention)
 
   /// Records that the user currently has Premium, so the retention job on the server can
