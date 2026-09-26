@@ -337,6 +337,17 @@ locked row ("N more memories from this day") that opens Premium. `HomeView` stil
 latest for free users, which is *consistent* rather than hiding: the latest is exactly the one the
 free tier can reach.
 
+**Buying Premium requires a real account** (`PremiumView.needsAccount`). This is the one hard
+sign-in gate in the app and it is deliberate: everything else works anonymously, but Premium's
+headline benefit is cloud backup, and a backup is only as durable as the identity it is filed
+under. An anonymous uid lives in the **Keychain** — it survives deleting the app (which is why a
+reinstall recovers), but not a new device, a wiped Keychain, or a restore without it. Once it is
+gone the backup sits in Firestore under an identity nobody can authenticate as, permanently
+unreachable. Letting someone pay first is selling them something that can silently evaporate.
+
+Restore Purchases is **not** gated — Apple requires it to be reachable, and it only touches
+StoreKit entitlements, which are Apple-ID scoped rather than account scoped.
+
 Upsell entry points, deliberately few: the Premium pill in the World Feed and Calendar toolbars, the
 Create screen's Video/Gallery gates, its "Unlock" button and "Premium removes the limit" line, the
 locked-memories row, and a non-blocking notice on Create when today already has a memory. The

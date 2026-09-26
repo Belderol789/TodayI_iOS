@@ -6,6 +6,21 @@ struct PremiumView: View {
   @Environment(\.colorScheme) private var scheme
   @EnvironmentObject private var entitlements: EntitlementStore
   @EnvironmentObject private var iap: IAPStore
+  @EnvironmentObject private var auth: AuthStore
+
+  @State private var showAuth = false
+
+  /// Premium's headline benefit is cloud backup, and a backup is only as durable as the
+  /// identity it's filed under. An anonymous user's uid lives in the Keychain: it
+  /// survives deleting the app, but not a new device, a wiped Keychain or a restore
+  /// without it. When it's gone the backup sits in Firestore under an identity nobody
+  /// can authenticate as — unreachable, permanently.
+  ///
+  /// So this is a hard gate rather than a nudge. Everything else in the app works
+  /// anonymously on purpose; this is the one purchase that is meaningless without an
+  /// account, and letting someone pay for it first is selling them something that can
+  /// silently evaporate.
+  private var needsAccount: Bool { auth.isGuest }
   
   private let privacyURL = URL(string: "https://github.com/KuzoStudiosPH/TodayI/wiki/Privacy-Policy")!
   private let appleTermsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
@@ -63,6 +78,9 @@ struct PremiumView: View {
       .accessibilityLabel("Premium options")
       .safeAreaPadding(.bottom, 24)
     }
+    .sheet(isPresented: $showAuth) {
+      NavigationStack { AuthView() }
+    }
   }
   
   // MARK: - Sections
@@ -73,8 +91,8 @@ struct PremiumView: View {
 
   private var subhead: String {
     entitlements.isPremium
-    ? "Multiple memories per day, premium feed flair, videos and galleries, and a monthly mood summary — all unlocked."
-    : "Unlock multiple memories per day, premium feed flair, videos and galleries, and a monthly mood summary."
+    ? "Your journal is backed up, with multiple memories per day, premium feed flair, videos and galleries, and a monthly mood summary — all unlocked."
+    : "Back your journal up to the cloud, and unlock multiple memories per day, premium feed flair, videos and galleries, and a monthly mood summary."
   }
 
   private var header: some View {
@@ -105,6 +123,9 @@ struct PremiumView: View {
   
   private var featuresCard: some View {
     VStack(alignment: .leading, spacing: 14) {
+      // First, because it's the reason the sign-in gate exists and the only feature
+      // here that protects something the user would be upset to lose.
+      featureRow("Your journal backed up to the cloud")
       featureRow("More than one memory per day")
       featureRow("Premium look in the global feed")
       featureRow("Video and gallery posts")
@@ -257,13 +278,42 @@ struct PremiumView: View {
     }
   }
 
+  /// Shown above the prices for anonymous users, so the sign-in sheet isn't a surprise.
+  private var accountRequiredNotice: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: "key.fill")
+        .font(.footnote)
+        .foregroundStyle(.white.opacity(0.9))
+      VStack(alignment: .leading, spacing: 3) {
+        Text("Sign in first")
+          .font(.subheadline.weight(.semibold))
+        Text("Premium backs your journal up to the cloud. Without an account that backup is tied to this device — it can't follow you to a new phone.")
+          .font(.caption)
+          .opacity(0.9)
+      }
+    }
+    .foregroundStyle(.white)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(12)
+    .background(
+      RoundedRectangle(cornerRadius: 12, style: .continuous)
+        .fill(.white.opacity(0.16))
+    )
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("Sign in required. Premium backs your journal up to the cloud, and without an account that backup is tied to this device.")
+  }
+
   var pricingButtons: some View {
     VStack(spacing: 12) {
       
+      if needsAccount { accountRequiredNotice }
+
       SubscriptionButton(product: iap.monthly,
                          isYearly: false,
                          debugPriceOverride: nil) {
-        Task { await iap.buy(iap.monthly!) }
+        guard !needsAccount else { showAuth = true; return }
+        guard let product = iap.monthly else { return }
+        Task { await iap.buy(product) }
       }
       // ✅ Ensure the button is understandable even if SubscriptionButton UI is complex
                          .accessibilityElement(children: .contain)
@@ -273,7 +323,9 @@ struct PremiumView: View {
       SubscriptionButton(product: iap.yearly,
                          isYearly: true,
                          debugPriceOverride: nil) {
-        Task { await iap.buy(iap.yearly!) }
+        guard !needsAccount else { showAuth = true; return }
+        guard let product = iap.yearly else { return }
+        Task { await iap.buy(product) }
       }
                          .accessibilityElement(children: .contain)
                          .accessibilityLabel(yearlyA11yLabel)
