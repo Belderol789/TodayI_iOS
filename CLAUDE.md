@@ -354,6 +354,32 @@ releases the same way.
 leaves the app usable. Locking someone out of their own journal because their train went into a
 tunnel would be a worse bug than whatever the switch was guarding.
 
+## Privacy manifest
+
+`TodayI/PrivacyInfo.xcprivacy` and `TodayIWidget/PrivacyInfo.xcprivacy`. Both are required —
+an app extension is a separate binary and needs its own — and **App Store Connect rejects an
+upload automatically without them**, before a human sees it.
+
+Declare only what *this app* does. Third-party SDKs ship their own manifests (Firebase's are in
+the bundle) and Xcode aggregates them into the privacy report at archive time; duplicating
+theirs here is wrong, not just redundant.
+
+Verified 2026-09-26 against the code: the only required-reason API used is `UserDefaults`
+(`CA92.1` for the app's own prefs, `1C8F.1` for the widget's App Group). No file-timestamp,
+disk-space, active-keyboard or boot-time APIs anywhere. **Firebase Analytics is not linked** —
+`project.pbxproj` mentions it as a package product, but `nm`/`strings` on the built binary find
+nothing, so nothing is auto-collected and there is no `FIREBASE_ANALYTICS_COLLECTION_ENABLED`
+to worry about. If Analytics is ever added, this file and the App Store privacy label both
+change.
+
+After editing, check it actually ships — a manifest Xcode doesn't copy is worthless:
+
+```bash
+find "$(find ~/Library/Developer/Xcode/DerivedData -name TodayI.app | head -1)" -name PrivacyInfo.xcprivacy
+```
+
+Expect it at the bundle root **and** inside `PlugIns/TodayIWidgetExtension.appex/`.
+
 ## Cloud backup is the Premium feature
 
 Free users keep Personal entries **on device only**; Premium adds the remote copy. A
