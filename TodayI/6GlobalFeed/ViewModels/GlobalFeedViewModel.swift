@@ -224,6 +224,15 @@ final class GlobalFeedViewModel: ObservableObject {
       .sorted { $0.count > $1.count }
     globalMoodSlices = slices
     globalMoodTotal = slices.reduce(0) { $0 + $1.count }
+
+    // Hand the widget the tally we just paid for. It can't read Firestore itself, so
+    // this is the only place the world mood can reach it — which also means it's only
+    // as fresh as the last feed load.
+    let dominant = slices.first
+    let percent = globalMoodTotal > 0 && dominant != nil
+      ? Int((Double(dominant!.count) / Double(globalMoodTotal) * 100).rounded())
+      : 0
+    StreakSnapshot.writeWorldMood(dominant?.mood, percent: percent, total: globalMoodTotal)
   }
   
   // MARK: - Filtering

@@ -102,8 +102,8 @@ against the retention it exists to create.
 
 **The widget reads a snapshot, not the store.** `TodayIWidget` is a separate process and can only
 reach an App Group container, so rather than migrating the SwiftData store into one — a real
-migration on a shipped app whose container has already failed to open once — the app publishes three
-values (`streak.days`, `streak.loggedToday`, `streak.updatedAt`) into
+migration on a shipped app whose container has already failed to open once — the app publishes a
+handful of plain values (`streak.*` and `world.*`) into
 `UserDefaults(suiteName: "group.com.kuzostudiosph.TodayI")`.
 `SwiftDataManager.refreshStreakSnapshot()` computes and publishes in one step and is the only thing
 callers should use; it also calls `WidgetCenter.reloadTimelines`. The contract is **duplicated** in
@@ -113,6 +113,15 @@ a corrupted `project.pbxproj`, but they must be kept in step, along with
 `StreakSnapshot.widgetKind` ↔ `TodayIWidget.kind`. Entitlements are committed for both targets;
 **device and TestFlight builds also need App Groups ticked in Signing & Capabilities** so the
 provisioning profile carries it. Simulator works without.
+
+**The widget's world mood is a hand-me-down, not a fetch.** The extension has no Firebase and a
+tight memory budget, so `GlobalFeedViewModel.updateGlobalTally` publishes the dominant mood it has
+*already* fetched via `StreakSnapshot.writeWorldMood` — zero extra reads. The cost is staleness: it
+is only as fresh as the last World feed load (once per launch, or a pull-to-refresh). `world.updatedAt`
+is published so `WorldMood.isFresh` can decline to render a mood from yesterday, which is the whole
+point — a day-old "the world feels Happy" is a small lie, and the widget shows the streak alone
+instead. Colours are published as **resolved light and dark hex**, not a mood name, so the widget
+renders what it is given and `Mood.adaptiveColor` stays the single source for the palette.
 
 **Date syncing is once per launch.** `SwiftDataManager.needsDateSync` / `markDatesSynced()` gate a
 single `fetchDates` per launch, shared by Home and Calendar — whichever appears first pays for it.
