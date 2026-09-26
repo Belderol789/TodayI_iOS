@@ -30,7 +30,19 @@ struct HomeView: View {
           
           // MARK: - Today
           HStack(alignment: .center) {
-            SectionTitleView(title: "Today's Memory", systemImage: "sun.max.fill")
+            // Not `SectionTitleView` here — it carries its own trailing `Spacer()` and
+            // `.padding(.horizontal)`, both redundant with this row's own `Spacer()` and
+            // the section's outer padding. Nested inside this HStack, that second Spacer
+            // competed with StreakPill/Profile for width, leaving the text less room
+            // than `.minimumScaleFactor(0.8)` could recover — the title clipped instead
+            // of shrinking. A single Spacer means the fixed-width pills claim their
+            // space first and the title gets everything that's left.
+            HStack(spacing: 8) {
+              Image(systemName: "sun.max.fill")
+                .font(.title3)
+              Text("Today's Memory")
+                .font(.title3).bold()
+            }
             // Keep the title on one line; the trailing buttons below are fixed at
             // their intrinsic width, so the title is what flexes.
               .lineLimit(1)

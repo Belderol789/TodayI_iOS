@@ -115,9 +115,6 @@ struct TodayIApp: App {
 
           store.observeUpdates()
 
-          let activated = await FirebaseFirestoreManager.activateDeviceTrialIfNeeded()
-          print("Trial activation result: \(activated)")
-
           await syncCloudBackup()
         }
         // Subscribing is the moment a backlog of locally-saved entries becomes eligible

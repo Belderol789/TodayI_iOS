@@ -203,7 +203,6 @@ Current rules, summarized:
 | `moods/{dayKey}` | any signed-in user may read/create/update |
 | `comments/{memoryId}` | public read; signed-in create/update |
 | `comments/{memoryId}/comments/{id}` | public read; create requires `userID == auth.uid` and `0 < text.size() <= 1000`; delete only your own |
-| `trialDevices/{deviceId}` | any signed-in user (anonymous included) |
 | `reports/{id}` | write-only drop box: signed-in create as yourself; **no client read, update or delete** |
 
 **Writes are batched where they belong together.** `postMemory` commits the memory, its
@@ -316,8 +315,24 @@ the Firebase console, not from the app.
 ## Premium
 
 StoreKit 2 subscriptions (`IAP.monthlyID` / `IAP.yearlyID`), entitlements cached in Keychain, plus a
-device-scoped free trial keyed on a Keychain UUID (`TrialDeviceID`) and validated server-side by
-`FirebaseFirestoreManager.activateDeviceTrialIfNeeded()`.
+StoreKit introductory offer (see below) as the free-trial mechanism.
+
+There used to also be a device-scoped, no-card trial: `TrialDeviceID` (Keychain UUID) plus
+`FirebaseFirestoreManager.activateDeviceTrialIfNeeded()` / `checkDeviceTrialPremium()`, writing to a
+`trialDevices` Firestore collection. It was removed 2026-09-26 — `checkDeviceTrialPremium()` had no
+caller and was never wired into `EntitlementStore.isPremium`, so it granted nothing; the write side
+ran on every launch regardless. It also shared the exact Keychain fragility the account-required-for-
+Premium rule exists to fix: `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` survives deleting the
+app but not a new device or a wiped Keychain. If a no-card trial is wanted again, gate it on a signed-
+in identity, not a device ID, and decide deliberately whether it should include cloud backup — that's
+the expensive feature to hand out before anyone has proven intent to pay.
+
+The **live** trial mechanism is a StoreKit introductory offer configured in App Store Connect, which
+needs no app code beyond disclosure: `Transaction.updates` / `currentEntitlements` already treat a
+trial period identically to a paid one, so nothing downstream has to know a trial happened. What the
+app still owes the user is telling them *before* they buy — Apple guideline 3.1.2 requires trial terms
+disclosed pre-purchase — via `Product.subscription.introductoryOffer` and an
+`isEligibleForIntroOffer` check (not yet built).
 
 `EntitlementStore.isPremium` is **derived** from StoreKit entitlements via a single
 `recomputeIsPremium(reason:)`, and is `private(set)` — nothing outside the store may assign it. It was
