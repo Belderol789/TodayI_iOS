@@ -566,7 +566,16 @@ through, and only a semantic classifier closes that.
 `version` is for cache invalidation and log legibility only — it is deliberately *not* a separate
 version-check request, because that would cost an extra read to save a read.
 
-`sensitiveTerms` ships empty. Both sides fall back to built-in `blockedPhrases` so a fresh install is
+`sensitiveTerms` lives in **`TodayI/Utils/SensitiveTerms.json`** — the one source for the list. The app
+bundles it as its fallback (`ModerationTerms.bundledSensitiveTerms()`), and the same file is pushed to
+`config/moderation`, where Firestore wins at runtime. To change it: edit the JSON, bump nothing in
+code, then push the field and increment `version` (a REST PATCH with `gcloud auth print-access-token`
+and `updateMask.fieldPaths=sensitiveTerms&updateMask.fieldPaths=version` works — clients can't write
+`config`, the rules forbid it). The file's `_comment` records what was left out deliberately and why:
+`shit`/`damn`/`ass` (everyday venting), `puke` (English "vomit"), `paki` (Taglish "please"), `gaga`
+(Lady Gaga), `die`/`kill` (grief; threats are blocked separately). Whole-word matching means an
+innocent English or Taglish word in the list blurs ordinary posts — check that before adding one.
+Both sides fall back to built-in `blockedPhrases` so a fresh install is
 never completely unfiltered before its first fetch, and both **fail open** on a fetch error: the
 client keeps its cached list, the server keeps its warm one. Failing closed would hide every public
 post in the app over one failed read.

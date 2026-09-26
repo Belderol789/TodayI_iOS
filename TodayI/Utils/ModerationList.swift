@@ -29,15 +29,16 @@ struct ModerationTerms: Codable, Equatable {
   /// Drives the support sheet. Never blocks anything.
   var selfHarmPhrases: [String]
 
-  /// Used before the first successful fetch, and if the document is missing.
+  /// Used before the first successful fetch, and if the document is missing — shipping
+  /// with *nothing* would mean a brand-new install has no filter at all until its first
+  /// network round trip.
   ///
-  /// `sensitiveTerms` is empty on purpose — which words to blur is a live content
-  /// decision made in `config/moderation`. The phrases are here because they're generic
-  /// enough to be safe defaults, and because shipping with *nothing* would mean a
-  /// brand-new install has no filter at all until its first network round trip.
+  /// `sensitiveTerms` comes from the bundled `SensitiveTerms.json`, which is also the
+  /// file pushed to `config/moderation` — one list, so the two can't drift. Firestore
+  /// still wins at runtime; this only covers the window before it answers.
   static let fallback = ModerationTerms(
     version: 0,
-    sensitiveTerms: [],
+    sensitiveTerms: bundledSensitiveTerms(),
     blockedPhrases: [
       "kill you", "kill him", "kill her", "kill them",
       "hunt you down", "beat you up", "i will find you",
@@ -52,6 +53,21 @@ struct ModerationTerms: Codable, Equatable {
       "dont want to be here anymore", "can't go on", "cant go on"
     ]
   )
+}
+
+extension ModerationTerms {
+  /// Reads `SensitiveTerms.json` from the app bundle. Empty on any failure — a missing or
+  /// malformed file must never stop the app, and Firestore supplies the list anyway.
+  static func bundledSensitiveTerms() -> [String] {
+    struct File: Decodable { let sensitiveTerms: [String] }
+    guard let url = Bundle.main.url(forResource: "SensitiveTerms", withExtension: "json"),
+          let data = try? Data(contentsOf: url),
+          let file = try? JSONDecoder().decode(File.self, from: data) else {
+      print("⚠️ SensitiveTerms.json missing or unreadable — fallback has no sensitive terms")
+      return []
+    }
+    return file.sensitiveTerms.map { $0.lowercased() }
+  }
 }
 
 enum ModerationList {

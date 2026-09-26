@@ -1,0 +1,27 @@
+{
+  "_comment": "Words that blur a post on the Global feed (tap to reveal). Whole-word, case-insensitive, after leetspeak normalisation (0→o 1→i 3→e 4→a 5→s @→a $→s), so list inflections, not spellings. Multi-word entries work. This file is the app's built-in fallback AND the source pushed to Firestore config/moderation.sensitiveTerms — edit here, then push. Deliberately excluded because they'd blur ordinary posts: shit, damn, ass (everyday venting), puke (English 'vomit'), paki (Taglish 'please'), gaga (Lady Gaga), die/kill (grief, and threats are blocked separately).",
+  "sensitiveTerms": [
+    "fuck", "fucks", "fucked", "fucker", "fuckers", "fucking", "fuckin",
+    "motherfucker", "motherfuckers", "motherfucking", "fck", "fuk", "fuq",
+    "cunt", "cunts", "cock", "cocks", "cocksucker", "dick", "dicks", "dickhead",
+    "pussy", "pussies", "twat", "bitch", "bitches", "whore", "whores",
+    "slut", "sluts", "asshole", "assholes",
+
+    "nigger", "niggers", "nigga", "niggas", "faggot", "faggots", "fag", "fags",
+    "dyke", "dykes", "tranny", "trannies", "retard", "retards", "retarded",
+    "chink", "chinks", "gook", "gooks", "spic", "spics", "kike", "kikes",
+    "wetback", "wetbacks", "raghead", "towelhead", "coon", "coons",
+    "beaner", "beaners",
+
+    "porn", "porno", "pornography", "nude", "nudes", "horny", "blowjob", "blowjobs",
+    "handjob", "cum", "cumshot", "dildo", "orgasm", "masturbate", "masturbating",
+    "masturbation", "jerk off", "jerking off", "boobs", "tits", "titties", "anal",
+    "deepthroat", "milf", "hentai", "sexting",
+
+    "rape", "raped", "raping", "rapist",
+
+    "putangina", "putang ina", "tangina", "tang ina", "taena", "puta", "punyeta",
+    "gago", "pakyu", "pakshet", "kupal", "hindot", "kantot", "kantutan", "jakol",
+    "libog", "malibog", "pekpek", "titi", "burat", "bayag", "tarantado", "ulol", "olol"
+  ]
+}
