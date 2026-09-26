@@ -24,11 +24,32 @@ struct MemoryRow: View {
   @State private var isReporting = false
   @State private var reportConfirmed = false
   @State private var showDeleteConfirm = false
+  @State private var showAuth = false
   @State private var isDeleting = false
   @State private var deleteError: String?
   
   // MARK: - Derived
   private var canEditPrivacy: Bool { auth.userID == memory.userID }
+
+  /// Going Global requires a real account, exactly as it does on the Create screen.
+  ///
+  /// `CreateMemoryView` has gated this since the beginning, but the row's toggle wrote
+  /// straight through to the model — so an anonymous user could publish to the Global
+  /// feed simply by posting privately first and flipping the badge afterwards. The rule
+  /// is about public posting, not about which screen you happen to be on.
+  private var privacyBinding: Binding<Bool> {
+    Binding(
+      get: { memory.isPublic },
+      set: { newValue in
+        if newValue && auth.isGuest {
+          showAuth = true
+          return
+        }
+        if newValue && auth.isRestricted { return }
+        memory.isPublic = newValue
+      }
+    )
+  }
 
   /// Visibility is only changeable on the day the memory belongs to.
   ///
@@ -93,6 +114,9 @@ struct MemoryRow: View {
         }
       }
       .sheet(isPresented: $showReportSheet) { reportSheet }
+      .sheet(isPresented: $showAuth) {
+        NavigationStack { AuthView() }
+      }
       // A dialog rather than an alert: "un-share it" and "destroy it" are different
       // wishes, and a journal should not make someone delete a memory to stop sharing it.
       .confirmationDialog("Delete Post?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
@@ -427,7 +451,7 @@ private extension MemoryRow {
       if showsCommentButton { commentButton }
       Spacer()
       if canToggleVisibility {
-        PrivacyBadge(isPublic: $memory.isPublic)
+        PrivacyBadge(isPublic: privacyBinding)
           .disabled(isUpdatingPrivacy)
           .accessibilityLabel("Privacy")
           .accessibilityValue(memory.isPublic ? "Global" : "Personal")

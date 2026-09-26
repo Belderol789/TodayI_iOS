@@ -34,21 +34,10 @@ extension MemoryService {
     isPublic: Bool,
     db: Firestore = .firestore()
   ) async throws {
-    // A free user's Personal entry was never uploaded, so there is no document to
-    // patch — `updateData` would fail with "No document to update". Making it Global
-    // means uploading it for the first time.
+    // Fast path: a free user's Personal entry was never uploaded, so there is nothing
+    // to patch. Making it Global means uploading it for the first time.
     if memory.needsCloudBackup {
-      await MainActor.run { memory.isPublic = isPublic }
-      guard isPublic else {
-        await MainActor.run { try? memory.modelContext?.save() }
-        return
-      }
-      guard await CloudBackupService.backUpNow(memory) else {
-        // Put it back — claiming it's Global when nothing reached the server would be
-        // a lie the user can't see through.
-        await MainActor.run { memory.isPublic = false }
-        throw PrivacyError.uploadFailed
-      }
+      try await firstUpload(memory, isPublic: isPublic)
       return
     }
 
@@ -61,18 +50,48 @@ extension MemoryService {
 
     let ref = db.collection("users").document(memory.userID)
       .collection("memories").document(memory.id)
-    try await ref.updateData([
-      "isPublic": isPublic,
-      "remoteImagePaths": images,
-      "videoRemoteURL": video as Any,
-      "audioRemoteURL": audio as Any,
-      "updatedAt": FieldValue.serverTimestamp()
-    ])
+    do {
+      try await ref.updateData([
+        "isPublic": isPublic,
+        "remoteImagePaths": images,
+        "videoRemoteURL": video as Any,
+        "audioRemoteURL": audio as Any,
+        "updatedAt": FieldValue.serverTimestamp()
+      ])
+    } catch let error as NSError where error.code == FirestoreErrorCode.notFound.rawValue {
+      // The document isn't there. Either "Remove from Cloud Only" took it, or the flag
+      // is out of step with reality. Re-create it in full rather than patching nothing —
+      // a partial `setData` would leave a document with no text or mood.
+      try await firstUpload(memory, isPublic: isPublic)
+      return
+    }
 
     await MainActor.run {
       memory.remoteImagePaths = images
       memory.videoRemoteURL = video
       memory.audioRemoteURL = audio
+    }
+  }
+
+  /// Uploads a memory that has no document in Firestore yet.
+  ///
+  /// Reached two ways: a free user's local-only entry going Global, and a memory whose
+  /// remote copy was removed by `deleteMemory(scope: .remoteOnly)` and is now being
+  /// shared again. Both need a full write, not an update.
+  private static func firstUpload(_ memory: MemoryModel, isPublic: Bool) async throws {
+    await MainActor.run { memory.isPublic = isPublic }
+
+    // Going Personal needs no server work at all — there is nothing up there.
+    guard isPublic else {
+      await MainActor.run { try? memory.modelContext?.save() }
+      return
+    }
+
+    guard await CloudBackupService.backUpNow(memory) else {
+      // Put it back. Showing "Global" when nothing reached the server is a lie the user
+      // cannot see through.
+      await MainActor.run { memory.isPublic = false }
+      throw PrivacyError.uploadFailed
     }
   }
 

@@ -147,8 +147,8 @@ struct CreateMemoryView: View {
           Text("That sounded like a hard day.")
             .font(.title2.weight(.semibold))
           Text(redirectedToPersonal
-               ? "Your entry is saved exactly as you wrote it, and we've kept it Personal rather than putting it on the Global feed. Nothing has been flagged or reported. If you want to talk to someone, these are free and confidential."
-               : "Your entry is saved, exactly as you wrote it. Nothing has been flagged or shared. If you want to talk to someone, these are free and confidential.")
+               ? "Whenever you're ready, your entry will be saved exactly as you wrote it — kept Personal rather than posted to the Global feed. Nothing is flagged or reported. If you'd rather talk to someone, these are free and confidential."
+               : "Whenever you're ready, your entry will be saved exactly as you wrote it. Nothing is flagged or reported. If you'd rather talk to someone, these are free and confidential.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
 
@@ -165,13 +165,31 @@ struct CreateMemoryView: View {
         }
         .padding(20)
       }
+      .safeAreaInset(edge: .bottom) {
+        VStack(spacing: 10) {
+          // Primary, and deliberately so. Nothing here is a gate.
+          Button(action: saveAfterSupport) {
+            Text("Save anyway")
+              .font(.subheadline.weight(.semibold))
+              .frame(maxWidth: .infinity)
+              .padding(.vertical, 13)
+              .background(Capsule().fill(Color.accentColor))
+              .foregroundStyle(.white)
+          }
+          .buttonStyle(.plain)
+
+          Button("Keep writing") { showSupport = false }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 16)
+        .background(.bar)
+      }
       .navigationTitle("You're not alone")
       .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
-          Button("Close") { showSupport = false }
-        }
-      }
+      .interactiveDismissDisabled(false)
     }
     .presentationDetents([.medium, .large])
   }
@@ -527,7 +545,8 @@ struct CreateMemoryView: View {
     Button {
       attemptPost()
     } label: {
-      Text("Post")
+      // "Post" implies an audience. A Personal entry has none — it's a save.
+      Text(vm.isPublic ? "Post" : "Save")
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(vm.canPost ? .white : Color(.secondaryLabel))
         .padding(.horizontal, 16)
@@ -543,6 +562,7 @@ struct CreateMemoryView: View {
     .disabled(!vm.canPost)
     .animation(.easeInOut(duration: 0.2), value: vm.canPost)
     .animation(.easeInOut(duration: 0.2), value: vm.selectedMood)
+    .animation(.easeInOut(duration: 0.2), value: vm.isPublic)
   }
 
   // MARK: - Video section (inside card)
@@ -720,19 +740,20 @@ struct CreateMemoryView: View {
       return
     }
 
-    // Self-harm: save it, never refuse it — but don't broadcast it either.
+    // Self-harm: offer support *before* saving, then let them save anyway.
     //
-    // The first version showed resources and still posted to Global, which is the worst
-    // of both: the person gets a helpline *and* their crisis goes out to strangers. The
-    // Global feed is day-scoped and anonymous with no support structure, so it can't
-    // help them, and publishing it risks harm to whoever reads it.
+    // This used to save first and show resources afterwards, which meant the moment had
+    // already passed — and when the entry was Global it had also gone out to strangers
+    // before anyone offered help. Showing the card first catches the person while
+    // they're still in it.
     //
-    // So the entry is kept exactly as written and stays Personal. This is framed as
-    // care, not enforcement — no "violates our guidelines" wording, nothing reported.
-    if vm.isPublic, findings.contains(.selfHarm) {
-      vm.isPublic = false
-      redirectedToPersonal = true
-      vm.pressPost()
+    // It is not a gate. "Save anyway" is the primary action and nothing is refused,
+    // flagged or reported. The one thing that does change is the destination: the entry
+    // is kept Personal, because the Global feed is day-scoped and anonymous with no
+    // support structure, so it can't help them and publishing it risks harm to whoever
+    // reads it.
+    if findings.contains(.selfHarm) {
+      redirectedToPersonal = vm.isPublic
       showSupport = true
       return
     }
@@ -743,10 +764,13 @@ struct CreateMemoryView: View {
     }
 
     vm.pressPost()
-    if findings.contains(.selfHarm) {
-      redirectedToPersonal = false
-      showSupport = true
-    }
+  }
+
+  /// Completes the save the support card interrupted.
+  private func saveAfterSupport() {
+    if redirectedToPersonal { vm.isPublic = false }
+    showSupport = false
+    vm.pressPost()
   }
 
   /// Posts without re-running the filter — used by the "post anyway" paths.
