@@ -12,6 +12,8 @@ struct TodayIApp: App {
   @StateObject private var store: EntitlementStore
   @StateObject private var authStore: AuthStore
   @StateObject private var iapStore: IAPStore
+  @StateObject private var maintenance = MaintenanceGate()
+  @Environment(\.scenePhase) private var scenePhase
   private let container: ModelContainer
   private let manager: SwiftDataManager
 
@@ -85,12 +87,27 @@ struct TodayIApp: App {
 
   var body: some Scene {
     WindowGroup {
-      RootView()
+      Group {
+        if maintenance.isActive {
+          MaintenanceView()
+        } else {
+          RootView()
+        }
+      }
+        .environmentObject(maintenance)
         .environmentObject(store)
         .environmentObject(authStore)
         .environmentObject(iapStore)
         .environment(\.swiftDataManager, manager)
+        // Re-check on every foreground so a switch flipped mid-session is picked up
+        // without the user relaunching — and so the app un-blocks itself the moment
+        // maintenance ends.
+        .onChange(of: scenePhase) { _, phase in
+          if phase == .active { Task { await maintenance.refresh() } }
+        }
         .task {
+          await maintenance.refresh()
+
           // Self-heals stores written by builds that stamped dayKey from `Date()`.
           let repaired = manager.repairMismatchedDayKeys()
           if repaired > 0 { print("🩹 Repaired \(repaired) mismatched dayKey(s)") }

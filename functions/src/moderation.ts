@@ -80,6 +80,15 @@ export const moderatePublicMemory = onDocumentWritten(
     if (!data?.isPublic) return;           // private entries are never scanned
     if (data.moderationHidden === true) return; // already handled; also stops the write loop
 
+    // Only scan when there is something new to scan. This is an onDocumentWritten
+    // trigger, so *every* like fires it — `likes` and `likedBy` live on this document.
+    // Without this guard a popular public post re-scans its text on every tap, which is
+    // pure invocation cost for a result that cannot have changed.
+    const prev = event.data?.before?.exists ? event.data.before.data() : undefined;
+    const textChanged = !prev || prev.journalText !== data.journalText;
+    const becamePublic = prev?.isPublic !== true;
+    if (!textChanged && !becamePublic) return;
+
     const text = String(data.journalText ?? "");
     if (!text || !violatesFeedPolicy(text)) return;
 

@@ -302,6 +302,37 @@ locked-memories row, and a non-blocking notice on Create when today already has 
 Notifications tab deliberately has **no** pill — four entry points for a one-screen product is
 already plenty, and the notification inbox is not where value is demonstrated.
 
+## Cost shape
+
+**Storage egress is the bill; Firestore is rounding error.** Modelled against the real code
+paths, Firestore is ~8% of spend and Cloud Storage ~90% — because every Global feed viewer
+downloads the media of every post they scroll past.
+
+Uploads are therefore **downscaled in `FirebaseStorageManager`** (1440px long edge for feed
+photos, 512px for avatars, quality 0.8). They used to be `jpegData(0.85)` on the full-resolution
+picker image — ~2.5 MB per photo, more from a 48MP camera — while `MediaBlock` renders in a 4:5
+box under 1200px wide, so none of that resolution was ever visible. Don't remove the downscale to
+"improve quality"; it is roughly an 8× swing in the monthly bill. **Video is still uploaded
+unmodified** and is the remaining large item.
+
+Two read-side notes: `MemoryService.fetchDates` is an **unbounded** `getDocuments()` on
+`users/{uid}/dates`, so it grows forever — at one year of history it is ~89% of all reads. It is
+cheap today only because reads are cheap. And `moderatePublicMemory` is an `onDocumentWritten`
+trigger, so every *like* fires it (`likes`/`likedBy` live on the memory doc); it early-returns
+unless `journalText` changed or the post just became public. Keep that guard.
+
+## Maintenance mode
+
+`MaintenanceGate` reads `maintenance_enabled` / `maintenance_message` from **Remote Config** and
+`TodayIApp` swaps `RootView` for `MaintenanceView` when set. Remote Config rather than a Firestore
+doc: no billed read per launch, no security rule, and a console toggle already built for it.
+It refreshes on launch and on every foreground, so the switch takes effect without a relaunch and
+releases the same way.
+
+**It fails open, deliberately.** Every failure path — no network, fetch error, malformed value —
+leaves the app usable. Locking someone out of their own journal because their train went into a
+tunnel would be a worse bug than whatever the switch was guarding.
+
 ## Moderation
 
 Report reasons in `ReportService`, block list in `BlockedUserList` mirrored to both SwiftData and
