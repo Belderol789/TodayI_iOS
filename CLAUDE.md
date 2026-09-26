@@ -351,6 +351,50 @@ releases the same way.
 leaves the app usable. Locking someone out of their own journal because their train went into a
 tunnel would be a worse bug than whatever the switch was guarding.
 
+## Cloud backup is the Premium feature
+
+Free users keep Personal entries **on device only**; Premium adds the remote copy. A
+Global post always uploads regardless of tier — it can't be in the feed otherwise.
+`savePostPayload` makes that call; everything not uploaded is flagged
+`MemoryModel.needsCloudBackup`.
+
+This is honest pricing (remote storage is a real cost) and a better line than withholding
+the user's own data. It is *not* a big cost saving — post-downscale a free user's private
+media is a few cents a month across hundreds of users. The 90% cost driver is feed egress,
+which this doesn't touch. Don't justify it on cost.
+
+Free users are less exposed than it sounds: **nothing is excluded from iCloud backup**, so
+the SwiftData store and `Documents/` ride along in the device backup. A new phone restored
+from iCloud keeps everything; only explicitly deleting the app loses it.
+
+**`needsCloudBackup` is also the retry queue.** A failed upload sets it instead of logging
+and giving up, which is what made the fire-and-forget upload silently lose memories.
+`CloudBackupService.drain` runs on launch and on the `isPremium` transition, oldest-first,
+200 at a time, and is guarded by `isRunning` so subscribing during a launch drain can't
+upload everything twice. Backfill happens from **disk**, not a `PostPayload` — the
+`UIImage`s are long gone by then.
+
+**Three rules this must keep.** They are the whole ethical shape of the feature:
+
+1. **Never block reading an existing backup.** `fetchMemories` / `importMemoriesIfNeeded`
+   are deliberately un-gated. Charging for ongoing backup is fair; holding words someone
+   already wrote hostage until they pay again is not, and it would invite App Review
+   attention. Lapsed users are still subject to the pre-existing free-tier *display* limit
+   (latest memory per day, with the locked row) — that's the old product line, not this one.
+2. **Never delete without warning.** `pruneLapsedBackups` warns in the inbox at ~11 months
+   after `premiumLastSeenAt` and deletes at 12, and it removes only `memories` — the
+   profile and the `dates` history the streak is built from survive.
+3. **Never touch the device copy.** Retention is a server-side prune of the *backup*. A
+   lapsed user opening the app still has their journal.
+
+`premiumLastSeenAt` is stamped by the client, because StoreKit entitlements live on the
+device and Firestore has no idea who is subscribed. Forging it only keeps your own backup
+alive longer, so it isn't worth defending against. Owner write already covers it — no new
+rule needed.
+
+**There is no export feature.** Point 1 above is satisfied by restore, not export; if you
+want a real "download my journal" path it still needs building.
+
 ## Moderation
 
 **Reports notify you, or they may as well not exist.** `reports` is a write-only drop box with no

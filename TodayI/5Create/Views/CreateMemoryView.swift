@@ -55,6 +55,10 @@ struct CreateMemoryView: View {
 
           privacyRow
             .padding(.horizontal, 20)
+
+          storageNotice
+            .padding(.horizontal, 20)
+            .padding(.top, 10)
             .padding(.bottom, 100)
         }
       }
@@ -470,6 +474,38 @@ struct CreateMemoryView: View {
   }
 
   /// Only the restriction notice remains inline — it's an explanation, not a control.
+  /// Where entries actually live, said plainly and permanently.
+  ///
+  /// Deliberately **not** onboarding. A one-time card gets swiped past and forgotten,
+  /// and this is a promise we'll be held to — "I deleted the app and lost two years of
+  /// journals" is the worst review this app can get. So it sits under the privacy
+  /// control, where someone is already thinking about where this entry goes.
+  ///
+  /// Styled as a quiet footnote rather than an upsell banner: `secondMemoryNotice`
+  /// already carries the gradient pitch, and two of those on one screen is nagging.
+  @ViewBuilder
+  private var storageNotice: some View {
+    if !entitlements.isPremium {
+      HStack(alignment: .firstTextBaseline, spacing: 6) {
+        Image(systemName: "iphone")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+        Text("Saved on this device. ")
+          .foregroundStyle(.secondary)
+        + Text("Premium backs up your journal.")
+          .foregroundStyle(.secondary)
+          .underline()
+      }
+      .font(.caption)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .contentShape(Rectangle())
+      .onTapGesture { showPremium = true }
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel("Entries are saved on this device only. Premium backs up your journal.")
+      .accessibilityHint("Opens Premium.")
+    }
+  }
+
   @ViewBuilder
   private var privacyRow: some View {
     if auth.isRestricted {

@@ -117,8 +117,28 @@ struct TodayIApp: App {
 
           let activated = await FirebaseFirestoreManager.activateDeviceTrialIfNeeded()
           print("Trial activation result: \(activated)")
+
+          await syncCloudBackup()
+        }
+        // Subscribing is the moment a backlog of locally-saved entries becomes eligible
+        // for backup, so drain on the transition rather than waiting for a relaunch.
+        .onChange(of: store.isPremium) { _, _ in
+          Task { await syncCloudBackup() }
         }
     }
     .modelContainer(container)
+  }
+
+  /// Uploads anything saved while the user was on the free tier, and stamps the premium
+  /// window the server-side retention job reads.
+  private func syncCloudBackup() async {
+    await CloudBackupService.recordPremiumWindow(
+      isPremium: store.isPremium, userID: authStore.userID
+    )
+    await CloudBackupService.drain(
+      context: container.mainContext,
+      isPremium: store.isPremium,
+      userID: authStore.userID
+    )
   }
 }

@@ -128,14 +128,25 @@ extension SwiftDataManager {
     // 1) Save locally (SwiftData) first
     let (model, dto, dayStartLocal) = try saveToSwiftData(payload, userID: userID, username: username, remoteProfilePhotoURL: remoteProfilePhotoURL, day: day)
     
-    // 2) Kick off background upload to Firebase (private)
-    Task {
-      await FirebaseFirestoreManager.uploadToFirebase(context: context,
-                                                      dto: dto,
-                                                      payload: payload,
-                                                      model: model,
-                                                      userID: userID,
-                                                      dayStartLocal: dayStartLocal)
+    // 2) Upload — but only when there's a reason to.
+    //
+    // A Global post always goes up; it can't be in the feed otherwise. A Personal entry
+    // goes up only for Premium, because cloud backup *is* the Premium feature. Free
+    // users' private entries stay on this device (and in their iCloud device backup),
+    // flagged so a later subscription can backfill them.
+    if model.isPublic || store.isPremium {
+      Task {
+        await FirebaseFirestoreManager.uploadToFirebase(context: context,
+                                                        dto: dto,
+                                                        payload: payload,
+                                                        model: model,
+                                                        userID: userID,
+                                                        dayStartLocal: dayStartLocal)
+      }
+    } else {
+      model.needsCloudBackup = true
+      try? context.save()
+      print("📱 Saved locally only (free tier) — flagged for backup on subscribe")
     }
     
     return model

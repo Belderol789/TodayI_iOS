@@ -206,7 +206,14 @@ struct FirebaseFirestoreManager {
       print("✅ Post synced to Firestore with remote URLs")
       
     } catch {
-      print("❌ Failed in upload task: \(error)")
+      // Previously this just logged and the memory silently never synced. Flagging it
+      // puts it in the same queue the free-tier backfill drains, so the next launch
+      // retries instead of losing it.
+      print("❌ Failed in upload task: \(error) — flagged for retry")
+      await MainActor.run {
+        model.needsCloudBackup = true
+        try? context.save()
+      }
     }
   }
 }

@@ -34,6 +34,13 @@ final class MemoryModel {
   
   // Privacy / Premium
   var isPublic: Bool = false
+  /// Saved locally but not yet in Firestore.
+  ///
+  /// Set when a free user writes a Personal entry — cloud backup is the Premium feature,
+  /// so nothing is uploaded — and cleared once `CloudBackupService` gets it up. Also set
+  /// when an upload fails, which makes it the retry queue the fire-and-forget upload
+  /// never had.
+  var needsCloudBackup: Bool = false
   var isPremium: Bool
   
   // Timestamps
