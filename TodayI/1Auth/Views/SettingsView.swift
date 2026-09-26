@@ -134,6 +134,8 @@ struct SettingsView: View {
 
         // The check-in otherwise only arrives at 8pm local, and the server push
         // additionally needs a functions deploy — neither is testable on demand.
+        // Also the quickest route to the permission prompt: APNs never registers
+        // until notifications are authorised, which leaves the topic queue full.
         Button("Send check-in notification (5s)") {
           Task {
             await NotificationManager.shared.debugSendCheckInPreview()
@@ -161,6 +163,9 @@ struct SettingsView: View {
           : "Premium is OFF — free-tier gates are active.")
 
         Seeding writes mood days locally only — no posts, nothing uploaded. Existing         days are never overwritten. Clearing removes the local cache; Calendar         pull-to-refresh restores it from Firestore.
+
+        Push needs notification permission before APNs will register. If the launch log \
+        shows "Queued …" with no "APNs ready", send a check-in and allow the prompt.
         """)
       }
       #endif
