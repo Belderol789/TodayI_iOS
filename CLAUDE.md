@@ -530,6 +530,24 @@ Keep `normalise()` identical in both or the client will pass text the server the
   moment would teach them this is a bad place to be honest, which is the opposite of the product.
 - **Contact details** warn before a public post, never block.
 
+**Flags are shown one at a time, and posting happens last.** `CreateMemoryView.attemptPost` builds a
+queue of `PostFlag`s — threat, then self-harm, then sensitive, then contact details — and presents each
+through a single `.sheet(item:onDismiss:)`. The author's choice is recorded, the sheet dismisses, and
+only in `onDismiss` (after the dismissal has finished) does the next flag appear or the post and its
+Global-feed redirect run. Choosing "Save as Personal" drops the Global-only flags still queued.
+Swiping a flag away counts as "Edit": nothing posts without an explicit choice. Don't reintroduce
+`pressPost()` inside a button action on a presented view — presenting and navigating in the same beat
+is what made views flash up and vanish.
+
+The first-post habit prompt lives on **`RootView`** (`RootView.habitPromptKey`), not the Create
+screen: a Global post redirects to the feed, the custom tab bar tears Create down, and an alert
+presented there appeared and disappeared immediately.
+
+`MemoryModel.isSensitive` (also on the DTO, the Firestore doc and `decodeDTOManually`) is the author's
+"Mark as sensitive" toggle, offered on Create only when the post is Global. Accepting the sensitive
+flag sets it too. The feed blurs when **either** the flag is set **or** a listed word matches — the
+flag is what covers an image, which the word list can't see.
+
 **The word lists live in Firestore at `config/moderation`, and both layers read that one
 document.** `ModerationList` fetches it once per launch and caches it in `UserDefaults`;
 `moderation.ts` reads the same doc and caches it on the warm instance for 5 minutes. So a new term

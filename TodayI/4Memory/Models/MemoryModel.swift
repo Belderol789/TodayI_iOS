@@ -41,6 +41,10 @@ final class MemoryModel {
   /// when an upload fails, which makes it the retry queue the fire-and-forget upload
   /// never had.
   var needsCloudBackup: Bool = false
+  /// Author-marked sensitive. `MemoryRow` blurs it in the Global feed behind a
+  /// tap-to-reveal. Detection of listed words happens at render time as well; this flag
+  /// is what covers the cases the word list can't see, like an image.
+  var isSensitive: Bool = false
   var isPremium: Bool
   
   // Timestamps
@@ -132,6 +136,7 @@ extension MemoryModel {
       m.audioRemoteURL = dto.audioRemoteURL
       m.linkURL = dto.linkURL
       m.isPublic = dto.isPublic
+      m.isSensitive = dto.isSensitive
       m.updatedAt = dto.updatedAt
       m.authorTZ = dto.authorTZ
       return m
@@ -157,6 +162,7 @@ extension MemoryModel {
         createdAt: dto.createdAt,
         updatedAt: dto.updatedAt
       )
+      m.isSensitive = dto.isSensitive
       // The server's key wins, exactly as it does in the update branch above.
       // `init` can only *derive* a key from `date`; on an imported memory the DTO
       // already carries the authoritative one, and letting init's guess stand is

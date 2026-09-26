@@ -21,6 +21,8 @@ struct MemoryDTO: Codable {
   
   let isPublic: Bool
   let isPremium: Bool?
+  /// Defaulted, so every existing document and every memberwise call site is unaffected.
+  var isSensitive: Bool = false
   let createdAt: Date
   let updatedAt: Date
   
@@ -31,7 +33,7 @@ struct MemoryDTO: Codable {
     case id, username, userID, date, mood, journalText, likes, likedBy,
          remoteImagePaths, videoRemoteURL, audioRemoteURL, linkURL,
          remoteProfilePhotoURL,
-         isPublic, isPremium, createdAt, updatedAt, authorTZ, dayKey
+         isPublic, isPremium, isSensitive, createdAt, updatedAt, authorTZ, dayKey
   }
 }
 
@@ -62,6 +64,7 @@ extension MemoryDTO {
     linkURL               = try c.decodeIfPresent(String.self, forKey: .linkURL)
     remoteProfilePhotoURL = try c.decodeIfPresent(String.self, forKey: .remoteProfilePhotoURL)
     isPremium             = try c.decodeIfPresent(Bool.self, forKey: .isPremium)
+    isSensitive           = try c.decodeIfPresent(Bool.self, forKey: .isSensitive) ?? false
 
     authorTZ = try c.decodeIfPresent(String.self, forKey: .authorTZ) ?? TimeZone.current.identifier
     dayKey   = try c.decodeIfPresent(String.self, forKey: .dayKey) ?? date.formattedDayKeyLocal()
@@ -85,6 +88,7 @@ extension MemoryDTO {
     self.remoteProfilePhotoURL = model.remoteProfilePhotoURL   // ✅ only remote version
     self.isPublic = model.isPublic
     self.isPremium = model.isPremium
+    self.isSensitive = model.isSensitive
     self.createdAt = model.createdAt
     self.updatedAt = model.updatedAt
     self.authorTZ = model.authorTZ
@@ -107,6 +111,7 @@ extension MemoryDTO {
     self.linkURL = payload.linkString
     self.isPublic = payload.isPublic
     self.isPremium = payload.isPremium
+    self.isSensitive = payload.isSensitive
     self.createdAt = Date()
     self.updatedAt = Date()
     self.authorTZ = TimeZone.current.identifier

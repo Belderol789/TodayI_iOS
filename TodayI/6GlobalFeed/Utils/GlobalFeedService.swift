@@ -62,14 +62,18 @@ enum GlobalFeedService {
       likedBy: d["likedBy"] as? [String] ?? [],
       remoteImagePaths: d["remoteImagePaths"] as? [String] ?? [],
       videoRemoteURL: d["videoRemoteURL"] as? String,
+      audioRemoteURL: d["audioRemoteURL"] as? String,
       linkURL: d["linkURL"] as? String,
       remoteProfilePhotoURL: profilePhotoURL,
       isPublic: isPublic,
       isPremium: isPremium,
+      isSensitive: d["isSensitive"] as? Bool ?? false,
       createdAt: (d["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
       updatedAt: (d["updatedAt"] as? Timestamp)?.dateValue() ?? Date(),
       authorTZ: (d["authorTZ"] as? String) ?? TimeZone.current.identifier,
-      dayKey: (d["dayKeyLocal"] as? String) ?? date.formattedDayKeyLocal()
+      // "dayKey", not "dayKeyLocal" — that key has never been written. Reading it meant
+      // every doc on this fallback path had its day re-guessed from `date`.
+      dayKey: (d["dayKey"] as? String) ?? date.formattedDayKeyLocal()
     )
   }
 }

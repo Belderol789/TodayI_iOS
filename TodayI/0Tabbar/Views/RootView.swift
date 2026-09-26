@@ -10,6 +10,12 @@ struct RootView: View {
   /// selected tab's view each time, which would otherwise discard the loaded page.
   @StateObject private var globalFeedVM = GlobalFeedViewModel(day: Date())
 
+  /// Set by `CreateMemoryView` after someone's first post. The prompt lives here rather
+  /// than on the Create screen because a Global post redirects to the feed, which tears
+  /// Create down — an alert presented there appeared and was dismissed in the same beat.
+  static let habitPromptKey = "pendingHabitPrompt"
+  @AppStorage(RootView.habitPromptKey) private var showHabitPrompt = false
+
   var body: some View {
     Group {
       if auth.isSessionReady && splashDone {
@@ -51,6 +57,14 @@ struct RootView: View {
     // the feed, and so the feed itself survives tab switches.
     .environmentObject(globalFeedVM)
     .animation(.easeInOut(duration: 0.2), value: auth.hideTabBar)
+    .alert("Build a journaling habit?", isPresented: $showHabitPrompt) {
+      Button("Yes, remind me daily") {
+        Task { await NotificationManager.shared.configure() }
+      }
+      Button("Maybe later", role: .cancel) {}
+    } message: {
+      Text("Want to get notified to create a habit of journalling daily?")
+    }
   }
 }
 

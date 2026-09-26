@@ -26,13 +26,13 @@ struct CreateMemoryView: View {
   @State private var postedMemory: MemoryModel? = nil
 
   @AppStorage("hasPostedOnce") private var hasPostedOnce = false
-  @State private var showNotifPrompt = false
-  /// Content-filter state. `showSupport` is never a gate — see `attemptPost()`.
-  @State private var showSupport = false
-  /// True when the support sheet is explaining that we kept the entry Personal.
-  @State private var redirectedToPersonal = false
-  @State private var showBlockedAlert = false
-  @State private var showPIIAlert = false
+  /// Content-filter flags, shown one at a time — see `attemptPost()`.
+  @State private var activeFlag: PostFlag?
+  @State private var pendingFlags: [PostFlag] = []
+  /// What the author picked on the flag that's dismissing. Read in `flagDismissed()`,
+  /// which only runs once the sheet has fully gone.
+  @State private var flagChoice: PostFlagChoice?
+  @State private var flagWasGlobal = false
   /// How many memories today already holds — drives the free-tier notice.
   @State private var todayMemoryCount = 0
 
@@ -57,6 +57,10 @@ struct CreateMemoryView: View {
 
           privacyRow
             .padding(.horizontal, 20)
+
+          sensitiveToggle
+            .padding(.horizontal, 20)
+            .padding(.top, 10)
 
           storageNotice
             .padding(.horizontal, 20)
@@ -105,93 +109,15 @@ struct CreateMemoryView: View {
           .presentationCornerRadius(20)
           .preferredColorScheme(.dark)
       }
-      .alert("Build a journaling habit?", isPresented: $showNotifPrompt) {
-        Button("Yes, remind me daily") {
-          Task { await NotificationManager.shared.configure() }
+      // One flag at a time. `onDismiss` fires after the sheet has fully gone, so the next
+      // flag — or the post and its redirect — never collides with a dismissal in flight.
+      .sheet(item: $activeFlag, onDismiss: flagDismissed) { flag in
+        PostFlagSheet(flag: flag, wasGlobal: flagWasGlobal) { choice in
+          flagChoice = choice
+          activeFlag = nil
         }
-        Button("Maybe later", role: .cancel) {}
-      } message: {
-        Text("Want to get notified to create a habit of journalling daily?")
       }
-      .alert("This can't go on the Global feed", isPresented: $showBlockedAlert) {
-        Button("Keep it Personal") {
-          vm.isPublic = false
-          postIgnoringWarnings()
-        }
-        Button("Edit", role: .cancel) {}
-      } message: {
-        Text("Posts on the Global feed can't contain threats. You can still save this entry just for yourself.")
-      }
-      .alert("Sharing contact details?", isPresented: $showPIIAlert) {
-        Button("Post to Global", role: .destructive) { postIgnoringWarnings() }
-        Button("Keep it Personal") {
-          vm.isPublic = false
-          postIgnoringWarnings()
-        }
-        Button("Edit", role: .cancel) {}
-      } message: {
-        Text("This looks like it contains a phone number or email address. Anyone can read posts on the Global feed.")
-      }
-      .sheet(isPresented: $showSupport) { supportSheet }
     }
-  }
-
-  // MARK: - Support sheet
-
-  /// Shown *after* the entry is safely saved, never before. It asks nothing and changes
-  /// nothing — the post is already written exactly as the user wrote it.
-  private var supportSheet: some View {
-    NavigationStack {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 18) {
-          Text("That sounded like a hard day.")
-            .font(.title2.weight(.semibold))
-          Text(redirectedToPersonal
-               ? "Whenever you're ready, your entry will be saved exactly as you wrote it — kept Personal rather than posted to the Global feed. Nothing is flagged or reported. If you'd rather talk to someone, these are free and confidential."
-               : "Whenever you're ready, your entry will be saved exactly as you wrote it. Nothing is flagged or reported. If you'd rather talk to someone, these are free and confidential.")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-
-          ForEach(ContentModeration.crisisResources) { resource in
-            VStack(alignment: .leading, spacing: 2) {
-              Text(resource.name).font(.subheadline.weight(.semibold))
-              Text(resource.contact).font(.title3.weight(.bold)).foregroundStyle(.tint)
-              Text(resource.region).font(.caption).foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
-          }
-        }
-        .padding(20)
-      }
-      .safeAreaInset(edge: .bottom) {
-        VStack(spacing: 10) {
-          // Primary, and deliberately so. Nothing here is a gate.
-          Button(action: saveAfterSupport) {
-            Text("Save anyway")
-              .font(.subheadline.weight(.semibold))
-              .frame(maxWidth: .infinity)
-              .padding(.vertical, 13)
-              .background(Capsule().fill(Color.accentColor))
-              .foregroundStyle(.white)
-          }
-          .buttonStyle(.plain)
-
-          Button("Keep writing") { showSupport = false }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 10)
-        .padding(.bottom, 16)
-        .background(.bar)
-      }
-      .navigationTitle("You're not alone")
-      .navigationBarTitleDisplayMode(.inline)
-      .interactiveDismissDisabled(false)
-    }
-    .presentationDetents([.medium, .large])
   }
 
   // MARK: - Free-tier notice
@@ -528,6 +454,26 @@ struct CreateMemoryView: View {
     }
   }
 
+  /// Only offered for a Global post — a Personal entry is never blurred, so the switch
+  /// would do nothing. The word list catches listed words on its own; this covers what
+  /// it can't see, an image above all.
+  @ViewBuilder
+  private var sensitiveToggle: some View {
+    if vm.isPublic {
+      Toggle(isOn: $vm.isSensitive) {
+        VStack(alignment: .leading, spacing: 2) {
+          Label("Mark as sensitive", systemImage: "eye.slash")
+            .font(.subheadline.weight(.semibold))
+          Text("Blurred on the Global feed until someone taps to view.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .tint(vm.selectedMood?.adaptiveColor ?? .accentColor)
+      .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+  }
+
   @ViewBuilder
   private var privacyRow: some View {
     if auth.isRestricted {
@@ -721,63 +667,54 @@ struct CreateMemoryView: View {
 
   // MARK: - Content filter
 
-  /// Runs the client-side filter, then posts.
+  /// Tapping Post. Builds the list of flags this text raises, then walks it.
   ///
-  /// Three findings, three deliberately different responses:
-  ///
-  /// - **Hate speech / threats** block a *public* post only. The entry is still yours to
-  ///   keep privately; what's refused is the Global feed, not the journal.
-  /// - **Contact details** warn but never block — sometimes people mean to share them.
-  /// - **Self-harm never blocks and never delays.** The post goes through untouched and
-  ///   support is offered *afterwards*. Gating someone's lowest moment behind a modal
-  ///   would teach them this app is a bad place to be honest, which is the opposite of
-  ///   what it is for. Nothing is logged, flagged or reported.
+  /// Order matters: a threat first (it may make the post Personal, which drops the
+  /// Global-only flags after it), then self-harm, then the two that can still go out.
+  /// Each flag is answered and fully dismissed before the next appears, and the post —
+  /// with its redirect to the Global feed — happens only after the last one is gone.
+  /// Doing those in the same beat is what made views flash up and vanish.
   private func attemptPost() {
     let findings = ContentModeration.scan(vm.text)
+    var queue: [PostFlag] = []
+    if vm.isPublic, findings.contains(.violentThreat) { queue.append(.threat) }
+    if findings.contains(.selfHarm) { queue.append(.selfHarm) }
+    // Already marked sensitive by the author: the blur is agreed, nothing to ask.
+    if vm.isPublic, !vm.isSensitive, findings.contains(.sensitive) { queue.append(.sensitive) }
+    if vm.isPublic, findings.contains(.personalInfo) { queue.append(.contactDetails) }
 
-    if vm.isPublic, !findings.isDisjoint(with: ContentModeration.blocking) {
-      showBlockedAlert = true
-      return
-    }
-
-    // Self-harm: offer support *before* saving, then let them save anyway.
-    //
-    // This used to save first and show resources afterwards, which meant the moment had
-    // already passed — and when the entry was Global it had also gone out to strangers
-    // before anyone offered help. Showing the card first catches the person while
-    // they're still in it.
-    //
-    // It is not a gate. "Save anyway" is the primary action and nothing is refused,
-    // flagged or reported. The one thing that does change is the destination: the entry
-    // is kept Personal, because the Global feed is day-scoped and anonymous with no
-    // support structure, so it can't help them and publishing it risks harm to whoever
-    // reads it.
-    if findings.contains(.selfHarm) {
-      redirectedToPersonal = vm.isPublic
-      showSupport = true
-      return
-    }
-
-    if vm.isPublic, findings.contains(.personalInfo) {
-      showPIIAlert = true
-      return
-    }
-
-    vm.pressPost()
+    pendingFlags = queue
+    showNextFlagOrPost()
   }
 
-  /// Completes the save the support card interrupted.
-  private func saveAfterSupport() {
-    if redirectedToPersonal { vm.isPublic = false }
-    showSupport = false
-    vm.pressPost()
+  private func showNextFlagOrPost() {
+    guard !pendingFlags.isEmpty else {
+      vm.pressPost()
+      return
+    }
+    flagWasGlobal = vm.isPublic
+    activeFlag = pendingFlags.removeFirst()
   }
 
-  /// Posts without re-running the filter — used by the "post anyway" paths.
-  private func postIgnoringWarnings() {
-    let findings = ContentModeration.scan(vm.text)
-    vm.pressPost()
-    if findings.contains(.selfHarm) { showSupport = true }
+  /// Runs after a flag sheet has finished dismissing — never before.
+  private func flagDismissed() {
+    // Swiping the sheet away is "Edit": nothing is posted without an explicit choice.
+    let choice = flagChoice ?? .edit
+    flagChoice = nil
+
+    switch choice {
+    case .edit:
+      pendingFlags = []
+      return
+    case .keepPersonal:
+      vm.isPublic = false
+      pendingFlags.removeAll { $0.requiresGlobal }
+    case .markSensitive:
+      vm.isSensitive = true
+    case .proceed:
+      break
+    }
+    showNextFlagOrPost()
   }
 
   // MARK: - Post-preview hook
@@ -785,10 +722,12 @@ struct CreateMemoryView: View {
   private func handlePreviewDismiss() {
     guard !hasPostedOnce else { return }
     hasPostedOnce = true
+    // Raised on RootView, not here. On a Global post this screen is torn down by the
+    // redirect, so an alert presented here appeared and was dismissed at once.
     Task {
       let status = await UNUserNotificationCenter.current().notificationSettings()
       if status.authorizationStatus == .notDetermined {
-        await MainActor.run { showNotifPrompt = true }
+        await MainActor.run { UserDefaults.standard.set(true, forKey: RootView.habitPromptKey) }
       }
     }
   }

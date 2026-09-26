@@ -49,6 +49,7 @@ struct MemoryService {
       "linkURL": memory.linkURL as Any,
       "isPublic": memory.isPublic,
       "isPremium": memory.isPremium,          // ✅ SAFETY ADD
+      "isSensitive": memory.isSensitive,
       "createdAt": FieldValue.serverTimestamp(),
       "updatedAt": FieldValue.serverTimestamp()
     ]

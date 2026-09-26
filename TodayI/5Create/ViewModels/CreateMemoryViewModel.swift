@@ -12,6 +12,8 @@ final class CreateMemoryViewModel: ObservableObject {
   @Published var text: String = "" { didSet { enforceLimit() } }
   @Published var isPremium: Bool = false { didSet { enforceLimit() } }
   @Published var isPublic: Bool = false
+  /// "Mark as sensitive" — blurs the post on the Global feed until a reader taps it.
+  @Published var isSensitive: Bool = false
   
   // Picked images the UI renders
   @Published private(set) var pickedImages: [PickedImage] = []
@@ -110,7 +112,8 @@ final class CreateMemoryViewModel: ObservableObject {
       images: pickedImages,
       videoURL: pendingVideoURL,
       audioURL: pendingAudioURL,
-      linkString: linkString
+      linkString: linkString,
+      isSensitive: isSensitive
     )
     onPost?(payload)
   }
@@ -368,6 +371,7 @@ final class CreateMemoryViewModel: ObservableObject {
     clearLink()
     selectedMood = nil
     text = ""
+    isSensitive = false
   }
   
   // Public image ops (used by the view)

@@ -103,7 +103,7 @@ struct MemoryRow: View {
     blursSensitiveContent
       && !revealed
       && auth.userID != memory.userID
-      && ContentModeration.isSensitive(memory.journalText)
+      && (memory.isSensitive || ContentModeration.isSensitive(memory.journalText))
   }
 
   private var rowSummaryA11y: String {
