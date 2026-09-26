@@ -25,6 +25,13 @@ extension MemoryService {
     }
   }
 
+  enum DeleteError: LocalizedError {
+    case couldNotKeepLocalCopy
+    var errorDescription: String? {
+      "This memory's photos or video are only in the cloud, and they couldn't be downloaded to this device. Nothing was deleted — check your connection and try again."
+    }
+  }
+
   /// Deletes a memory at the requested scope.
   ///
   /// The remote half is identical either way — Firestore doc plus Storage files. Only
@@ -43,6 +50,21 @@ extension MemoryService {
     let db = Firestore.firestore()
     let storage = Storage.storage()
     LoggerManager.instance.logFirebaseCall()
+
+    // 0. "Keep my copy" has to be true before anything is destroyed.
+    //
+    // `MemoryModel.upsert` creates cloud-sourced memories with `localImageNames: []`,
+    // so anything restored after a reinstall, synced from another device, or seen in the
+    // feed lives *only* in Storage. `imageSources` falls back to the remote copy, so it
+    // looks fine right up until the remote copy is removed — at which point the media is
+    // gone for good while the text stays, because the text was in SwiftData all along.
+    //
+    // Pull the media down first, and refuse rather than delete the last copy.
+    if scope == .remoteOnly {
+      guard await materializeLocally(memory) else {
+        throw DeleteError.couldNotKeepLocalCopy
+      }
+    }
 
     // 1. Firestore doc.
     let memRef = db.collection("users").document(memory.userID)
@@ -74,6 +96,8 @@ extension MemoryService {
     await MainActor.run {
       switch scope {
       case .everywhere:
+        // Without this the media stays in Documents forever with nothing referencing it.
+        removeLocalFiles(memory)
         context.delete(memory)
 
       case .remoteOnly:

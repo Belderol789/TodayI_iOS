@@ -53,6 +53,26 @@ Firebase. The UI never waits on the network. Preserve this ordering when touchin
 and `authorProfilePhotoURL` check the on-disk file before falling back to the remote URL. New media
 types should follow the same local-then-remote shape.
 
+**But "local" is a lie for anything that came from the cloud.** `MemoryModel.upsert`'s *insert*
+branch sets `localImageNames: []` / `videoLocalPath: nil`, so a memory restored after a reinstall,
+synced from another device, or seen in the Global feed has **no on-disk copy at all** — the fallback
+to remote hides that completely, and everything looks normal until something removes the remote
+copy. That is exactly how "Remove from Cloud Only" destroyed the only copy of a photo while the
+text survived (the text was in SwiftData all along).
+
+`MemoryService.materializeLocally(_:)` pulls the media down and fills those fields in.
+`deleteMemory(scope: .remoteOnly)` calls it **first** and throws `couldNotKeepLocalCopy` rather than
+proceeding, so the dialog's promise is true before anything is deleted. Any new feature that removes
+a remote copy while claiming the local one survives must do the same.
+
+`deleteMemory(scope: .everywhere)` calls `removeLocalFiles(_:)` — without it, deleting a memory left
+its photos in `Documents/` forever with nothing referencing them.
+
+Known consequence, not yet addressed: after a restore, media is served from Storage on every view
+rather than from disk, so a reinstalled premium user quietly pays egress for their own back
+catalogue. `ProtectedMediaStore` self-heals this for Personal entries (it caches to disk on first
+fetch); public media does not.
+
 **DTO ↔ @Model split.** `MemoryDTO` / `DateModelDTO` / `CommentDTO` are the Firestore wire formats;
 `MemoryModel` / `DateModel` / `UserModel` / `BlockedUserList` are the SwiftData records.
 `MemoryModel.upsert(from:in:)` is the single merge point — route new remote fields through it rather
