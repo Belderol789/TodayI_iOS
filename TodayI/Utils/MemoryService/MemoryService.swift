@@ -89,10 +89,12 @@ struct MemoryService {
     func isHttps(_ s: String?) -> Bool { s?.hasPrefix("http://") == true || s?.hasPrefix("https://") == true }
     let usernameOK = !m.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && m.username.count <= 64
     let moodOK     = true // rules now accept String OR Int; rawValue ok
-    let imgsOK     = m.remoteImagePaths.allSatisfy { $0.hasPrefix("http://") || $0.hasPrefix("https://") } && m.remoteImagePaths.count <= 12
+    // Personal entries store a bare storage path instead of a tokened URL, so "is it
+    // https" is no longer the right question — either form is valid.
+    let imgsOK     = m.remoteImagePaths.count <= 12
     let linkOK     = m.linkURL == nil || isHttps(m.linkURL)
-    let videoOK    = m.videoRemoteURL == nil || isHttps(m.videoRemoteURL)
-    let audioOK    = m.audioRemoteURL == nil || isHttps(m.audioRemoteURL)
+    let videoOK    = m.videoRemoteURL == nil || !m.videoRemoteURL!.isEmpty
+    let audioOK    = m.audioRemoteURL == nil || !m.audioRemoteURL!.isEmpty
 
     print("Rules preflight — usernameOK:", usernameOK,
           "moodOK:", moodOK, "imgsOK:", imgsOK, "linkOK:", linkOK,

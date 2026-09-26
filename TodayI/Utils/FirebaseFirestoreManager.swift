@@ -126,31 +126,38 @@ struct FirebaseFirestoreManager {
       print("🟦 Starting upload task for memoryID: \(memoryID)")
       
       var remoteImages: [String] = []
-      
+
+      // Only a Global post gets a tokened, world-readable URL. A Personal entry keeps a
+      // bare storage path so its photos stay behind the owner-only rule — see
+      // FirebaseStorageManager.RemoteMediaRef.
+      let isPublic = dto.isPublic
+
       // Upload images
       for (i, img) in payload.images.enumerated() {
         print("📤 Uploading image \(i + 1)/\(payload.images.count) for userID: \(userID)")
-        let url = try await FirebaseStorageManager.uploadImage(
+        let ref = try await FirebaseStorageManager.uploadImage(
           img.image,
           userID: userID,
           memoryID: memoryID,
-          index: i
+          index: i,
+          isPublic: isPublic
         )
-        print("✅ Image \(i + 1) uploaded: \(url.absoluteString)")
-        remoteImages.append(url.absoluteString)
+        print("✅ Image \(i + 1) uploaded (\(isPublic ? "public" : "protected")): \(ref.stored)")
+        remoteImages.append(ref.stored)
       }
       
       // Upload video (if any)
       var videoURLString: String?
       if let videoURL = payload.videoURL {
         print("📤 Uploading video for userID: \(userID), file: \(videoURL.lastPathComponent)")
-        let url = try await FirebaseStorageManager.uploadVideo(
+        let ref = try await FirebaseStorageManager.uploadVideo(
           fileURL: videoURL,
           userID: userID,
-          memoryID: memoryID
+          memoryID: memoryID,
+          isPublic: isPublic
         )
-        videoURLString = url.absoluteString
-        print("✅ Video uploaded: \(url.absoluteString)")
+        videoURLString = ref.stored
+        print("✅ Video uploaded (\(isPublic ? "public" : "protected")): \(ref.stored)")
       } else {
         print("ℹ️ No video to upload")
       }
@@ -159,13 +166,14 @@ struct FirebaseFirestoreManager {
       var audioURLString: String?
       if let audioURL = payload.audioURL {
         print("📤 Uploading audio for userID: \(userID), file: \(audioURL.lastPathComponent)")
-        let url = try await FirebaseStorageManager.uploadAudio(
+        let ref = try await FirebaseStorageManager.uploadAudio(
           fileURL: audioURL,
           userID: userID,
-          memoryID: memoryID
+          memoryID: memoryID,
+          isPublic: isPublic
         )
-        audioURLString = url.absoluteString
-        print("✅ Audio uploaded: \(url.absoluteString)")
+        audioURLString = ref.stored
+        print("✅ Audio uploaded (\(isPublic ? "public" : "protected")): \(ref.stored)")
       } else {
         print("ℹ️ No audio to upload")
       }

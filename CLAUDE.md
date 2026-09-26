@@ -202,12 +202,30 @@ trips → one). Two things to preserve when touching these:
 Cloud Functions use `firebase-admin` and **bypass rules entirely** — `socialMilestones.ts` writing
 `commentCount`, `likes` and notification docs is unaffected by any of the above.
 
-**Storage rules are effectively bypassed for reads.** The rule is owner-only, but
-`FirebaseStorageManager` returns `ref.downloadURL()` — a tokened
-`firebasestorage.googleapis.com/...?token=` URL that ignores Storage rules. That is why global-feed
-images, video, audio and profile photos load for everyone. The consequence: those URLs are readable
-by anyone who has the link, indefinitely, and the owner-only rule is not protecting them. Uploads
-are still correctly owner-scoped under `users/{uid}/...`.
+**A download token is minted only for Global media.** `ref.downloadURL()` returns a tokened
+`firebasestorage.googleapis.com/...?token=` URL, and that token **bypasses Storage rules entirely** —
+which is why global-feed media loads for everyone despite an owner-only rule. For a public post
+that's the feature. For a Personal entry it was simply wrong: its photos stayed world-readable by
+anyone holding the link, forever, and toggling a post back to Personal didn't un-share it.
+
+So uploads are privacy-aware. `FirebaseStorageManager.RemoteMediaRef` is either a `publicURL`
+(tokened, Global) or a `protectedPath` (a bare `users/{uid}/…` path, Personal), and the same field
+on the model and DTO holds either form — `isPublicRef(_:)` tells them apart. Protected media is
+fetched through `ProtectedMediaStore`, which uses the authenticated SDK so the owner-only rule
+actually applies, and caches to `Documents/protected/`. **`URL(string:)` parses a bare path into a
+valid relative URL**, so the form must be checked explicitly or private media silently renders as a
+broken remote image — that is why `imageSources` branches on `isPublicRef` rather than on
+`URL.init?`.
+
+`updatePrivacy(for:isPublic:)` converts the media *before* writing the flag: Global mints a token,
+Personal **revokes** it by clearing `firebaseStorageDownloadTokens`, which invalidates every link
+already handed out. The plain `updatePrivacy(userID:memoryID:)` overload only flips the flag — use
+the model overload for anything user-facing.
+
+`revokePrivateTokens` is a one-off admin callable that does the same for media uploaded before this
+existed. It requires `admin: true` on your own user doc. Run it once, then delete it.
+
+Uploads remain owner-scoped under `users/{uid}/...` either way.
 
 
 ## Timezones — read before touching dates or notifications
@@ -334,6 +352,12 @@ leaves the app usable. Locking someone out of their own journal because their tr
 tunnel would be a worse bug than whatever the switch was guarding.
 
 ## Moderation
+
+**Reports notify you, or they may as well not exist.** `reports` is a write-only drop box with no
+client read, so nothing in the app can surface one and nothing did — they were visible only to
+whoever remembered to open the Firestore console. `onReportCreated` pushes each one to the
+`admin_reports` FCM topic; **subscribe your own device or the queue is still unwatched.** This is the
+moderation strategy, and App Review expects UGC reports to be acted on promptly.
 
 Report reasons in `ReportService`, block list in `BlockedUserList` mirrored to both SwiftData and
 Firestore, and blocked/reported authors are filtered out of the feed immediately on the client

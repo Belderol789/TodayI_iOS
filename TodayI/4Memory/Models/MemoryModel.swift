@@ -185,7 +185,16 @@ extension MemoryModel {
     if !validLocal.isEmpty {
       return validLocal.map { .localImage(path: $0) }
     }
-    return remoteImagePaths.compactMap(URL.init(string:)).map { .remoteImage(url: $0) }
+    // A stored string is either a tokened https URL (public) or a bare storage path
+    // (Personal). `URL(string:)` happily parses a bare path into a relative URL, so the
+    // form has to be checked explicitly or private media silently renders as a broken
+    // remote image.
+    return remoteImagePaths.map { stored in
+      if FirebaseStorageManager.isPublicRef(stored), let url = URL(string: stored) {
+        return .remoteImage(url: url)
+      }
+      return .protectedImage(path: stored)
+    }
   }
   
   /// Prefer local video; fallback to remote
@@ -194,8 +203,11 @@ extension MemoryModel {
     if let path = videoLocalPath, FileManager.default.fileExists(atPath: path) {
       return .localVideo(path: path)
     }
-    if let s = videoRemoteURL, let u = URL(string: s) {
-      return .remoteVideo(url: u)
+    if let s = videoRemoteURL {
+      if FirebaseStorageManager.isPublicRef(s), let u = URL(string: s) {
+        return .remoteVideo(url: u)
+      }
+      return .protectedVideo(path: s)
     }
     return nil
   }
@@ -206,8 +218,11 @@ extension MemoryModel {
     if let path = audioLocalPath, FileManager.default.fileExists(atPath: path) {
       return .localAudio(path: path)
     }
-    if let s = audioRemoteURL, let u = URL(string: s) {
-      return .remoteAudio(url: u)
+    if let s = audioRemoteURL {
+      if FirebaseStorageManager.isPublicRef(s), let u = URL(string: s) {
+        return .remoteAudio(url: u)
+      }
+      return .protectedAudio(path: s)
     }
     return nil
   }

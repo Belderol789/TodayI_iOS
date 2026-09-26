@@ -49,6 +49,23 @@ struct MediaTile: View {
 
       case .remoteAudio(let url):
         normalizedAudio(source: .remoteAudio(url: url))
+
+      // Personal entries: no token, so the file comes through the authenticated SDK.
+      // Resolves to a cached local file and then renders exactly like local media.
+      case .protectedImage(let path):
+        ProtectedMedia(path: path) { local in
+          normalizedImage(FileImage(path: local.path, contentMode: .fill))
+        }
+
+      case .protectedVideo(let path):
+        ProtectedMedia(path: path) { local in
+          normalizedVideo(url: local)
+        }
+
+      case .protectedAudio(let path):
+        ProtectedMedia(path: path) { local in
+          normalizedAudio(source: .localAudio(path: local.path))
+        }
       }
     }
     .background(Color.secondary.opacity(0.08))
@@ -112,6 +129,49 @@ private struct FileImage: View {
         .aspectRatio(contentMode: contentMode) // .fill by default
     } else {
       Color.secondary.opacity(0.1) // fallback
+    }
+  }
+}
+
+
+// MARK: - Protected media loader
+
+/// Resolves a storage path to a cached local file, then hands it to `content`.
+///
+/// Only reached for Personal entries whose local copy is missing — a reinstall or a
+/// second device — so the spinner is rare by construction.
+struct ProtectedMedia<Content: View>: View {
+  let path: String
+  @ViewBuilder var content: (URL) -> Content
+
+  @State private var localURL: URL?
+  @State private var failed = false
+
+  var body: some View {
+    Group {
+      if let localURL {
+        content(localURL)
+      } else if failed {
+        Image(systemName: "lock.slash")
+          .font(.title3)
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, minHeight: 160)
+          .accessibilityLabel("This media could not be loaded")
+      } else {
+        ZStack {
+          Color.clear
+          ProgressView()
+        }
+        .frame(maxWidth: .infinity, minHeight: 160)
+      }
+    }
+    .task(id: path) {
+      guard localURL == nil else { return }
+      if let url = await ProtectedMediaStore.shared.localURL(forPath: path) {
+        localURL = url
+      } else {
+        failed = true
+      }
     }
   }
 }

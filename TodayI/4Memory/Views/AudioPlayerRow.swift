@@ -60,6 +60,17 @@ struct AudioPlayerRow: View {
     case .localAudio(let path):
       let url = URL(fileURLWithPath: path)
       loadPlayer(from: url)
+    case .protectedAudio(let path):
+      // No download token, so URLSession can't fetch it — go through the SDK, which
+      // presents the owner's credentials and satisfies the owner-only rule.
+      isLoading = true
+      Task {
+        let local = await ProtectedMediaStore.shared.localURL(forPath: path)
+        await MainActor.run {
+          if let local { loadPlayer(from: local) }
+          isLoading = false
+        }
+      }
     case .remoteAudio(let url):
       // Stream directly — AVAudioPlayer handles remote URLs
       isLoading = true

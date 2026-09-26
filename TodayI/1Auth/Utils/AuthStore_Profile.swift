@@ -78,6 +78,8 @@ extension AuthStore {
     if let profileImg = docs?.appendingPathComponent("profile_\(uid).jpg") {
       try? FileManager.default.removeItem(at: profileImg)
     }
+    // Cached copies of rules-protected media fetched on this device.
+    ProtectedMediaStore.clearCache()
   }
 
   enum DeleteError: LocalizedError {

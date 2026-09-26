@@ -11,3 +11,5 @@ export { onCommentCreated, onMemoryLikesUpdated } from "./socialMilestones";
 export { deleteAccountData } from "./deleteAccount";
 export { onMemoryDeleted } from "./memoryCleanup";
 export { moderatePublicMemory } from "./moderation";
+export { onReportCreated } from "./reportAlerts";
+export { revokePrivateTokens } from "./revokePrivateTokens";
