@@ -25,7 +25,38 @@ final class GlobalFeedViewModel: ObservableObject {
   private var cursor: DocumentSnapshot?
   
   // MARK: - Init
-  init(day: Date) { self.day = day }
+  private var privacyObserver: NSObjectProtocol?
+
+  init(day: Date) {
+    self.day = day
+    privacyObserver = NotificationCenter.default.addObserver(
+      forName: .memoryPrivacyDidChange, object: nil, queue: .main
+    ) { [weak self] note in
+      guard let id = note.userInfo?["id"] as? String,
+            let isPublic = note.userInfo?["isPublic"] as? Bool
+      else { return }
+      Task { @MainActor in self?.applyPrivacyChange(id: id, isPublic: isPublic) }
+    }
+  }
+
+  deinit {
+    if let privacyObserver { NotificationCenter.default.removeObserver(privacyObserver) }
+  }
+
+  /// Drops a memory the author has just made Personal.
+  ///
+  /// Only handles becoming private. Becoming public needs the full DTO, which the
+  /// author's own post path supplies via `prepend`; anything else surfaces on the
+  /// next refresh.
+  func applyPrivacyChange(id: String, isPublic: Bool) {
+    guard !isPublic else { return }
+    let before = allRows.count
+    allRows.removeAll { $0.id == id }
+    justPosted.removeAll { $0.id == id }
+    guard allRows.count != before else { return }
+    applyFilter()
+    print("🔒 Removed \(id.prefix(8)) from the feed — now Personal")
+  }
   
   // MARK: - Public API
   

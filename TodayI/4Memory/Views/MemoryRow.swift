@@ -421,6 +421,13 @@ private extension MemoryRow {
             Task {
               do {
                 try await MemoryService.updatePrivacy(for: memory, isPublic: newValue)
+                // The World feed holds cached DTOs that would otherwise re-upsert the
+                // old value straight back over this one.
+                NotificationCenter.default.post(
+                  name: .memoryPrivacyDidChange,
+                  object: nil,
+                  userInfo: ["id": memory.id, "isPublic": newValue]
+                )
               } catch {
                 print("⚠️ Failed to update privacy:", error)
               }
