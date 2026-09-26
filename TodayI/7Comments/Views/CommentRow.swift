@@ -113,7 +113,7 @@ private extension CommentRow {
   func blockUser() {
     guard !isBlocking, !comment.userID.isEmpty else { return }
     isBlocking = true
-    dataManager.addBlockedUser(comment.userID)
+    Task { await dataManager.addBlockedUser(comment.userID) }
     onBlocked(comment.userID)
     isBlocking = false
   }

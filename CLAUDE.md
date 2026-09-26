@@ -305,7 +305,81 @@ already plenty, and the notification inbox is not where value is demonstrated.
 ## Moderation
 
 Report reasons in `ReportService`, block list in `BlockedUserList` mirrored to both SwiftData and
-Firestore, and blocked/reported authors are filtered out of the feed immediately on the client.
+Firestore, and blocked/reported authors are filtered out of the feed immediately on the client
+(`GlobalFeedView` observes `BlockedUserList` via `@Query`, so a block hides the row with no refetch).
+
+**Blocking is mute semantics, not true blocking.** It is enforced entirely on the client: nothing
+stops a blocked user reading, liking or commenting on a public post, you simply don't see them.
+Their likes still count toward your milestone notifications — those are aggregates (`"your post
+reached 10 likes"`) with no actor identity, so nothing about them is *revealed*, but the interaction
+is not prevented. Real blocking needs rule changes in the console plus a check in
+`socialMilestones.ts`.
+
+**Unblocking must write Firestore, and `syncBlockedUsers` must not merge.** `removeBlockedUser` once
+touched only SwiftData while `syncBlockedUsers` unioned the remote list back in on every launch, so
+an unblock silently reversed itself the next time the app opened — unblocking was impossible. Remote
+is now authoritative on sync; Firestore applies pending offline writes to its own cache, so a block
+made offline is already in the list that comes back. Both block writes are `await`ed now: they were
+bare `setData` calls with no error handling, so a denied write left a device-only block that vanished
+on reinstall. The reciprocal *removal* is best-effort — the rule permits adding yourself to someone
+else's `blockedUsers` and may not permit removing yourself. **Confirm that in the console.**
+
+**Content filtering is two layers, and the tiers are a product decision.**
+`ContentModeration.swift` runs while the user types (fast, bypassable, feedback only);
+`functions/src/moderation.ts` re-runs the same categories on write and is what actually enforces.
+Keep `normalise()` identical in both or the client will pass text the server then rejects.
+
+- **Hate speech and violent threats** block a *public* post only. The entry is still saveable as
+  Personal — what is refused is the Global feed, not the journal.
+- **Ordinary profanity is allowed.** People swear when they are upset; that is the app working.
+- **Self-harm never blocks and never delays.** The post is written untouched and crisis resources are
+  offered *afterwards*, logged nowhere and reported to no one. Gating someone's lowest moment behind
+  a modal would teach them this is a bad place to be honest, which is the opposite of the product.
+- **Contact details** warn before a public post, never block.
+
+The slur list is deliberately empty in both `TodayI/Utils/HateTerms.txt` and `moderation.ts` — it is
+a live content decision that belongs in a maintained source. The server copy is authoritative because
+a functions deploy updates it without an App Store release. `moderatePublicMemory` hides a violating
+post (`isPublic: false`, `moderationHidden: true`) rather than deleting it, and writes the author an
+inbox notification; a post that silently vanishes reads as a bug and teaches nothing. Private
+memories are never scanned.
+
+## Deletion
+
+**Account deletion happens in a Cloud Function, because it cannot be done correctly on the client.**
+`deleteAccountData` (callable, `asia-southeast1`) uses the Admin SDK to reach three things rules put
+permanently out of the client's reach: Storage files, the user's comments on *other people's* posts,
+and their uid inside other users' `blockedUsers` arrays. `AuthStore.deleteAccount()` calls it and
+only wipes local data once the server confirms.
+
+Three bugs this replaced, worth not reintroducing:
+
+- `listAll()` **is not recursive.** The old Storage cleanup iterated `listing.items` on
+  `users/{uid}`, which is empty — every file sits under the `memories/` and `profile/` *prefixes*. So
+  it deleted nothing, and since `downloadURL()` hands out tokened URLs that ignore Storage rules,
+  every photo, video and voice note stayed publicly fetchable forever after the account was gone.
+- **Firestore was deleted before Auth.** `requiresRecentLogin` is the *expected* error for a stale
+  session, so the common failure destroyed the user's entire history while leaving the account alive
+  with nothing left to retry. The Admin SDK has no recent-login requirement, so Auth deletion is
+  reliable and runs last — anything that throws before it leaves the account intact and retryable.
+- The local wipe cleared `["audio", "images"]`, but images are written to **`memories`** and videos
+  to **`videos`**, so both survived on disk.
+
+Reports are handled deliberately rather than uniformly: reports *about* the deleted user are removed,
+reports they *filed* are kept with `reporterUID` scrubbed, since those are evidence about someone
+else. Say so in the privacy policy — retaining anything after a deletion request should never be a
+surprise.
+
+**Per-memory deletion is scoped.** `MemoryService.DeleteScope` offers `.remoteOnly` and `.everywhere`,
+because "get this off the internet" and "destroy this" are different wishes and a journal shouldn't
+force the second to get the first. `.remoteOnly` clears the remote pointers and `isPublic` so the row
+doesn't chase dead URLs or re-publish itself. `users/{uid}/dates/{dayKey}` is deliberately left alone
+either way — it carries moods for the calendar, never content.
+
+`onMemoryDeleted` cleans up `comments/{memoryId}` when a memory goes. The client cannot: rules grant
+no delete on the hub and only permit deleting your own replies, so a thread containing other people's
+comments is unreachable from the app by design. Before this, deleting a post left the whole
+conversation in Firestore permanently.
 
 ## Conventions
 

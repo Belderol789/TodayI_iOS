@@ -1,0 +1,17 @@
+# HateTerms.txt — slurs and dehumanising terms blocked from the Global feed.
+#
+# Intentionally empty. A slur list is a live content decision with real costs in both
+# directions (a missing term lets abuse through; a careless one censors people describing
+# abuse done to them), so it should come from a maintained source rather than be invented
+# in application code. Reasonable starting points:
+#
+#   - Shutterstock's List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words
+#   - A commercial moderation feed, if this ever needs to scale
+#
+# Format: one lowercase term per line. Lines starting with # are ignored.
+# Matching is whole-word and runs after leetspeak is normalised, so "h4te" finds "hate"
+# and you do not need to list spelling variants.
+#
+# NOTE: this copy only drives the typing-time warning. The authoritative list lives in
+# functions/src/moderation.ts, which is what actually keeps a post out of the feed — and
+# which you can update with a functions deploy instead of an App Store release.

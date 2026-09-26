@@ -110,8 +110,12 @@ extension AuthStore {
     do {
       let lists = try context.fetch(FetchDescriptor<BlockedUserList>())
       if let list = lists.first {
-        let merged = Array(Set(list.users + remoteList))
-        list.users = merged
+        // Remote wins rather than merging. Merging meant an unblock was undone on the
+        // next launch — the removed uid was still in `remoteList`, got unioned back in,
+        // and the block silently returned. Firestore applies pending offline writes to
+        // its own cache, so a block made without a connection is already present here
+        // and isn't lost by taking the remote list as the source of truth.
+        list.users = remoteList
       } else {
         context.insert(BlockedUserList(users: remoteList))
       }

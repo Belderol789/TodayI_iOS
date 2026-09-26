@@ -44,7 +44,9 @@ struct GlobalFeedView: View {
             emptyFeedView
           } else {
             ForEach(visibleRows, id: \.id) { dto in
-              GlobalMemoryRow(dto: dto, onBlockUser: { swiftManager?.addBlockedUser($0) })
+              GlobalMemoryRow(dto: dto, onBlockUser: { uid in
+                Task { await swiftManager?.addBlockedUser(uid) }
+              })
                 .padding(.horizontal, 16)
                 .onAppear {
                   if dto.id == visibleRows.suffix(5).first?.id {

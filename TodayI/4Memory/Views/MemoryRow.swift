@@ -82,11 +82,14 @@ struct MemoryRow: View {
         }
       }
       .sheet(isPresented: $showReportSheet) { reportSheet }
-      .alert("Delete Post?", isPresented: $showDeleteConfirm) {
-        Button("Delete", role: .destructive) { performDelete() }
+      // A dialog rather than an alert: "un-share it" and "destroy it" are different
+      // wishes, and a journal should not make someone delete a memory to stop sharing it.
+      .confirmationDialog("Delete Post?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+        Button("Delete Everywhere", role: .destructive) { performDelete(scope: .everywhere) }
+        Button("Remove from Cloud Only") { performDelete(scope: .remoteOnly) }
         Button("Cancel", role: .cancel) {}
       } message: {
-        Text("This will permanently remove your post. This action cannot be undone.")
+        Text("\u{201C}Remove from Cloud\u{201D} takes this off the server and the Global feed but keeps your copy on this device. It won\u{2019}t sync to a new phone.")
       }
       .alert("Delete Failed", isPresented: Binding(
         get: { deleteError != nil },
@@ -101,14 +104,17 @@ struct MemoryRow: View {
 
 // MARK: - Delete
 private extension MemoryRow {
-  func performDelete() {
+  func performDelete(scope: MemoryService.DeleteScope) {
     guard !isDeleting else { return }
     isDeleting = true
     Task {
       do {
-        try await MemoryService.deleteMemory(memory, context: modelContext)
+        try await MemoryService.deleteMemory(memory, scope: scope, context: modelContext)
         await MainActor.run {
-          onDelete?()
+          // Only a full delete removes the row; a cloud-only delete leaves it on screen,
+          // which is the visible proof that the local copy survived.
+          if scope == .everywhere { onDelete?() }
+          isDeleting = false
         }
       } catch {
         await MainActor.run {

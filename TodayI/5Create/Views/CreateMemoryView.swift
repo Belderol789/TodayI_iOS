@@ -27,6 +27,10 @@ struct CreateMemoryView: View {
 
   @AppStorage("hasPostedOnce") private var hasPostedOnce = false
   @State private var showNotifPrompt = false
+  /// Content-filter state. `showSupport` is never a gate — see `attemptPost()`.
+  @State private var showSupport = false
+  @State private var showBlockedAlert = false
+  @State private var showPIIAlert = false
   /// How many memories today already holds — drives the free-tier notice.
   @State private var todayMemoryCount = 0
 
@@ -103,7 +107,65 @@ struct CreateMemoryView: View {
       } message: {
         Text("Want to get notified to create a habit of journalling daily?")
       }
+      .alert("This can't go on the Global feed", isPresented: $showBlockedAlert) {
+        Button("Keep it Personal") {
+          vm.isPublic = false
+          postIgnoringWarnings()
+        }
+        Button("Edit", role: .cancel) {}
+      } message: {
+        Text("Posts on the Global feed can't contain slurs or threats. You can still save this entry just for yourself.")
+      }
+      .alert("Sharing contact details?", isPresented: $showPIIAlert) {
+        Button("Post to Global", role: .destructive) { postIgnoringWarnings() }
+        Button("Keep it Personal") {
+          vm.isPublic = false
+          postIgnoringWarnings()
+        }
+        Button("Edit", role: .cancel) {}
+      } message: {
+        Text("This looks like it contains a phone number or email address. Anyone can read posts on the Global feed.")
+      }
+      .sheet(isPresented: $showSupport) { supportSheet }
     }
+  }
+
+  // MARK: - Support sheet
+
+  /// Shown *after* the entry is safely saved, never before. It asks nothing and changes
+  /// nothing — the post is already written exactly as the user wrote it.
+  private var supportSheet: some View {
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 18) {
+          Text("That sounded like a hard day.")
+            .font(.title2.weight(.semibold))
+          Text("Your entry is saved, exactly as you wrote it. Nothing has been flagged or shared. If you want to talk to someone, these are free and confidential.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+
+          ForEach(ContentModeration.crisisResources) { resource in
+            VStack(alignment: .leading, spacing: 2) {
+              Text(resource.name).font(.subheadline.weight(.semibold))
+              Text(resource.contact).font(.title3.weight(.bold)).foregroundStyle(.tint)
+              Text(resource.region).font(.caption).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+          }
+        }
+        .padding(20)
+      }
+      .navigationTitle("You're not alone")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button("Close") { showSupport = false }
+        }
+      }
+    }
+    .presentationDetents([.medium, .large])
   }
 
   // MARK: - Free-tier notice
@@ -423,7 +485,7 @@ struct CreateMemoryView: View {
 
   private var postToolbarButton: some View {
     Button {
-      vm.pressPost()
+      attemptPost()
     } label: {
       Text("Post")
         .font(.subheadline.weight(.semibold))
@@ -595,6 +657,42 @@ struct CreateMemoryView: View {
         }
       }
     }
+  }
+
+  // MARK: - Content filter
+
+  /// Runs the client-side filter, then posts.
+  ///
+  /// Three findings, three deliberately different responses:
+  ///
+  /// - **Hate speech / threats** block a *public* post only. The entry is still yours to
+  ///   keep privately; what's refused is the Global feed, not the journal.
+  /// - **Contact details** warn but never block — sometimes people mean to share them.
+  /// - **Self-harm never blocks and never delays.** The post goes through untouched and
+  ///   support is offered *afterwards*. Gating someone's lowest moment behind a modal
+  ///   would teach them this app is a bad place to be honest, which is the opposite of
+  ///   what it is for. Nothing is logged, flagged or reported.
+  private func attemptPost() {
+    let findings = ContentModeration.scan(vm.text)
+
+    if vm.isPublic, !findings.isDisjoint(with: ContentModeration.blocking) {
+      showBlockedAlert = true
+      return
+    }
+    if vm.isPublic, findings.contains(.personalInfo) {
+      showPIIAlert = true
+      return
+    }
+
+    vm.pressPost()
+    if findings.contains(.selfHarm) { showSupport = true }
+  }
+
+  /// Posts without re-running the filter — used by the "post anyway" paths.
+  private func postIgnoringWarnings() {
+    let findings = ContentModeration.scan(vm.text)
+    vm.pressPost()
+    if findings.contains(.selfHarm) { showSupport = true }
   }
 
   // MARK: - Post-preview hook
