@@ -527,7 +527,12 @@ can't drift.
 
 Shape: `{ version: Int, hateTerms: [String], blockedPhrases: [String], selfHarmPhrases: [String] }`.
 `hateTerms` matches whole-word after leetspeak normalisation (so `h4te` finds `hate`, and no
-variants need listing); `blockedPhrases` matches as a substring so multi-word threats work.
+variants need listing). `blockedPhrases` and `selfHarmPhrases` match their words **in order with up
+to `maxPhraseGap` (2) other words between each pair** — plain substring matching let "I hope you all
+die" past a list containing "hope you die". Implemented twice (`ContentModeration.phraseMatches`,
+`moderation.ts phraseMatches`); same tokenizer, same gap, or the layers disagree. This raises the
+ceiling on a word list without removing it: reordering, synonyms, misspellings and Tagalog still get
+through, and only a semantic classifier closes that.
 `version` is for cache invalidation and log legibility only — it is deliberately *not* a separate
 version-check request, because that would cost an extra read to save a read.
 

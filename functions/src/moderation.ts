@@ -108,14 +108,54 @@ function containsWord(term: string, haystack: string): boolean {
 /** Why a post may not appear in the Global feed, if at all. */
 export type Verdict = "ok" | "policy" | "selfHarm";
 
+// Literal substring matching was beaten by a single inserted word: "hope you die" did
+// not match "I hope you ALL die". Phrases now match their words in order with up to
+// MAX_PHRASE_GAP unrelated words between each pair. Raises the ceiling on a word list,
+// doesn't remove it — reordering, synonyms and other languages still get through.
+// **Keep in step with `ContentModeration.phraseMatches` in the app** — same tokenizer,
+// same gap, or the two layers disagree about the same text.
+export const MAX_PHRASE_GAP = 2;
+
+/** Bare words, punctuation dropped, so "die." and "die!" both match "die". */
+function tokens(haystack: string): string[] {
+  return haystack
+    .split(" ")
+    .map((w) => w.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter(Boolean);
+}
+
+/** Every word of `phrase` in `words`, in order, ≤ MAX_PHRASE_GAP words between each. */
+export function phraseMatches(phrase: string, words: string[]): boolean {
+  const target = tokens(phrase);
+  if (target.length === 0 || words.length < target.length) return false;
+
+  for (let start = 0; start < words.length; start++) {
+    if (words[start] !== target[0]) continue;
+    let cursor = start;
+    let matched = true;
+    for (const word of target.slice(1)) {
+      const end = Math.min(cursor + 2 + MAX_PHRASE_GAP, words.length);
+      let hit = -1;
+      for (let j = cursor + 1; j < end; j++) {
+        if (words[j] === word) { hit = j; break; }
+      }
+      if (hit < 0) { matched = false; break; }
+      cursor = hit;
+    }
+    if (matched) return true;
+  }
+  return false;
+}
+
 export function verdictWith(text: string, list: Lists): Verdict {
   const haystack = normalise(text);
-  if (list.blockedPhrases.some((p) => haystack.includes(p))) return "policy";
+  const words = tokens(haystack);
+  if (list.blockedPhrases.some((p) => phraseMatches(p, words))) return "policy";
   if (list.hateTerms.some((t) => containsWord(t, haystack))) return "policy";
   // Not a policy violation and never treated as one — but the Global feed is
   // day-scoped and anonymous with no support structure, so it cannot help the person
   // and publishing it risks harm to whoever reads it. The entry itself is untouched.
-  if (list.selfHarmPhrases.some((p) => haystack.includes(p))) return "selfHarm";
+  if (list.selfHarmPhrases.some((p) => phraseMatches(p, words))) return "selfHarm";
   return "ok";
 }
 

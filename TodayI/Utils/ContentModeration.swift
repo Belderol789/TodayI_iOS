@@ -62,8 +62,13 @@ enum ContentModeration {
     var findings: Set<Finding> = []
 
     let list = terms
-    if list.selfHarmPhrases.contains(where: haystack.contains) { findings.insert(.selfHarm) }
-    if list.blockedPhrases.contains(where: haystack.contains) { findings.insert(.violentThreat) }
+    let words = tokens(haystack)
+    if list.selfHarmPhrases.contains(where: { phraseMatches($0, in: words) }) {
+      findings.insert(.selfHarm)
+    }
+    if list.blockedPhrases.contains(where: { phraseMatches($0, in: words) }) {
+      findings.insert(.violentThreat)
+    }
     if list.hateTerms.contains(where: { containsWord($0, in: haystack) }) {
       findings.insert(.hateSpeech)
     }
@@ -94,6 +99,52 @@ enum ContentModeration {
     return lowered.replacingOccurrences(
       of: #"\s+"#, with: " ", options: .regularExpression
     )
+  }
+
+  // MARK: - Phrase matching
+  //
+  // Literal substring matching was trivially beaten by a single inserted word: the list
+  // had "hope you die", someone typed "I hope you ALL die", and it sailed through — not
+  // even adversarially. Phrases now match their words *in order* with up to
+  // `maxPhraseGap` unrelated words between each pair, which catches "hope you all die",
+  // "kill all of you" and similar near-misses without matching words scattered across an
+  // entire journal entry.
+  //
+  // This raises the ceiling on a word list; it doesn't remove it. Reordering, synonyms,
+  // misspellings and other languages still get through. **Keep in step with
+  // `phraseMatches` in functions/src/moderation.ts** — same tokenizer, same gap.
+
+  static let maxPhraseGap = 2
+
+  /// Splits normalised text into bare words, dropping punctuation so "die." and "die!"
+  /// both match "die".
+  private static func tokens(_ haystack: String) -> [String] {
+    haystack
+      .split(separator: " ")
+      .map { $0.filter { $0.isLetter || $0.isNumber } }
+      .filter { !$0.isEmpty }
+  }
+
+  /// True when every word of `phrase` appears in `words`, in order, with at most
+  /// `maxPhraseGap` other words between consecutive phrase words.
+  static func phraseMatches(_ phrase: String, in words: [String]) -> Bool {
+    let target = tokens(phrase)
+    guard let first = target.first, words.count >= target.count else { return false }
+
+    for start in words.indices where words[start] == first {
+      var cursor = start
+      var matched = true
+      for word in target.dropFirst() {
+        let window = (cursor + 1)..<min(cursor + 2 + maxPhraseGap, words.count)
+        guard let hit = window.first(where: { words[$0] == word }) else {
+          matched = false
+          break
+        }
+        cursor = hit
+      }
+      if matched { return true }
+    }
+    return false
   }
 
   /// Whole-word match, so "class" can't trip on a term inside it — the Scunthorpe
