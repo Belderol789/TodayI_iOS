@@ -14,8 +14,10 @@ import Foundation
 enum ContentModeration {
 
   enum Finding: String, CaseIterable {
-    /// Slurs and dehumanising language. Blocked from the Global feed.
-    case hateSpeech
+    /// A word from `sensitiveTerms` — slurs, or anything else listed. **Not blocked:**
+    /// the post goes to the Global feed blurred, and each reader decides whether to
+    /// reveal it. See `isSensitive(_:)`.
+    case sensitive
     /// Threats of violence toward others. Blocked from the Global feed.
     case violentThreat
     /// Signals of self-harm or suicidal intent. **Never blocked.**
@@ -34,7 +36,11 @@ enum ContentModeration {
   ///
   /// Ordinary profanity is absent for the same reason: people swear when they are upset,
   /// and that is the app working, not failing.
-  static let blocking: Set<Finding> = [.hateSpeech, .violentThreat]
+  ///
+  /// `sensitive` is absent too: those posts are blurred with a tap to reveal rather than
+  /// refused, so the reader chooses. Threats stay blocked because blurring one still
+  /// delivers it to anyone who taps.
+  static let blocking: Set<Finding> = [.violentThreat]
 
   // MARK: - Term lists
   //
@@ -69,12 +75,24 @@ enum ContentModeration {
     if list.blockedPhrases.contains(where: { phraseMatches($0, in: words) }) {
       findings.insert(.violentThreat)
     }
-    if list.hateTerms.contains(where: { containsWord($0, in: haystack) }) {
-      findings.insert(.hateSpeech)
+    if list.sensitiveTerms.contains(where: { containsWord($0, in: haystack) }) {
+      findings.insert(.sensitive)
     }
     if containsContactDetails(text) { findings.insert(.personalInfo) }
 
     return findings
+  }
+
+  /// True when a Global post should render blurred behind a tap-to-reveal.
+  ///
+  /// Evaluated when the feed draws, not when the post is saved. That's deliberate: the
+  /// stored text is always exactly what the author wrote, and a word added to
+  /// `config/moderation` blurs posts that already exist rather than only new ones.
+  static func isSensitive(_ text: String) -> Bool {
+    let list = terms
+    guard !list.sensitiveTerms.isEmpty else { return false }
+    let haystack = normalise(text)
+    return list.sensitiveTerms.contains(where: { containsWord($0, in: haystack) })
   }
 
   /// True when the text may not be posted to the Global feed.

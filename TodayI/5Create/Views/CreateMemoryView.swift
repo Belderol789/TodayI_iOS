@@ -120,7 +120,7 @@ struct CreateMemoryView: View {
         }
         Button("Edit", role: .cancel) {}
       } message: {
-        Text("Posts on the Global feed can't contain slurs or threats. You can still save this entry just for yourself.")
+        Text("Posts on the Global feed can't contain threats. You can still save this entry just for yourself.")
       }
       .alert("Sharing contact details?", isPresented: $showPIIAlert) {
         Button("Post to Global", role: .destructive) { postIgnoringWarnings() }

@@ -503,8 +503,20 @@ else's `blockedUsers` and may not permit removing yourself. **Confirm that in th
 `functions/src/moderation.ts` re-runs the same categories on write and is what actually enforces.
 Keep `normalise()` identical in both or the client will pass text the server then rejects.
 
-- **Hate speech and violent threats** block a *public* post only. The entry is still saveable as
-  Personal — what is refused is the Global feed, not the journal.
+- **Violent threats** block a *public* post only. The entry is still saveable as Personal — what is
+  refused is the Global feed, not the journal. Threats are blocked rather than blurred because
+  blurring one still delivers it to anyone who taps.
+- **Sensitive words (`sensitiveTerms` — slurs, or anything else listed) blur, they don't block.** The
+  post reaches the Global feed and `MemoryRow` renders its text and media behind a tap-to-reveal, so
+  each reader chooses. Three deliberate properties: detection runs **at render time**
+  (`ContentModeration.isSensitive`), so the stored text is always exactly what the author wrote and a
+  newly listed word also blurs posts that already exist; only the **Global feed** blurs
+  (`blursSensitiveContent`), never Home, the calendar or a day view; and the **author never sees their
+  own post blurred**. A reveal is per-row, per-session — revealing one post isn't a standing
+  preference. VoiceOver is told "sensitive content, hidden" until revealed, otherwise the choice is
+  one only sighted readers get to make. The server deliberately does **not** know about
+  `sensitiveTerms`; if it hid those posts they'd never reach the feed to be blurred.
+  Images are only blurred when the *text* matches — there's no image classifier.
 - **Ordinary profanity is allowed.** People swear when they are upset; that is the app working.
 - **Self-harm is never refused, but never broadcast.** Resources are offered **before** saving —
   showing them afterwards meant the moment had passed, and for a Global entry it had already
@@ -525,9 +537,9 @@ takes effect within minutes, on both layers, by editing one document — no App 
 functions deploy. Don't reintroduce a second copy in either place; the whole point is that they
 can't drift.
 
-Shape: `{ version: Int, hateTerms: [String], blockedPhrases: [String], selfHarmPhrases: [String] }`.
-`hateTerms` matches whole-word after leetspeak normalisation (so `h4te` finds `hate`, and no
-variants need listing). `blockedPhrases` and `selfHarmPhrases` match their words **in order with up
+Shape: `{ version: Int, sensitiveTerms: [String], blockedPhrases: [String], selfHarmPhrases: [String] }`.
+`sensitiveTerms` (formerly `hateTerms`, which hid posts; renamed when the behaviour became blur) matches
+whole-word after leetspeak normalisation (so `h4te` finds `hate`, and no variants need listing). `blockedPhrases` and `selfHarmPhrases` match their words **in order with up
 to `maxPhraseGap` (2) other words between each pair** — plain substring matching let "I hope you all
 die" past a list containing "hope you die". Implemented twice (`ContentModeration.phraseMatches`,
 `moderation.ts phraseMatches`); same tokenizer, same gap, or the layers disagree. This raises the
@@ -536,7 +548,7 @@ through, and only a semantic classifier closes that.
 `version` is for cache invalidation and log legibility only — it is deliberately *not* a separate
 version-check request, because that would cost an extra read to save a read.
 
-`hateTerms` ships empty. Both sides fall back to built-in `blockedPhrases` so a fresh install is
+`sensitiveTerms` ships empty. Both sides fall back to built-in `blockedPhrases` so a fresh install is
 never completely unfiltered before its first fetch, and both **fail open** on a fetch error: the
 client keeps its cached list, the server keeps its warm one. Failing closed would hide every public
 post in the app over one failed read.

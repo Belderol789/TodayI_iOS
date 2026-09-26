@@ -10,7 +10,7 @@ struct GlobalMemoryRow: View {
   var body: some View {
     Group {
       if let model {
-        MemoryRow(memory: model, onBlockUser: onBlockUser)
+        MemoryRow(memory: model, onBlockUser: onBlockUser, blursSensitiveContent: true)
       } else {
         ProgressView().frame(height: 120)
       }

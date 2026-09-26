@@ -24,10 +24,12 @@ const REGION = "asia-southeast1";
  * bounds how stale that can get: add a term and it takes effect within five minutes
  * without a deploy, which is the whole point of putting the list in Firestore.
  */
-type Lists = { hateTerms: string[]; blockedPhrases: string[]; selfHarmPhrases: string[] };
+// No `sensitiveTerms` here on purpose. Those posts are *allowed* on the Global feed and
+// blurred by the app at render time, so the server has nothing to enforce for them —
+// hiding them here would stop them reaching the feed to be blurred at all.
+type Lists = { blockedPhrases: string[]; selfHarmPhrases: string[] };
 
 const FALLBACK: Lists = {
-  hateTerms: [],
   blockedPhrases: [
     "kill you", "kill him", "kill her", "kill them",
     "hunt you down", "beat you up", "i will find you",
@@ -61,7 +63,6 @@ async function lists(): Promise<Lists> {
     const data = snap.data();
     if (data) {
       cached = {
-        hateTerms: clean(data.hateTerms),
         blockedPhrases: clean(data.blockedPhrases).length
           ? clean(data.blockedPhrases)
           : FALLBACK.blockedPhrases,
@@ -97,12 +98,6 @@ function normalise(text: string): string {
     .replace(/@/g, "a")
     .replace(/\$/g, "s")
     .replace(/\s+/g, " ");
-}
-
-/** Whole-word match, so an innocent word containing a term isn't caught. */
-function containsWord(term: string, haystack: string): boolean {
-  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`\\b${escaped}\\b`).test(haystack);
 }
 
 /** Why a post may not appear in the Global feed, if at all. */
@@ -151,7 +146,6 @@ export function verdictWith(text: string, list: Lists): Verdict {
   const haystack = normalise(text);
   const words = tokens(haystack);
   if (list.blockedPhrases.some((p) => phraseMatches(p, words))) return "policy";
-  if (list.hateTerms.some((t) => containsWord(t, haystack))) return "policy";
   // Not a policy violation and never treated as one — but the Global feed is
   // day-scoped and anonymous with no support structure, so it cannot help the person
   // and publishing it risks harm to whoever reads it. The entry itself is untouched.

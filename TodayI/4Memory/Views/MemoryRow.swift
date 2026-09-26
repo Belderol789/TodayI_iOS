@@ -6,6 +6,10 @@ struct MemoryRow: View {
   var onMore: (() -> Void)? = nil
   var onTapImage: ((Int) -> Void)? = nil
   var onBlockUser: ((String) -> Void)? = nil
+  /// Set by the Global feed. When true, a post matching `sensitiveTerms` renders blurred
+  /// behind a tap-to-reveal. Off everywhere else — Home, the calendar and a memory's own
+  /// day view are the author's journal, not a feed.
+  var blursSensitiveContent: Bool = false
   var onDelete: (() -> Void)? = nil
   /// Set false inside `CommentThreadView` — you're already in the thread, and the
   /// button would push a second copy of it. Everything else (like, privacy, menu)
@@ -25,6 +29,9 @@ struct MemoryRow: View {
   @State private var reportConfirmed = false
   @State private var showDeleteConfirm = false
   @State private var showAuth = false
+  /// Per-row and per-session on purpose: revealing one post is a decision about that
+  /// post, not a standing preference to see everything.
+  @State private var revealed = false
   @State private var isDeleting = false
   @State private var deleteError: String?
   
@@ -90,8 +97,22 @@ struct MemoryRow: View {
     return "No media."
   }
   
+  /// Blur the body of this card? Never for the author's own post — it's their writing,
+  /// and hiding it from them would be absurd.
+  private var isConcealed: Bool {
+    blursSensitiveContent
+      && !revealed
+      && auth.userID != memory.userID
+      && ContentModeration.isSensitive(memory.journalText)
+  }
+
   private var rowSummaryA11y: String {
-    "\(usernameLabel). \(createdAtA11y). Mood: \(moodLabel). \(mediaA11y) Likes: \(memory.likes). \(journalPreviewA11y)"
+    // A blurred post must stay hidden from VoiceOver too, or the reveal is a choice only
+    // sighted readers get to make.
+    if isConcealed {
+      return "\(usernameLabel). \(createdAtA11y). Mood: \(moodLabel). Sensitive content, hidden. Likes: \(memory.likes)."
+    }
+    return "\(usernameLabel). \(createdAtA11y). Mood: \(moodLabel). \(mediaA11y) Likes: \(memory.likes). \(journalPreviewA11y)"
   }
   
   // MARK: - Body
@@ -251,12 +272,55 @@ private extension MemoryRow {
     VStack(alignment: .leading, spacing: 12) {
       headerRow
         .padding(.horizontal, Self.textInset)
-      journalText
-        .padding(.horizontal, Self.textInset)
-      mediaSection
+      postBody
       actionRow
         .padding(.horizontal, Self.textInset)
     }
+  }
+
+  /// Text and media — the part a sensitive post blurs. The header stays readable so the
+  /// reader knows whose post and which mood before deciding to reveal it.
+  @ViewBuilder
+  var postBody: some View {
+    let stack = VStack(alignment: .leading, spacing: 12) {
+      journalText
+        .padding(.horizontal, Self.textInset)
+      mediaSection
+    }
+    if isConcealed {
+      stack
+        // A one-line post blurs to a sliver too short to hold the reveal button.
+        .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+        .blur(radius: 20)
+        .clipped()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .overlay { revealButton }
+    } else {
+      stack
+    }
+  }
+
+  var revealButton: some View {
+    Button {
+      withAnimation(.easeOut(duration: 0.25)) { revealed = true }
+    } label: {
+      VStack(spacing: 4) {
+        Image(systemName: "eye.slash")
+          .font(.title3)
+        Text("Sensitive content")
+          .font(.subheadline.weight(.semibold))
+        Text("Tap to view")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      .padding(.horizontal, 20)
+      .padding(.vertical, 12)
+      .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Sensitive content")
+    .accessibilityHint("Double tap to reveal this post.")
   }
 }
 
