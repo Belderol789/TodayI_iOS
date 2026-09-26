@@ -29,6 +29,8 @@ struct CreateMemoryView: View {
   @State private var showNotifPrompt = false
   /// Content-filter state. `showSupport` is never a gate — see `attemptPost()`.
   @State private var showSupport = false
+  /// True when the support sheet is explaining that we kept the entry Personal.
+  @State private var redirectedToPersonal = false
   @State private var showBlockedAlert = false
   @State private var showPIIAlert = false
   /// How many memories today already holds — drives the free-tier notice.
@@ -144,7 +146,9 @@ struct CreateMemoryView: View {
         VStack(alignment: .leading, spacing: 18) {
           Text("That sounded like a hard day.")
             .font(.title2.weight(.semibold))
-          Text("Your entry is saved, exactly as you wrote it. Nothing has been flagged or shared. If you want to talk to someone, these are free and confidential.")
+          Text(redirectedToPersonal
+               ? "Your entry is saved exactly as you wrote it, and we've kept it Personal rather than putting it on the Global feed. Nothing has been flagged or reported. If you want to talk to someone, these are free and confidential."
+               : "Your entry is saved, exactly as you wrote it. Nothing has been flagged or shared. If you want to talk to someone, these are free and confidential.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
 
@@ -715,13 +719,34 @@ struct CreateMemoryView: View {
       showBlockedAlert = true
       return
     }
+
+    // Self-harm: save it, never refuse it — but don't broadcast it either.
+    //
+    // The first version showed resources and still posted to Global, which is the worst
+    // of both: the person gets a helpline *and* their crisis goes out to strangers. The
+    // Global feed is day-scoped and anonymous with no support structure, so it can't
+    // help them, and publishing it risks harm to whoever reads it.
+    //
+    // So the entry is kept exactly as written and stays Personal. This is framed as
+    // care, not enforcement — no "violates our guidelines" wording, nothing reported.
+    if vm.isPublic, findings.contains(.selfHarm) {
+      vm.isPublic = false
+      redirectedToPersonal = true
+      vm.pressPost()
+      showSupport = true
+      return
+    }
+
     if vm.isPublic, findings.contains(.personalInfo) {
       showPIIAlert = true
       return
     }
 
     vm.pressPost()
-    if findings.contains(.selfHarm) { showSupport = true }
+    if findings.contains(.selfHarm) {
+      redirectedToPersonal = false
+      showSupport = true
+    }
   }
 
   /// Posts without re-running the filter — used by the "post anyway" paths.

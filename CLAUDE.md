@@ -460,9 +460,14 @@ Keep `normalise()` identical in both or the client will pass text the server the
 - **Hate speech and violent threats** block a *public* post only. The entry is still saveable as
   Personal — what is refused is the Global feed, not the journal.
 - **Ordinary profanity is allowed.** People swear when they are upset; that is the app working.
-- **Self-harm never blocks and never delays.** The post is written untouched and crisis resources are
-  offered *afterwards*, logged nowhere and reported to no one. Gating someone's lowest moment behind
-  a modal would teach them this is a bad place to be honest, which is the opposite of the product.
+- **Self-harm is never refused, but never broadcast.** The entry is saved exactly as written and
+  kept **Personal**; crisis resources follow, logged nowhere and reported to no one. The first
+  version showed resources *and* still posted to Global — the worst of both, since the person gets
+  a helpline while their crisis goes out to strangers. The Global feed is day-scoped and anonymous
+  with no support structure, so it cannot help them and publishing it risks harm to whoever reads
+  it. Framed as care, never as enforcement: `verdictFor` returns `selfHarm` rather than `policy`
+  precisely so the notification copy differs. Never refuse to *save* it — gating someone's lowest
+  moment would teach them this is a bad place to be honest, which is the opposite of the product.
 - **Contact details** warn before a public post, never block.
 
 **The word lists live in Firestore at `config/moderation`, and both layers read that one
@@ -514,6 +519,17 @@ Reports are handled deliberately rather than uniformly: reports *about* the dele
 reports they *filed* are kept with `reporterUID` scrubbed, since those are evidence about someone
 else. Say so in the privacy policy — retaining anything after a deletion request should never be a
 surprise.
+
+**Visibility is only changeable on the memory's own day** (`MemoryRow.canToggleVisibility`). The
+feed shows one day and has no day picker, so publishing an older entry put it where nobody could
+look — the toggle appeared to work and did nothing. Deleting an old memory is still allowed; that
+is `canEditPrivacy`, deliberately a separate property.
+
+A free user's Personal entry has **no Firestore document**, so `updatePrivacy` cannot patch it —
+`updateData` fails with "No document to update". Making it Global uploads it for the first time via
+`CloudBackupService.backUpNow`, which ignores `isPremium` on purpose: Premium buys *automatic*
+backup, not permission to post. If that upload fails the flag is reverted, because showing "Global"
+when nothing reached the server is a lie the user can't see through.
 
 **Per-memory deletion is scoped.** `MemoryService.DeleteScope` offers `.remoteOnly` and `.everywhere`,
 because "get this off the internet" and "destroy this" are different wishes and a journal shouldn't

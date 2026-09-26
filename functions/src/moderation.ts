@@ -24,7 +24,7 @@ const REGION = "asia-southeast1";
  * bounds how stale that can get: add a term and it takes effect within five minutes
  * without a deploy, which is the whole point of putting the list in Firestore.
  */
-type Lists = { hateTerms: string[]; blockedPhrases: string[] };
+type Lists = { hateTerms: string[]; blockedPhrases: string[]; selfHarmPhrases: string[] };
 
 const FALLBACK: Lists = {
   hateTerms: [],
@@ -32,6 +32,13 @@ const FALLBACK: Lists = {
     "kill you", "kill him", "kill her", "kill them",
     "hunt you down", "beat you up", "i will find you",
     "you should die", "hope you die",
+  ],
+  selfHarmPhrases: [
+    "kill myself", "killing myself", "end my life", "ending my life",
+    "want to die", "wanna die", "better off dead", "no reason to live",
+    "nothing to live for", "take my own life", "suicidal", "suicide",
+    "hurt myself", "hurting myself", "self harm", "self-harm",
+    "cut myself", "cutting myself",
   ],
 };
 
@@ -58,6 +65,9 @@ async function lists(): Promise<Lists> {
         blockedPhrases: clean(data.blockedPhrases).length
           ? clean(data.blockedPhrases)
           : FALLBACK.blockedPhrases,
+        selfHarmPhrases: clean(data.selfHarmPhrases).length
+          ? clean(data.selfHarmPhrases)
+          : FALLBACK.selfHarmPhrases,
       };
     }
     cachedAt = Date.now();
@@ -95,16 +105,23 @@ function containsWord(term: string, haystack: string): boolean {
   return new RegExp(`\\b${escaped}\\b`).test(haystack);
 }
 
-/** True when this text may not appear in the Global feed. */
-export function violatesWith(text: string, list: Lists): boolean {
+/** Why a post may not appear in the Global feed, if at all. */
+export type Verdict = "ok" | "policy" | "selfHarm";
+
+export function verdictWith(text: string, list: Lists): Verdict {
   const haystack = normalise(text);
-  if (list.blockedPhrases.some((p) => haystack.includes(p))) return true;
-  return list.hateTerms.some((t) => containsWord(t, haystack));
+  if (list.blockedPhrases.some((p) => haystack.includes(p))) return "policy";
+  if (list.hateTerms.some((t) => containsWord(t, haystack))) return "policy";
+  // Not a policy violation and never treated as one — but the Global feed is
+  // day-scoped and anonymous with no support structure, so it cannot help the person
+  // and publishing it risks harm to whoever reads it. The entry itself is untouched.
+  if (list.selfHarmPhrases.some((p) => haystack.includes(p))) return "selfHarm";
+  return "ok";
 }
 
 /** Convenience wrapper that fetches (or reuses) the current lists. */
-export async function violatesFeedPolicy(text: string): Promise<boolean> {
-  return violatesWith(text, await lists());
+export async function verdictFor(text: string): Promise<Verdict> {
+  return verdictWith(text, await lists());
 }
 
 export const moderatePublicMemory = onDocumentWritten(
@@ -130,10 +147,12 @@ export const moderatePublicMemory = onDocumentWritten(
     if (!textChanged && !becamePublic) return;
 
     const text = String(data.journalText ?? "");
-    if (!text || !(await violatesFeedPolicy(text))) return;
+    if (!text) return;
+    const verdict = await verdictFor(text);
+    if (verdict === "ok") return;
 
     const { uid, memoryId } = event.params;
-    console.log(`🚫 hiding public memory ${memoryId} from ${uid} — feed policy`);
+    console.log(`🚫 hiding public memory ${memoryId} from ${uid} — ${verdict}`);
 
     // Hide it from the feed rather than deleting it. The entry is still the author's
     // journal and destroying their writing is not ours to do; it just stops being public.
@@ -145,14 +164,26 @@ export const moderatePublicMemory = onDocumentWritten(
 
     // Tell them, in the existing inbox. A post that silently vanishes reads as a bug and
     // teaches nothing; an explanation is the only part of this with any corrective value.
+    // Two very different messages. Telling someone in crisis that they "didn't meet
+    // guidelines" would be careless; telling someone who posted a slur that we're
+    // worried about them would be absurd.
+    const message = verdict === "selfHarm"
+      ? {
+          title: "We kept that one Personal",
+          body: "That entry is saved exactly as you wrote it, just not on the Global feed. Nothing has been flagged or reported.",
+        }
+      : {
+          title: "A post was made Personal",
+          body: "One of your posts didn't meet the Global feed guidelines, so it's now visible only to you. Your entry hasn't been changed or deleted.",
+        };
+
     await admin
       .firestore()
       .collection("users").doc(uid)
       .collection("notifications").doc()
       .set({
         type: "moderation",
-        title: "A post was made Personal",
-        body: "One of your posts didn't meet the Global feed guidelines, so it's now visible only to you. Your entry hasn't been changed or deleted.",
+        ...message,
         memoryID: memoryId,
         read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),

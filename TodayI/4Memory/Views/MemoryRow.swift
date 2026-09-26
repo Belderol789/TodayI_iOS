@@ -29,6 +29,17 @@ struct MemoryRow: View {
   
   // MARK: - Derived
   private var canEditPrivacy: Bool { auth.userID == memory.userID }
+
+  /// Visibility is only changeable on the day the memory belongs to.
+  ///
+  /// The Global feed shows a single day and has no day picker, so publishing an older
+  /// entry puts it somewhere nobody can look — the toggle appeared to work and did
+  /// nothing. Limiting it to today also removes the awkward states: no re-uploading
+  /// media for a day that has passed, and no post quietly changing visibility long
+  /// after anyone saw it. Deleting an old memory is still fine; that's `canEditPrivacy`.
+  private var canToggleVisibility: Bool {
+    canEditPrivacy && Calendar.current.isDateInToday(memory.date)
+  }
   private var timeString: String { DateFormatter.shortDateFormatter.string(from: memory.createdAt) }
   private var isPremium: Bool { memory.isPremium }
   private var moodColor: Color { memory.mood.adaptiveColor }
@@ -415,7 +426,7 @@ private extension MemoryRow {
       likeButton
       if showsCommentButton { commentButton }
       Spacer()
-      if canEditPrivacy {
+      if canToggleVisibility {
         PrivacyBadge(isPublic: $memory.isPublic)
           .disabled(isUpdatingPrivacy)
           .accessibilityLabel("Privacy")

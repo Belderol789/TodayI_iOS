@@ -56,6 +56,19 @@ enum CloudBackupService {
     print("☁️ Backup finished — \(succeeded)/\(pending.count) uploaded")
   }
 
+  /// Uploads a single memory immediately, regardless of tier.
+  ///
+  /// Used when a free user makes a local-only entry Global: it has no Firestore document
+  /// yet, so there is nothing for `updatePrivacy` to patch — it has to be uploaded for
+  /// the first time. Sharing is an explicit choice, so this ignores `isPremium`; what
+  /// Premium buys is *automatic* backup, not permission to post.
+  @MainActor
+  @discardableResult
+  static func backUpNow(_ model: MemoryModel) async -> Bool {
+    guard let context = model.modelContext else { return false }
+    return await backUp(model, context: context)
+  }
+
   /// Uploads one memory's media and document. Returns false on any failure, leaving the
   /// flag set so the next drain retries it.
   @MainActor

@@ -34,6 +34,24 @@ extension MemoryService {
     isPublic: Bool,
     db: Firestore = .firestore()
   ) async throws {
+    // A free user's Personal entry was never uploaded, so there is no document to
+    // patch — `updateData` would fail with "No document to update". Making it Global
+    // means uploading it for the first time.
+    if memory.needsCloudBackup {
+      await MainActor.run { memory.isPublic = isPublic }
+      guard isPublic else {
+        await MainActor.run { try? memory.modelContext?.save() }
+        return
+      }
+      guard await CloudBackupService.backUpNow(memory) else {
+        // Put it back — claiming it's Global when nothing reached the server would be
+        // a lie the user can't see through.
+        await MainActor.run { memory.isPublic = false }
+        throw PrivacyError.uploadFailed
+      }
+      return
+    }
+
     var images: [String] = []
     for stored in memory.remoteImagePaths {
       images.append(try await convert(stored, toPublic: isPublic))
@@ -62,6 +80,15 @@ extension MemoryService {
     toPublic
       ? try await FirebaseStorageManager.makePublic(stored: stored)
       : try await FirebaseStorageManager.makeProtected(stored: stored)
+  }
+}
+
+extension MemoryService {
+  enum PrivacyError: LocalizedError {
+    case uploadFailed
+    var errorDescription: String? {
+      "Couldn't share this memory. Check your connection and try again."
+    }
   }
 }
 
