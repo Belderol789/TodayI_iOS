@@ -222,8 +222,11 @@ Personal **revokes** it by clearing `firebaseStorageDownloadTokens`, which inval
 already handed out. The plain `updatePrivacy(userID:memoryID:)` overload only flips the flag — use
 the model overload for anything user-facing.
 
-`revokePrivateTokens` is a one-off admin callable that does the same for media uploaded before this
-existed. It requires `admin: true` on your own user doc. Run it once, then delete it.
+There is no migration for media uploaded before this existed — Firestore and Storage were wiped
+2026-09-26, so every object in the bucket was written by the privacy-aware path. If that ever stops
+being true, the fix is a token sweep with the Admin SDK, **not** an admin-gated client callable: the
+owner can write their own user document, so any `admin: true` flag the client can set is an
+escalation route rather than a permission check.
 
 Uploads remain owner-scoped under `users/{uid}/...` either way.
 
