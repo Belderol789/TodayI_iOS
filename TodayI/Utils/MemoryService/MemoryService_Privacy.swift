@@ -1,4 +1,5 @@
 import FirebaseFirestore
+import FirebaseAuth
 
 extension MemoryService {
   /// Update the public/private flag of a memory.
@@ -93,14 +94,24 @@ extension MemoryService {
   /// remote copy was removed by `deleteMemory(scope: .remoteOnly)` and is now being
   /// shared again. Both need a full write, not an update.
   private static func firstUpload(_ memory: MemoryModel, isPublic: Bool) async throws {
-    await MainActor.run { memory.isPublic = isPublic }
-
     // Going Personal needs no server work at all — there is nothing up there.
     guard isPublic else {
-      await MainActor.run { try? memory.modelContext?.save() }
+      await MainActor.run {
+        memory.isPublic = false
+        try? memory.modelContext?.save()
+      }
       return
     }
 
+    // See the identical guard in `CloudBackupService.backUp` — same failure mode, hit
+    // from the other call path (sharing a memory that was created under a different
+    // signed-in account than the one active now, or after `deleteMemory(.remoteOnly)`
+    // removed the document and a later re-share tries to recreate it).
+    guard Auth.auth().currentUser?.uid == memory.userID else {
+      throw PrivacyError.wrongAccount
+    }
+
+    await MainActor.run { memory.isPublic = isPublic }
     guard await CloudBackupService.backUpNow(memory) else {
       // Put it back. Showing "Global" when nothing reached the server is a lie the user
       // cannot see through.
@@ -119,8 +130,18 @@ extension MemoryService {
 extension MemoryService {
   enum PrivacyError: LocalizedError {
     case uploadFailed
+    /// This memory was created under a different signed-in account than the one active
+    /// now — the write would land in a path that no longer belongs to this session, and
+    /// Storage rules correctly deny it. Surfacing this instead of a raw 403 is the whole
+    /// point; see `CloudBackupService.backUp`'s matching guard for how it's found.
+    case wrongAccount
     var errorDescription: String? {
-      "Couldn't share this memory. Check your connection and try again."
+      switch self {
+      case .uploadFailed:
+        return "Couldn't share this memory. Check your connection and try again."
+      case .wrongAccount:
+        return "This memory belongs to a different account than the one currently signed in, so it can't be shared from here."
+      }
     }
   }
 }

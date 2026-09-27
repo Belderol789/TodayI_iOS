@@ -35,7 +35,7 @@ extension AuthStore {
     }
   }
   
-  func loadOrCreateProfile(for user: FirebaseAuth.User) async {
+  func loadOrCreateProfile(for user: FirebaseAuth.User, isRecoveryAttempt: Bool = false) async {
     let uid = user.uid
     let userDoc = db.collection("users").document(uid)
     
@@ -87,7 +87,45 @@ extension AuthStore {
       
     } catch {
       print("Failed to load/create user profile:", error)
-      // Fallback still uses Firebase truth:
+
+      // A persisted Firebase Auth session can be dead: its underlying user record was
+      // deleted (our own `deleteAccountData`, a console cleanup, Firebase's own
+      // anonymous-account pruning) while Keychain still cached its credentials.
+      // `Auth.auth().currentUser` then keeps returning that uid — `ensureSignedIn()`
+      // trusts it without ever verifying the backend still recognizes it — and every
+      // write attempted as that uid is denied. Under this ruleset, creating your own
+      // `users/{uid}` doc has exactly one gate — `isOwner(uid)` — so a permission-denied
+      // right here has essentially one honest explanation: the session, not the rule.
+      //
+      // The bug this replaces: the code below used to `publish(uid: uid, ...)` on ANY
+      // failure, including this one — so the app looked signed in and stayed that way
+      // forever, while every future read and write kept silently failing against a
+      // session the server had already discarded. That is why "a new account, no
+      // login" could still never get its profile document created.
+      let isPermissionDenied = (error as NSError).domain == FirestoreErrorDomain
+        && (error as NSError).code == FirestoreErrorCode.permissionDenied.rawValue
+
+      if isPermissionDenied, !isRecoveryAttempt {
+        print("⚠️ Treating this as a dead session — signing out and starting fresh")
+        try? Auth.auth().signOut()
+        do {
+          let result = try await Auth.auth().signInAnonymously()
+          // Bounded to one retry: a real rule problem must not loop forever.
+          await loadOrCreateProfile(for: result.user, isRecoveryAttempt: true)
+        } catch {
+          print("Recovery sign-in also failed:", error)
+          isSessionReady = true
+        }
+        return
+      }
+
+      // Any other failure (offline, a genuine rule change) still needs the UI unblocked
+      // rather than stuck loading — but never past a *verified* recovery attempt, so a
+      // second dead session doesn't quietly get published as if it worked.
+      guard !isPermissionDenied else {
+        isSessionReady = true
+        return
+      }
       let uname = Self.defaultUsername(for: uid)
       upsertLocalUser(uid: uid, username: uname, email: user.email, isAnonymous: user.isAnonymous)
       publish(uid: uid, username: uname, email: user.email, isAnonymous: user.isAnonymous)

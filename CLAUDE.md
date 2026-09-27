@@ -320,6 +320,37 @@ is opt-in and off by default.
 `auth.isRestricted` is an admin-set flag on the user doc that disables public posting; it is set from
 the Firebase console, not from the app.
 
+## A persisted Auth session can be dead — `ensureSignedIn` must verify, not trust
+
+Firebase Auth persists the signed-in user in the Keychain, and Keychain survives both app
+deletion and a plain reinstall (`simctl install` over an existing app, and — per Apple's own
+behavior — a real device unless the user restores from a backup that also wipes it). So "a new
+account, no login" is not reliably a fresh identity: it can be the same cached uid from a session
+that no longer exists server-side — deleted by `deleteAccountData`, cleaned up by hand in the
+console, or pruned by Firebase's own anonymous-account expiry.
+
+`ensureSignedIn()` used to trust `Auth.auth().currentUser` unconditionally: any cached user, valid
+or not, skipped straight to using it. The first real write for a dead session — creating its own
+`users/{uid}` doc in `loadOrCreateProfile` — was denied, and the **catch block published the dead
+uid anyway**, so `auth.userID` looked signed in and stayed that way forever while every future read
+and write kept failing as `permission-denied`. That is the mechanism behind two reports from the
+same day: a Personal→Global privacy toggle reverting itself after a Storage 403 (`CloudBackupService`
+uploading under a uid Storage no longer recognized), and a freshly "reset" test account never getting
+its `users/{uid}` document at all.
+
+`loadOrCreateProfile` now treats a `permission-denied` on creating **your own uid's document** as a
+reliable signal, not a coincidence — under this ruleset `create` has exactly one gate
+(`isOwner(uid)`), so nothing else can deny it for a legitimately signed-in user. On that failure it
+signs out, requests a genuinely fresh anonymous session, and retries **once** — bounded, so an actual
+rules regression doesn't loop forever instead of surfacing. A non-`permission-denied` failure (offline,
+mid-flight) still unblocks `isSessionReady` without publishing a fabricated identity.
+
+`CloudBackupService.backUp` and `MemoryService_Privacy.firstUpload` separately guard
+`Auth.auth().currentUser?.uid == model.userID` before any Storage write. That covers a different case
+— a memory whose `userID` snapshot no longer matches whoever is *currently, validly* signed in (a
+real account switch) — which the `AuthStore` fix above doesn't touch, since a dead session's uid still
+equals its own snapshot right up until it's replaced.
+
 ## Premium
 
 StoreKit 2 subscriptions (`IAP.monthlyID` / `IAP.yearlyID`), entitlements cached in Keychain, plus a

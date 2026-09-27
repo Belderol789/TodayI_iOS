@@ -9,6 +9,7 @@ import Foundation
 import SwiftData
 import UIKit
 import FirebaseFirestore
+import FirebaseAuth
 
 /// Uploads memories that were saved locally while the user was on the free tier.
 ///
@@ -73,6 +74,17 @@ enum CloudBackupService {
   /// flag set so the next drain retries it.
   @MainActor
   private static func backUp(_ model: MemoryModel, context: ModelContext) async -> Bool {
+    // Storage paths are `users/{model.userID}/...`, but `model.userID` is a snapshot
+    // taken once at creation — nothing re-checks it later. If the signed-in identity
+    // has since changed (sign-out and a fresh anonymous session, switching accounts),
+    // this would silently try to write into someone else's path and get a Storage 403
+    // that looks like a generic network failure. Fail here instead, with a message that
+    // says what actually happened, and don't burn a retry on a write that can never
+    // succeed until the account matches again.
+    guard Auth.auth().currentUser?.uid == model.userID else {
+      print("⛔️ Skipping backup for \(model.id) — signed in as a different account than this memory's owner")
+      return false
+    }
     do {
       // Media comes off disk rather than from a PostPayload — a backfill happens long
       // after the UIImages that created it are gone.
