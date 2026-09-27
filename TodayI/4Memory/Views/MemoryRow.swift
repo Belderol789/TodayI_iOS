@@ -512,7 +512,11 @@ private extension MemoryRow {
   var actionRow: some View {
     HStack(spacing: 12) {
       likeButton
-      if showsCommentButton { commentButton }
+      // Comments are for Global posts only. A Personal entry has no audience, and
+      // commenting on one wrote a thread into the publicly readable `comments`
+      // collection. A post that goes Personal hides its thread; the comments return if
+      // it's shared again.
+      if showsCommentButton && memory.isPublic { commentButton }
       Spacer()
       if canToggleVisibility {
         PrivacyBadge(isPublic: privacyBinding)

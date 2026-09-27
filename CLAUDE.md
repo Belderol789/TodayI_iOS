@@ -179,7 +179,7 @@ users/{uid}                          profile, isRestricted
 users/{uid}/memories/{memoryId}      the memory doc (isPublic, dayKey, authorTZ, likes, likedBy…)
 users/{uid}/dates/{dayKey}           per-day mood list for the calendar
 moods/{dayKey}                       global tally { tally: { Happy: n, … } }
-comments/{memoryId}                  hub doc, holds ownerID
+comments/{memoryId}                  hub doc, holds ownerID — Global posts only
 comments/{memoryId}/comments/{id}    the comments
 reports/{id}                         moderation reports
 ```
@@ -201,9 +201,17 @@ Current rules, summarized:
 | `users/{uid}/dates/{dayKey}` | owner full |
 | `users/{uid}/notifications/{id}` | owner read + delete (delete is required by `deleteAccount()`); update only if the sole changed key is `read` → `true`. **No client create** — the Admin SDK writes these |
 | `moods/{dayKey}` | any signed-in user may read/create/update |
-| `comments/{memoryId}` | public read; signed-in create/update |
+| `comments/{memoryId}` | public read; **create only as the owner** (`ownerID == auth.uid`); update never changes `ownerID` — the owner may update, anyone else may only bump `commentCount` by 1 (rule published 2026-09-27; confirm in console) |
 | `comments/{memoryId}/comments/{id}` | public read; create requires `userID == auth.uid` and `0 < text.size() <= 1000`; delete only your own |
 | `reports/{id}` | write-only drop box: signed-in create as yourself; **no client read, update or delete** |
+
+**The comment hub exists only for Global posts.** `comments/{memoryId}` carries `ownerID`, which
+`onCommentCreated` trusts (via the Admin SDK) to find the memory and notify its author — so it is
+written by the owner, in `postMemory` for a Global post or in `updatePrivacy` when a post goes Global,
+and never by a commenter. A Personal entry gets none (it was a wasted write in every private premium
+post) and shows no comment button. Before the rule tightening, any signed-in user could rewrite a
+hub's `ownerID` and so steer `commentCount` writes, milestone notifications and `deleteAccountData`'s
+hub cleanup at someone else's account.
 
 **Writes are batched where they belong together.** `postMemory` commits the memory, its
 `dates/{dayKey}` entry, the `moods/{dayKey}` tally and the `comments/{memoryId}` hub as one

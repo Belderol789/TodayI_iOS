@@ -51,13 +51,27 @@ extension MemoryService {
     let ref = db.collection("users").document(memory.userID)
       .collection("memories").document(memory.id)
     do {
-      try await ref.updateData([
+      let batch = db.batch()
+      batch.updateData([
         "isPublic": isPublic,
         "remoteImagePaths": images,
         "videoRemoteURL": video as Any,
         "audioRemoteURL": audio as Any,
         "updatedAt": FieldValue.serverTimestamp()
-      ])
+      ], forDocument: ref)
+      // A Personal memory has no comment hub (see `postMemory`), so going Global is when
+      // it gets one — in the same batch, so the post can't be commentable without it.
+      // Going Personal leaves any existing hub alone: its comments come back if the post
+      // is shared again.
+      if isPublic {
+        batch.setData(commentsHubPayload(memoryID: memory.id,
+                                         ownerID: memory.userID,
+                                         isPublic: true,
+                                         dayKey: memory.dayKey),
+                      forDocument: db.collection("comments").document(memory.id),
+                      merge: true)
+      }
+      try await batch.commit()
     } catch let error as NSError where error.code == FirestoreErrorCode.notFound.rawValue {
       // The document isn't there. Either "Remove from Cloud Only" took it, or the flag
       // is out of step with reality. Re-create it in full rather than patching nothing —

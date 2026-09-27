@@ -77,12 +77,19 @@ struct MemoryService {
     batch.setData(moodTallyPayload(for: memory),
                   forDocument: db.collection("moods").document(dayKey),
                   merge: true)
-    batch.setData(commentsHubPayload(memoryID: memory.id,
-                                     ownerID: memory.userID,
-                                     isPublic: memory.isPublic,
-                                     dayKey: dayKey),
-                  forDocument: db.collection("comments").document(memory.id),
-                  merge: true)
+    // The comment hub exists so `onCommentCreated` can find the memory's owner — it
+    // carries `ownerID`, written here by the owner because a commenter can't be trusted
+    // to supply it. Only a Global post can be commented on, so a Personal entry gets no
+    // hub: that was one wasted write in four on every private premium post. A post that
+    // later goes Global gets its hub in `updatePrivacy`.
+    if memory.isPublic {
+      batch.setData(commentsHubPayload(memoryID: memory.id,
+                                       ownerID: memory.userID,
+                                       isPublic: true,
+                                       dayKey: dayKey),
+                    forDocument: db.collection("comments").document(memory.id),
+                    merge: true)
+    }
     try await batch.commit()
   }
   
