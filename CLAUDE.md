@@ -408,6 +408,20 @@ locked-memories row, and a non-blocking notice on Create when today already has 
 Notifications tab deliberately has **no** pill — four entry points for a one-screen product is
 already plenty, and the notification inbox is not where value is demonstrated.
 
+## StoreKit product info is fetched once per process, refreshed on foreground
+
+`IAPStore.refreshProducts` was only ever called from `init()` — so a price, display name or
+intro offer edited in App Store Connect never reaches an already-running process, even after
+Apple's side has fully propagated it. Backgrounding and reopening the app doesn't help either;
+only a genuine cold relaunch re-ran `init()`. Fixed the same way `MaintenanceGate` and
+`ModerationList` already handle this class of problem: re-fetch on every `scenePhase == .active`
+foreground, in `TodayIApp`'s existing `onChange`.
+
+That only closes the *app-side* half. **Apple's own propagation is separate and outside app
+code** — App Store Connect price/metadata changes are documented to take up to ~24 hours to
+reach the live catalog and Sandbox, and there is no client-side way to force it faster. If a
+price edit still isn't showing after a cold relaunch, that's Apple's side, not a bug here.
+
 ## Cost shape
 
 **Storage egress is the bill; Firestore is rounding error.** Modelled against the real code

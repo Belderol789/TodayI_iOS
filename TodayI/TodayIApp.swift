@@ -103,7 +103,16 @@ struct TodayIApp: App {
         // without the user relaunching — and so the app un-blocks itself the moment
         // maintenance ends.
         .onChange(of: scenePhase) { _, phase in
-          if phase == .active { Task { await maintenance.refresh() } }
+          // StoreKit product info (price, display name, intro offers) is fetched exactly
+          // once from `IAPStore.init()` and never again — so a price edited in App Store
+          // Connect never reaches an already-running process, even once Apple's side has
+          // propagated it. Re-check on every foreground, same as MaintenanceGate.
+          if phase == .active {
+            Task {
+              await maintenance.refresh()
+              await iapStore.refreshProducts(reason: "foreground")
+            }
+          }
         }
         .task {
           await maintenance.refresh()
