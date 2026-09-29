@@ -58,4 +58,28 @@ extension SwiftDataManager {
   var needsDateSync: Bool { !Self.datesSyncedThisLaunch }
 
   func markDatesSynced() { Self.datesSyncedThisLaunch = true }
+
+  // MARK: - Delta cursor
+  //
+  // `fetchDates` used to pull every `dates/{dayKey}` document, every launch, forever —
+  // at a year of history that's ~89% of the app's total reads for a cost that only ever
+  // grows. The cursor below turns each launch's one allowed fetch into a delta: only
+  // days touched since the last successful sync. Keyed per uid so switching accounts on
+  // one device — or a fresh account after a delete — can't reuse a stranger's cursor and
+  // silently miss its own first full sync.
+
+  private static func cursorKey(for uid: String) -> String { "datesSyncCursor_\(uid)" }
+
+  /// `nil` means "never synced" — callers should do a full fetch.
+  func datesSyncCursor(for uid: String) -> Date? {
+    let raw = UserDefaults.standard.double(forKey: Self.cursorKey(for: uid))
+    return raw > 0 ? Date(timeIntervalSince1970: raw) : nil
+  }
+
+  /// Callers pass the moment *just before* the query ran, not `Date()` afterward — a
+  /// write that lands mid-request is then still `>` the stored cursor and gets picked up
+  /// next launch, rather than being silently skipped forever.
+  func setDatesSyncCursor(_ date: Date, for uid: String) {
+    UserDefaults.standard.set(date.timeIntervalSince1970, forKey: Self.cursorKey(for: uid))
+  }
 }

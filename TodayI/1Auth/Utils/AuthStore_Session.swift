@@ -66,6 +66,18 @@ extension AuthStore {
           backupPrunedAt: (data["backupPrunedAt"] as? Timestamp)?.dateValue(),
           context: context
         )
+
+        // `admin` is one of the two fields the Firestore rules already reserve as
+        // console-only (`touchesAdminFields()` — the owner can write their own doc, but
+        // not this). Reusing that primitive here rather than a client-facing "subscribe
+        // to admin alerts" toggle: reports carry another user's uid and the memory they
+        // reported, and there's no reason to let any regular user discover a button that
+        // exposes moderation traffic. Set `admin: true` on your own user doc from the
+        // console once, and the next sign-in on that account subscribes automatically —
+        // the same queued, APNs-safe path every other topic already goes through.
+        if data["admin"] as? Bool == true {
+          NotificationManager.shared.enqueueSubscribe(topic: "admin_reports", persistKey: "adminReportsTopic")
+        }
         upsertLocalUser(uid: uid, username: uname, email: email, isAnonymous: isAnon)
         publish(uid: uid, username: uname, email: email, isAnonymous: isAnon, photoURL: photoURL, isRestricted: isRestricted)
         return

@@ -21,14 +21,30 @@ extension MemoryService {
   }
 
   /// Fetches all lightweight date entries for a user.
-  static func fetchDates(for userID: String, db: Firestore = Firestore.firestore()) async throws -> [DateDTO] {
+  /// Fetches a user's calendar days.
+  ///
+  /// `since` turns this into a delta sync: only days whose `updatedAt` moved after that
+  /// point come back. `dates/{dayKey}` gets `updatedAt: FieldValue.serverTimestamp()` on
+  /// every `postMemory` write — including a *second* mood added to an already-synced
+  /// day — so a delta catches both a brand-new day and an existing one that changed,
+  /// which a filter on `date` (the day's own calendar date, never updated) could not.
+  /// `since: nil` is a full fetch, used for the very first sync of an account and for an
+  /// explicit pull-to-refresh.
+  static func fetchDates(
+    for userID: String,
+    since: Date? = nil,
+    db: Firestore = Firestore.firestore()
+  ) async throws -> [DateDTO] {
     LoggerManager.instance.logFirebaseCall()
-    print("Kem Fetch dates \(userID)")
-    let snapshot = try await db
+    print("Kem Fetch dates \(userID)", since.map { "since \($0)" } ?? "(full)")
+    var query: Query = db
       .collection("users")
       .document(userID)
       .collection("dates")
-      .getDocuments()
+    if let since {
+      query = query.whereField("updatedAt", isGreaterThan: Timestamp(date: since))
+    }
+    let snapshot = try await query.getDocuments()
     
     return snapshot.documents.compactMap { DateDTO(doc: $0) }
   }

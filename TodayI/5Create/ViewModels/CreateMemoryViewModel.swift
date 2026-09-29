@@ -248,12 +248,17 @@ final class CreateMemoryViewModel: ObservableObject {
       // 1) Import as file
       guard var url = try await item.loadTransferable(type: PickedMovie.self)?.url else { return }
       
-      // 2) Check duration / trim
+      // 2) Trim to 30s and always transcode.
+      //
+      // This used to skip the export entirely for anything already under 30 seconds —
+      // which is the common case for a short mood-journal clip — so a 5-second 4K clip
+      // from a modern iPhone uploaded completely unmodified: full resolution, full
+      // bitrate, no re-encoding. MediaBlock plays video no larger than a feed card, so
+      // none of that was ever visible. Every video now gets the same 720p pass; only
+      // the trim length depends on how long the original actually is.
       let asset = AVURLAsset(url: url)
       let duration = try await asset.load(.duration).seconds
-      if duration > 30.0 {
-        url = try await exportFirst30SecondsMp4(from: asset)
-      }
+      url = try await exportCompressedMp4(from: asset, maxDuration: min(duration, 30.0))
       
       // 3) Thumbnail (safe on main because we're @MainActor)
       videoThumbnail = await generateVideoThumbnail(from: url)
@@ -304,10 +309,11 @@ final class CreateMemoryViewModel: ObservableObject {
     if autoplay { player.play() }
   }
 
-  /// Trim to first 30s and transcode to H.264 .mp4 (720p).
-  private func exportFirst30SecondsMp4(from asset: AVAsset) async throws -> URL {
+  /// Trims to `maxDuration` and transcodes to H.264 .mp4 (720p). Always runs, even when
+  /// the source is already short — the encode is what saves the bytes, not the trim.
+  private func exportCompressedMp4(from asset: AVAsset, maxDuration: Double) async throws -> URL {
     let start = CMTime(seconds: 0, preferredTimescale: 600)
-    let dur   = CMTime(seconds: 30, preferredTimescale: 600)
+    let dur   = CMTime(seconds: maxDuration, preferredTimescale: 600)
     let range = CMTimeRange(start: start, duration: dur)
     
     let outURL = URL(fileURLWithPath: NSTemporaryDirectory())

@@ -523,13 +523,45 @@ rule needed.
 **There is no export feature.** Point 1 above is satisfied by restore, not export; if you
 want a real "download my journal" path it still needs building.
 
+## Video is transcoded regardless of length
+
+`CreateMemoryViewModel.exportCompressedMp4` used to run only `if duration > 30.0` — so a 5-second clip
+from a modern iPhone, which is the common case for a short mood-journal video, uploaded completely
+unmodified: full resolution, full bitrate, no re-encoding. `MediaBlock` never plays video larger than
+a feed card, so none of that was ever visible. Every video now gets the same 720p pass on the way in;
+only the trim length depends on the source's actual duration (`min(duration, 30.0)`), not whether it
+runs at all.
+
+## `fetchDates` is a delta sync, not a full refetch
+
+`dates/{dayKey}` gets `updatedAt: FieldValue.serverTimestamp()` on every `postMemory` write — including
+a *second* mood added to a day already synced — so it's the field a delta can filter on; `date` itself
+(the day's own calendar date) never changes and can't tell "this day changed" from "this day didn't."
+`MemoryService.fetchDates(for:since:)` adds `whereField("updatedAt", isGreaterThan:)` when a cursor is
+given. `SwiftDataManager.datesSyncCursor(for:)` / `setDatesSyncCursor(_:for:)` persist that cursor per
+uid in `UserDefaults`, so switching accounts — or a fresh account after a delete — can't inherit a
+stranger's cursor and silently skip its own first full sync.
+
+Callers pass the moment **just before** the request, not `Date()` after it returns — a write landing
+mid-request is then still newer than the stored cursor and gets caught next launch instead of skipped
+forever. `CalendarView.forceRefreshDates` (pull-to-refresh) deliberately stays a full fetch with no
+cursor: it's the manual escape hatch if the incremental sync ever drifts from the server, and it
+resets the cursor to "now" afterward so the next automatic sync starts delta from a known-good point.
+
 ## Moderation
 
 **Reports notify you, or they may as well not exist.** `reports` is a write-only drop box with no
 client read, so nothing in the app can surface one and nothing did — they were visible only to
 whoever remembered to open the Firestore console. `onReportCreated` pushes each one to the
-`admin_reports` FCM topic; **subscribe your own device or the queue is still unwatched.** This is the
-moderation strategy, and App Review expects UGC reports to be acted on promptly.
+`admin_reports` FCM topic. This is the moderation strategy, and App Review expects UGC reports to be
+acted on promptly.
+
+Subscribing is not a client-facing toggle — a report carries another user's uid and the memory they
+reported, and there's no reason to let a regular user discover a button that exposes moderation
+traffic. It's gated on `admin`, one of the two fields the rules already reserve as console-only
+(`touchesAdminFields()`): set `admin: true` on your own `users/{uid}` doc from the console, and the
+next `loadOrCreateProfile` for that account calls `enqueueSubscribe`, the same queued, APNs-safe path
+every other topic goes through. **Do this once for your own account or the queue stays unwatched.**
 
 Report reasons in `ReportService`, block list in `BlockedUserList` mirrored to both SwiftData and
 Firestore, and blocked/reported authors are filtered out of the feed immediately on the client

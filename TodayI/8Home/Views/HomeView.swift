@@ -335,10 +335,13 @@ private extension HomeView {
   func seedDatesIfNeeded() async {
     guard let uid = auth.userID else { return }
     guard swiftManager?.needsDateSync == true else { return }
+    let cursor = swiftManager?.datesSyncCursor(for: uid)
+    let requestedAt = Date()   // captured before the request — see setDatesSyncCursor
     do {
-      let dtos = try await MemoryService.fetchDates(for: uid)
+      let dtos = try await MemoryService.fetchDates(for: uid, since: cursor)
       try swiftManager?.importDatesIfNeeded(dtos)
       swiftManager?.markDatesSynced()
+      swiftManager?.setDatesSyncCursor(requestedAt, for: uid)
     } catch {
       print("⚠️ Home seedDatesIfNeeded error:", error)
     }

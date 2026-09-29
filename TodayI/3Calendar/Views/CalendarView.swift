@@ -179,11 +179,14 @@ struct CalendarView: View {
     // Once per launch, not once per install — the old "do we have any DateModel"
     // check meant a day added later never showed up on the calendar at all.
     guard swiftManager?.needsDateSync == true else { return }
+    let cursor = swiftManager?.datesSyncCursor(for: uid)
+    let requestedAt = Date()   // captured before the request — see setDatesSyncCursor
     do {
       isSyncing = true; errorText = nil
-      let dtos = try await MemoryService.fetchDates(for: uid) // [DateDTO]
+      let dtos = try await MemoryService.fetchDates(for: uid, since: cursor) // [DateDTO]
       try swiftManager?.importDatesIfNeeded(dtos)             // upsert to SwiftData
       swiftManager?.markDatesSynced()
+      swiftManager?.setDatesSyncCursor(requestedAt, for: uid)
       isSyncing = false
     } catch {
       isSyncing = false
@@ -195,11 +198,15 @@ struct CalendarView: View {
   // MARK: - Manual sync (always hits network)
   private func forceRefreshDates() async {
     guard let uid = auth.userID else { return }
+    // Deliberately a full fetch, not the delta cursor — pull-to-refresh is the manual
+    // escape hatch if the incremental sync ever falls out of step with the server.
+    let requestedAt = Date()
     do {
       isSyncing = true; errorText = nil
       let dtos = try await MemoryService.fetchDates(for: uid)
       try swiftManager?.importDatesIfNeeded(dtos)
       swiftManager?.markDatesSynced()
+      swiftManager?.setDatesSyncCursor(requestedAt, for: uid)
       isSyncing = false
     } catch {
       isSyncing = false
