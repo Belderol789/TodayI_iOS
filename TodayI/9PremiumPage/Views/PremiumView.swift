@@ -22,7 +22,7 @@ struct PremiumView: View {
   /// silently evaporate.
   private var needsAccount: Bool { auth.isGuest }
   
-  private let privacyURL = URL(string: "https://github.com/KuzoStudiosPH/TodayI/wiki/Privacy-Policy")!
+  private let privacyURL = URL(string: "https://kuzostudiosph.github.io/TodayI/privacy.html")!
   private let appleTermsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
   
   private var palette: [Color] { Mood.allCases.map { $0.adaptiveColor } }

@@ -20,7 +20,7 @@ struct AuthView: View {
   @State private var errorMessage: String?
   @State private var currentNonce: String?
 
-  private let privacyURL = URL(string: "https://github.com/KuzoStudiosPH/TodayI/wiki/Privacy-Policy")!
+  private let privacyURL = URL(string: "https://kuzostudiosph.github.io/TodayI/privacy.html")!
   private let appleTermsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
 
   private var emailLooksValid: Bool { email.contains("@") && email.contains(".") && email.count > 5 }
