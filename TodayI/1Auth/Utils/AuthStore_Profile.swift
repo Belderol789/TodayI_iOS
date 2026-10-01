@@ -30,6 +30,10 @@ extension AuthStore {
       throw DeleteError.notSignedIn
     }
 
+    // Before the server call: revocation is authenticated as this user, who stops
+    // existing once `deleteAccountData` finishes. Throws `.cancelled` if they back out.
+    try await revokeAppleTokenIfNeeded()
+
     LoggerManager.instance.logFirebaseCall()
     do {
       let functions = Functions.functions(region: "asia-southeast1")
@@ -103,11 +107,15 @@ extension AuthStore {
   enum DeleteError: LocalizedError {
     case notSignedIn
     case remoteFailed(String)
+    /// The Sign in with Apple re-confirmation was dismissed. Not an error to show.
+    case cancelled
 
     var errorDescription: String? {
       switch self {
       case .notSignedIn:
         return "No signed-in account found."
+      case .cancelled:
+        return nil
       case .remoteFailed(let reason):
         // Not "nothing was removed": the server deletes in stages, and a failure partway
         // (a dropped connection) can leave some of it already gone. That promise was false

@@ -214,7 +214,9 @@ struct SettingsView: View {
       }
       Button("Cancel", role: .cancel) {}
     } message: {
-      Text("This permanently deletes your account, all memories, and cannot be undone.")
+      Text(auth.isLinkedToApple
+           ? "This permanently deletes your account, all memories, and cannot be undone. Apple will ask you to confirm once more."
+           : "This permanently deletes your account, all memories, and cannot be undone.")
     }
     .navigationTitle("Settings")
     .navigationBarTitleDisplayMode(.inline)
@@ -354,6 +356,9 @@ private extension SettingsView {
       try await auth.deleteAccount()
       isDeletingAccount = false
       dismiss()
+    } catch AuthStore.DeleteError.cancelled {
+      // Backed out of the Apple re-confirmation: nothing happened, nothing to report.
+      isDeletingAccount = false
     } catch {
       isDeletingAccount = false
       deleteError = error.localizedDescription

@@ -753,6 +753,14 @@ during the wipe; don't move the wipe back ahead of the teardown.
 is why the wipe must include it, and it means **Sign Out** (`signOutToGuest`, which deliberately does
 not wipe) currently shows the next account the previous one's calendar and streak.
 
+**Sign in with Apple tokens are revoked first** (App Review 5.1.1(v)). `deleteAccount` calls
+`revokeAppleTokenIfNeeded()` (`AuthStore_AppleRevocation.swift`) before the server call, because
+Firebase's revoke endpoint authenticates as the current user, who no longer exists afterwards. It
+needs a *fresh* authorization code (they expire in five minutes), so Apple users see the Apple sheet
+once more, with no scopes requested. Cancelling it throws `DeleteError.cancelled` and stops the
+deletion silently; any other revocation failure is logged and deletion continues — data deletion
+matters more than the token, and the user can still remove TodayI in their Apple ID settings.
+
 Reports are handled deliberately rather than uniformly: reports *about* the deleted user are removed,
 reports they *filed* are kept with `reporterUID` scrubbed, since those are evidence about someone
 else. Say so in the privacy policy — retaining anything after a deletion request should never be a
