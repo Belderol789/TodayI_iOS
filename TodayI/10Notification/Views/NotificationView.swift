@@ -30,20 +30,22 @@ struct NotificationView: View {
 
   var body: some View {
     NavigationStack {
-      Group {
+      VStack(spacing: 0) {
+        // Above both branches: guests get the evening reminder too, so the permission
+        // matters whether or not they're signed in.
+        NotificationPermissionBanner()
+
         if auth.isGuest {
           AuthRequiredView { showSetting = true }
         } else {
-          VStack(spacing: 0) {
-            Picker("Filter", selection: $filterUnreadOnly) {
-              Text("All").tag(false)
-              Text("Unread").tag(true)
-            }
-            .pickerStyle(.segmented)
-            .padding([.horizontal, .top])
-
-            content
+          Picker("Filter", selection: $filterUnreadOnly) {
+            Text("All").tag(false)
+            Text("Unread").tag(true)
           }
+          .pickerStyle(.segmented)
+          .padding([.horizontal, .top])
+
+          content
         }
       }
       .navigationTitle("Notifications")
