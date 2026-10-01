@@ -26,6 +26,7 @@ final class GlobalFeedViewModel: ObservableObject {
   
   // MARK: - Init
   private var privacyObserver: NSObjectProtocol?
+  private var deleteObserver: NSObjectProtocol?
 
   init(day: Date) {
     self.day = day
@@ -37,10 +38,17 @@ final class GlobalFeedViewModel: ObservableObject {
       else { return }
       Task { @MainActor in self?.applyPrivacyChange(id: id, isPublic: isPublic) }
     }
+    deleteObserver = NotificationCenter.default.addObserver(
+      forName: .memoryWasDeleted, object: nil, queue: .main
+    ) { [weak self] note in
+      guard let id = note.userInfo?["id"] as? String else { return }
+      Task { @MainActor in self?.removeRow(id: id, reason: "deleted") }
+    }
   }
 
   deinit {
     if let privacyObserver { NotificationCenter.default.removeObserver(privacyObserver) }
+    if let deleteObserver { NotificationCenter.default.removeObserver(deleteObserver) }
   }
 
   /// Drops a memory the author has just made Personal.
@@ -50,12 +58,19 @@ final class GlobalFeedViewModel: ObservableObject {
   /// next refresh.
   func applyPrivacyChange(id: String, isPublic: Bool) {
     guard !isPublic else { return }
-    let before = allRows.count
-    allRows.removeAll { $0.id == id }
+    removeRow(id: id, reason: "now Personal")
+  }
+
+  /// Removes one post from the loaded page in place — no refetch, so it costs no reads
+  /// and the scroll position stays put.
+  func removeRow(id: String, reason: String) {
     justPosted.removeAll { $0.id == id }
-    guard allRows.count != before else { return }
-    applyFilter()
-    print("🔒 Removed \(id.prefix(8)) from the feed — now Personal")
+    guard allRows.contains(where: { $0.id == id }) else { return }
+    withAnimation(.easeInOut(duration: 0.25)) {
+      allRows.removeAll { $0.id == id }
+      applyFilter()
+    }
+    print("🗑️ Removed \(id.prefix(8)) from the feed — \(reason)")
   }
   
   // MARK: - Public API

@@ -21,4 +21,12 @@ extension Notification.Name {
   /// switched to Personal was silently flipped back to Global the next time the feed
   /// drew it, everywhere. The feed listens to this and drops the row.
   static let memoryPrivacyDidChange = Notification.Name("todayi.memoryPrivacyDidChange")
+
+  /// Posted after a memory is deleted everywhere. `userInfo`: `["id": String]`.
+  ///
+  /// The World feed holds its own copies of posts as DTOs, so deleting the SwiftData
+  /// record left the row on screen — and `GlobalMemoryRow` re-upserts its DTO when it
+  /// draws, which recreated the memory you had just deleted. The feed drops the row on
+  /// this instead of refetching a whole page to notice one deletion.
+  static let memoryWasDeleted = Notification.Name("todayi.memoryWasDeleted")
 }

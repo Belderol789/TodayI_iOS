@@ -53,7 +53,11 @@ struct GlobalFeedView: View {
                     Task { await vm.loadMore() }
                   }
                 }
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
+            // A block filters rows live through `blockedIDs`; this makes that removal
+            // animate like a delete instead of the card vanishing mid-scroll.
+            .animation(.easeInOut(duration: 0.25), value: visibleRows.map(\.id))
           }
 
           footerView

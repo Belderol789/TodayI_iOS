@@ -98,7 +98,10 @@ extension MemoryService {
       case .everywhere:
         // Without this the media stays in Documents forever with nothing referencing it.
         removeLocalFiles(memory)
+        let id = memory.id
         context.delete(memory)
+        NotificationCenter.default.post(name: .memoryWasDeleted, object: nil,
+                                        userInfo: ["id": id])
 
       case .remoteOnly:
         // Strip every remote pointer. `imageSources` / `videoSource` / `audioSource`

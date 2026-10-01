@@ -103,7 +103,13 @@ a **public** memory skips the preview modal, calls `prepend(_:)` and switches to
 the post is already on top when the tab appears. That is local on purpose — the upload is
 fire-and-forget so the document may not exist server-side yet, and `fetchPublicMemories` has **no
 `order(by:)`**, so rows come back in document-ID (UUID) order and a re-fetch wouldn't put it first
-anyway. `justPosted` is re-merged after every refresh until the server returns the row. Ordering the
+anyway. `justPosted` is re-merged after every refresh until the server returns the row.
+Removals are the mirror image and also stay local: `GlobalFeedViewModel.removeRow` drops one post in
+place, animated, with no refetch. It listens for `.memoryPrivacyDidChange` (made Personal, or "Remove
+from Cloud Only") and `.memoryWasDeleted` (posted by `deleteMemory(scope: .everywhere)`); blocks need
+no signal because `GlobalFeedView` filters `blockedIDs` live from `@Query`. Before
+`.memoryWasDeleted` existed, deleting a post left its row in the feed, and `GlobalMemoryRow`
+re-upserted the cached DTO when it drew — recreating the memory that had just been deleted. Ordering the
 feed by `createdAt` would need a composite index on (`isPublic`, `dayKey`, `createdAt`) in the
 console. A **private** post still shows the preview modal. `.task` calls `loadIfNeeded()`, which returns early unless the feed is empty or the
 calendar day rolled over; pull-to-refresh and `loadMore` still go to the network deliberately. The
