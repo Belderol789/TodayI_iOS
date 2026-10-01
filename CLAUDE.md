@@ -560,8 +560,15 @@ Subscribing is not a client-facing toggle — a report carries another user's ui
 reported, and there's no reason to let a regular user discover a button that exposes moderation
 traffic. It's gated on `admin`, one of the two fields the rules already reserve as console-only
 (`touchesAdminFields()`): set `admin: true` on your own `users/{uid}` doc from the console, and the
-next `loadOrCreateProfile` for that account calls `enqueueSubscribe`, the same queued, APNs-safe path
+next `loadOrCreateProfile` for that account subscribes, through the same queued, APNs-safe path
 every other topic goes through. **Do this once for your own account or the queue stays unwatched.**
+
+FCM topics belong to the **device**, not the account, so `NotificationManager.syncAdminReportsTopic`
+runs on *every* profile load — including a newly created account — and unsubscribes whenever the
+signed-in profile isn't an admin. The first version only ever subscribed: after the admin signed out,
+whoever used that phone next kept receiving moderation alerts carrying other users' IDs. To test it you
+need **two devices**: admin signed in on one (relaunched after the flag is set), reporting from the
+other. Reporting from the admin's own phone after signing out now correctly delivers nothing.
 
 Report reasons in `ReportService`, block list in `BlockedUserList` mirrored to both SwiftData and
 Firestore, and blocked/reported authors are filtered out of the feed immediately on the client

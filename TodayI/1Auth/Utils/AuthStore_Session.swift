@@ -75,9 +75,7 @@ extension AuthStore {
         // exposes moderation traffic. Set `admin: true` on your own user doc from the
         // console once, and the next sign-in on that account subscribes automatically —
         // the same queued, APNs-safe path every other topic already goes through.
-        if data["admin"] as? Bool == true {
-          NotificationManager.shared.enqueueSubscribe(topic: "admin_reports", persistKey: "adminReportsTopic")
-        }
+        NotificationManager.shared.syncAdminReportsTopic(isAdmin: data["admin"] as? Bool == true)
         upsertLocalUser(uid: uid, username: uname, email: email, isAnonymous: isAnon)
         publish(uid: uid, username: uname, email: email, isAnonymous: isAnon, photoURL: photoURL, isRestricted: isRestricted)
         return
@@ -93,6 +91,9 @@ extension AuthStore {
         "updatedAt": FieldValue.serverTimestamp()
       ]
       try await userDoc.setData(payload)
+      // A brand-new account is never an admin — drop any subscription this device kept
+      // from whoever used it before.
+      NotificationManager.shared.syncAdminReportsTopic(isAdmin: false)
       
       upsertLocalUser(uid: uid, username: uname, email: user.email, isAnonymous: isAnon)
       publish(uid: uid, username: uname, email: email, isAnonymous: isAnon)
