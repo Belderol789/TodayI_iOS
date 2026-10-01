@@ -91,9 +91,11 @@ extension AuthStore {
       case .notSignedIn:
         return "No signed-in account found."
       case .remoteFailed(let reason):
-        // Say plainly that nothing was deleted — a half-trusted delete is worse than a
-        // clear failure when the whole point is that the data is gone.
-        return "Your account could not be deleted, so nothing was removed. Please check your connection and try again. (\(reason))"
+        // Not "nothing was removed": the server deletes in stages, and a failure partway
+        // (a dropped connection) can leave some of it already gone. That promise was false
+        // the first time this failed for real. What *is* true: the account still exists,
+        // and `deleteAccountData` is idempotent, so trying again finishes the job.
+        return "Your account wasn't fully deleted. Please check your connection and try again — trying again picks up where it stopped. (\(reason))"
       }
     }
   }

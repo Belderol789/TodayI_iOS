@@ -692,6 +692,17 @@ Three bugs this replaced, worth not reintroducing:
 - The local wipe cleared `["audio", "images"]`, but images are written to **`memories`** and videos
   to **`videos`**, so both survived on disk.
 
+**Every query runs before anything is deleted.** The function's queries are the steps that can fail
+on configuration rather than data: `collectionGroup("comments").where("userID", "==")` needs a
+**collection-group-scope single-field index** on `comments.userID`, which Firestore does not create
+automatically, and the Admin SDK needs indexes even though it bypasses rules. When that index was
+missing (2026-10-01), the old order had already deleted `users/*` and the Storage folder before the
+query threw — half-erased account, Auth user still alive, and the app saying "nothing was removed."
+Now all five queries run in one `Promise.all` up front, so a missing index fails with nothing
+touched. The index exists now; if Firestore is ever recreated, it has to be recreated too. The
+client's error copy no longer promises nothing was removed — a dropped connection mid-delete can
+still leave it partial — it says to retry, which is safe because the function is idempotent.
+
 Reports are handled deliberately rather than uniformly: reports *about* the deleted user are removed,
 reports they *filed* are kept with `reporterUID` scrubbed, since those are evidence about someone
 else. Say so in the privacy policy — retaining anything after a deletion request should never be a

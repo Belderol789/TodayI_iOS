@@ -50,46 +50,55 @@ export const deleteAccountData = onCall({ region: REGION }, async (request) => {
   const db = admin.firestore();
   console.log(`🗑️ deleteAccountData starting for ${uid}`);
 
+  // 0. Every query first, before anything is deleted.
+  //
+  // The queries are the steps that can fail on configuration rather than data — the
+  // collection-group query on comments needs an index, and Admin SDK calls need indexes
+  // even though they bypass rules. When that index was missing, the old order had
+  // already deleted users/* and the Storage folder before the query threw: the account
+  // was half-erased, the Auth user survived, and the app told the person "nothing was
+  // removed." Gathering everything up front means a failure here leaves nothing
+  // touched, so the honest error message stays honest and a retry starts clean.
+  const [authored, hubs, blockers, against, filed] = await Promise.all([
+    // Comments the user wrote on other people's posts — they carry their userID and
+    // username, so leaving them keeps a deleted account's words on strangers' posts.
+    db.collectionGroup("comments").where("userID", "==", uid).get(),
+    // Hubs for the user's own memories, plus everyone else's comments beneath them.
+    db.collection("comments").where("ownerID", "==", uid).get(),
+    // The uid inside other users' blockedUsers — a durable record of who blocked them.
+    db.collection("users").where("blockedUsers", "array-contains", uid).get(),
+    // Reports about this user, and reports they filed (handled differently below).
+    db.collection("reports").where("reportedUID", "==", uid).get(),
+    db.collection("reports").where("reporterUID", "==", uid).get(),
+  ]);
+  console.log(`   🔎 found ${authored.size} authored comment(s), ${hubs.size} hub(s), ` +
+    `${blockers.size} blocker(s), ${against.size} report(s) about, ${filed.size} filed`);
+
   // 1. The user tree: profile doc, memories, dates, notifications.
-  //    recursiveDelete walks subcollections, which is exactly what Firestore won't do
-  //    for a plain document delete.
+  //    recursiveDelete walks subcollections, which a plain document delete won't.
   await db.recursiveDelete(db.collection("users").doc(uid));
   console.log("   ✅ users/* deleted");
 
-  // 2. Storage. The client's listAll() only ever saw prefixes (memories/, profile/) and
-  //    iterated items, which is empty at that level — so every photo, video and voice
-  //    note survived deletion. A prefix delete gets the whole subtree.
-  //
-  //    This matters more than it looks: downloadURL() hands out tokened URLs that ignore
-  //    Storage rules, so anything left here stays fetchable by anyone holding the link,
-  //    indefinitely, long after the account is gone.
+  // 2. Storage. A prefix delete gets the whole subtree — listAll() is not recursive,
+  //    which is why the old client-side version deleted nothing. Anything left here
+  //    stays fetchable by anyone holding a tokened downloadURL, indefinitely.
   try {
     await admin.storage().bucket().deleteFiles({ prefix: `users/${uid}/`, force: true });
     console.log("   ✅ Storage users/ prefix deleted");
   } catch (err) {
-    // Don't strand the account over a storage hiccup — but do surface it, because this
-    // is the step whose failure leaves private media readable.
+    // Don't strand the account over a storage hiccup — but surface it, because this is
+    // the step whose failure leaves private media readable.
     console.error("   ❌ Storage delete failed — media may survive:", err);
   }
 
-  // 3. Comments the user wrote on other people's posts. These live under
-  //    comments/{memoryId}/comments/{id} and carry their userID and username, so leaving
-  //    them means a deleted account's words stay attached to strangers' posts.
-  //
-  //    NOTE: this is a collection-group query and Admin SDK calls still need indexes even
-  //    though they bypass rules. If it throws FAILED_PRECONDITION, the error carries a
-  //    console link that creates the index.
-  const authored = await db.collectionGroup("comments").where("userID", "==", uid).get();
-
-  // socialMilestones.ts increments commentCount on create and nothing decrements it, so
-  // deleting these would leave every affected hub reporting counts that never drop.
+  // 3. Authored comments. socialMilestones.ts increments commentCount on create and
+  //    nothing decrements it, so each affected hub is decremented to match.
   const perHub = new Map<string, number>();
   for (const doc of authored.docs) {
     const hub = doc.ref.parent.parent;
     if (!hub) continue;
     perHub.set(hub.path, (perHub.get(hub.path) ?? 0) + 1);
   }
-
   for (const group of chunk(authored.docs, BATCH_LIMIT)) {
     const batch = db.batch();
     group.forEach((doc) => batch.delete(doc.ref));
@@ -104,21 +113,13 @@ export const deleteAccountData = onCall({ region: REGION }, async (request) => {
   }
   console.log(`   ✅ ${authored.size} authored comment(s) removed across ${perHub.size} hub(s)`);
 
-  // 4. Comment hubs for the user's own memories, plus everyone else's comments beneath
-  //    them. The memories themselves went in step 1; these hubs are a separate top-level
-  //    collection and were never touched.
-  const hubs = await db.collection("comments").where("ownerID", "==", uid).get();
+  // 4. Owned hubs and the threads under them.
   for (const hub of hubs.docs) {
     await db.recursiveDelete(hub.ref);
   }
   console.log(`   ✅ ${hubs.size} owned comment hub(s) deleted`);
 
-  // 5. The uid sitting in other users' blockedUsers arrays. Harmless-looking, but it is
-  //    a durable record that this person existed and who blocked them.
-  const blockers = await db
-    .collection("users")
-    .where("blockedUsers", "array-contains", uid)
-    .get();
+  // 5. The uid in other users' blockedUsers arrays.
   for (const group of chunk(blockers.docs, BATCH_LIMIT)) {
     const batch = db.batch();
     group.forEach((doc) =>
@@ -128,20 +129,15 @@ export const deleteAccountData = onCall({ region: REGION }, async (request) => {
   }
   console.log(`   ✅ uid removed from ${blockers.size} blockedUsers list(s)`);
 
-  // 6. Moderation reports, handled deliberately rather than uniformly.
-  //
-  //    Reports *about* this user describe an account that no longer exists — delete them.
-  //    Reports they *filed* are evidence against someone else and are worth keeping, so
-  //    scrub the reporter link instead of destroying the record. Say this in the privacy
-  //    policy; retaining anything after a deletion request should never be a surprise.
-  const against = await db.collection("reports").where("reportedUID", "==", uid).get();
+  // 6. Reports, deliberately not uniform: reports *about* this user describe an account
+  //    that no longer exists, so they go; reports they *filed* are evidence about someone
+  //    else, so the reporter link is scrubbed and the record kept. The privacy policy has
+  //    to say so.
   for (const group of chunk(against.docs, BATCH_LIMIT)) {
     const batch = db.batch();
     group.forEach((doc) => batch.delete(doc.ref));
     await batch.commit();
   }
-
-  const filed = await db.collection("reports").where("reporterUID", "==", uid).get();
   for (const group of chunk(filed.docs, BATCH_LIMIT)) {
     const batch = db.batch();
     group.forEach((doc) => batch.update(doc.ref, { reporterUID: "deleted-user" }));
