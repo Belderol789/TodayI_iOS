@@ -24,6 +24,14 @@ final class AuthStore: ObservableObject {
   @Published private(set) var isRestricted: Bool = false
   /// Set to true by any view that needs to hide the custom tab bar (e.g. CommentThreadView).
   @Published var hideTabBar: Bool = false
+
+  /// True while an account deletion is wiping local data. `RootView` shows a placeholder
+  /// instead of the app, so no screen is alive to touch a model while it's deleted.
+  @Published private(set) var isResettingSession = false
+  /// Replaced after a wipe. `TodayIApp` uses it as `RootView`'s identity, so every
+  /// screen — and every `@State` array of models they were holding — is rebuilt fresh
+  /// for the new account instead of carrying the old one's objects forward.
+  @Published private(set) var sessionID = UUID()
   
   let db = Firestore.firestore()
   let context: ModelContext
@@ -38,6 +46,12 @@ final class AuthStore: ObservableObject {
     }
   }
   
+  func beginSessionReset() { isResettingSession = true }
+  func finishSessionReset() {
+    sessionID = UUID()
+    isResettingSession = false
+  }
+
   deinit {
     if let h = authHandle { Auth.auth().removeStateDidChangeListener(h) }
   }

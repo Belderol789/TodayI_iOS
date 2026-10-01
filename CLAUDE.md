@@ -703,6 +703,22 @@ touched. The index exists now; if Firestore is ever recreated, it has to be recr
 client's error copy no longer promises nothing was removed — a dropped connection mid-delete can
 still leave it partial — it says to retry, which is safe because the function is idempotent.
 
+**Delete Account tears the app down before it wipes.** `HomeView` and `CalendarView` hold the year's
+moods in plain `@State var yearModels: [DateModel]`, and Settings is a sheet over Home, so Home was
+alive during the wipe: the next render read `moodRaws` on a deleted object and SwiftData crashed
+("backing data was detached from a context without resolving attribute faults") — mid-sequence, so
+the old account's memories survived into the new one. Now `deleteAccount` calls
+`beginSessionReset()` (RootView swaps to a placeholder), waits briefly for SwiftUI to dismantle the
+screens, wipes, signs into a fresh anonymous session, then `finishSessionReset()` replaces
+`sessionID` — `TodayIApp` uses it as `RootView`'s `.id`, so every screen and the World feed model are
+rebuilt empty. The wipe uses `context.delete(model:)` per type and also resets the widget's streak
+snapshot. Any new screen holding models in `@State` is safe under this, because nothing is on screen
+during the wipe; don't move the wipe back ahead of the teardown.
+
+`DateModel` has **no owner field** — it is the calendar and the streak for whoever is on the device. That
+is why the wipe must include it, and it means **Sign Out** (`signOutToGuest`, which deliberately does
+not wipe) currently shows the next account the previous one's calendar and streak.
+
 Reports are handled deliberately rather than uniformly: reports *about* the deleted user are removed,
 reports they *filed* are kept with `reporterUID` scrubbed, since those are evidence about someone
 else. Say so in the privacy policy — retaining anything after a deletion request should never be a

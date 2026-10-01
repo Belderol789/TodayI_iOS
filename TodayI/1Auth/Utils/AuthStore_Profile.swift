@@ -40,6 +40,16 @@ extension AuthStore {
       throw DeleteError.remoteFailed(error.localizedDescription)
     }
 
+    // Tear the app down *before* deleting anything. Home and Calendar keep the year's
+    // moods in plain `@State` arrays of `DateModel`, and Settings is a sheet over Home,
+    // so Home was still alive during the wipe: the next render read `moodRaws` on a
+    // deleted object and SwiftData crashed ("backing data was detached from a context")
+    // — mid-sequence, so the old account's memories survived into the new one.
+    // `RootView` swaps to a placeholder on `isResettingSession`; the pause lets SwiftUI
+    // actually dismantle those screens before their models disappear.
+    beginSessionReset()
+    try? await Task.sleep(nanoseconds: 400_000_000)
+
     // Stop the per-user milestone topic before the session goes away.
     NotificationManager.shared.unsubscribePreviousUserTopicIfNeeded()
 
@@ -49,18 +59,23 @@ extension AuthStore {
     // Clear it explicitly rather than letting the next token refresh fail.
     try? Auth.auth().signOut()
     await ensureSignedIn()
+
+    // A new `RootView` identity: every screen starts empty for the new account.
+    finishSessionReset()
   }
 
   // MARK: - Local wipe
 
   private func wipeLocalData(uid: String) {
     do {
-      try context.fetch(FetchDescriptor<MemoryModel>()).forEach { context.delete($0) }
-      try context.fetch(FetchDescriptor<UserModel>()).forEach { context.delete($0) }
-      try context.fetch(FetchDescriptor<DateModel>()).forEach { context.delete($0) }
+      try context.delete(model: MemoryModel.self)
+      try context.delete(model: UserModel.self)
+      // `DateModel` has no owner field — it's the calendar and the streak. Leaving it would
+      // hand the next account the previous one's whole year of moods.
+      try context.delete(model: DateModel.self)
       // Without this the next account inherits the previous one's blocks, which is both
       // wrong and impossible for the new user to explain or undo.
-      try context.fetch(FetchDescriptor<BlockedUserList>()).forEach { context.delete($0) }
+      try context.delete(model: BlockedUserList.self)
       try context.save()
     } catch {
       print("wipeLocalData error:", error)
@@ -80,6 +95,9 @@ extension AuthStore {
     }
     // Cached copies of rules-protected media fetched on this device.
     ProtectedMediaStore.clearCache()
+    // The Home Screen widget reads its own snapshot, not the store — reset it, or it keeps
+    // showing the deleted account's streak.
+    StreakSnapshot.write(days: 0, loggedToday: false)
   }
 
   enum DeleteError: LocalizedError {

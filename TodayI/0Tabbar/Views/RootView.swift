@@ -18,7 +18,11 @@ struct RootView: View {
 
   var body: some View {
     Group {
-      if auth.isSessionReady && splashDone {
+      if auth.isResettingSession {
+        // Nothing that holds a model may be on screen while the wipe runs.
+        ProgressView("Deleting account…")
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else if auth.isSessionReady && splashDone {
         mainContent
       } else {
         SplashView()

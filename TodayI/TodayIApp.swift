@@ -91,7 +91,10 @@ struct TodayIApp: App {
         if maintenance.isActive {
           MaintenanceView()
         } else {
+          // New identity after an account deletion, so RootView's own state — the World
+          // feed model included — starts fresh rather than showing the old account's.
           RootView()
+            .id(authStore.sessionID)
         }
       }
         .environmentObject(maintenance)
