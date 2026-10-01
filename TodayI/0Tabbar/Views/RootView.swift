@@ -3,6 +3,8 @@ import SwiftUI
 
 struct RootView: View {
   @EnvironmentObject private var auth: AuthStore
+  @EnvironmentObject private var entitlements: EntitlementStore
+  @Environment(\.swiftDataManager) private var swiftManager
   @State private var selection: AppTab = .home
   @State private var splashDone = false
   @Namespace private var tabNS
@@ -32,6 +34,21 @@ struct RootView: View {
           }
       }
     }
+    #if DEBUG
+    // `-sampleYear` as a launch argument (Edit Scheme → Run → Arguments) loads the
+    // sample year without opening Settings, which a guest can't reach. Runs during the
+    // splash, so Home's first render already has it. Same local-only seed as the toggle.
+    .task(id: auth.isSessionReady) {
+      guard auth.isSessionReady,
+            ProcessInfo.processInfo.arguments.contains("-sampleYear"),
+            let uid = auth.userID,
+            let manager = swiftManager,
+            !manager.hasSampleYear else { return }
+      manager.debugSeedSampleYear(userID: uid,
+                                  username: auth.username ?? "guest",
+                                  isPremium: entitlements.isPremium)
+    }
+    #endif
   }
 
   private var mainContent: some View {

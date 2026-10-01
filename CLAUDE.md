@@ -828,6 +828,12 @@ conversation in Firestore permanently.
   accessibility value. The model field stays `isPublic` — this is wording, not data.
 - `TestManager` and `GlobalFeedService.generateTestPage` seed fake data for previews; they are dev
   tools, not test infrastructure.
+- **Sample year** (`SwiftData_DebugSeed.swift`, DEBUG only) fills January 1 → today with local
+  memories and `DateModel` days for App Store screenshots: Settings → Developer → "Sample year", or
+  the `-sampleYear` launch argument, which works for a guest who can't reach Settings. Memories are
+  `needsCloudBackup = false`, Personal and prefixed `debug-sample-`, so nothing uploads them; days
+  with real moods are skipped and the seeded dates are remembered in `UserDefaults`, so turning it
+  off removes only what it added.
 
 ## Gotchas
 

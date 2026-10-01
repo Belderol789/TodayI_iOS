@@ -27,6 +27,7 @@ struct SettingsView: View {
   @State private var isDeletingAccount = false
   @State private var showDeleteConfirm = false
   @State private var deleteError: String?
+  @State private var sampleYearOn = false
   
   // Photo picking + preview
   @State private var showPhotoPicker = false
@@ -154,6 +155,24 @@ struct SettingsView: View {
         Button("Clear local mood days", role: .destructive) {
           swiftManager?.debugClearMoodDays()
         }
+
+        // For App Store screenshots: a filled calendar, a streak, and a memory on most
+        // days. Local only — see `debugSeedSampleYear`.
+        Toggle("Sample year (screenshots)", isOn: Binding(
+          get: { sampleYearOn },
+          set: { on in
+            guard let manager = swiftManager else { return }
+            if on, let uid = auth.userID {
+              manager.debugSeedSampleYear(userID: uid,
+                                          username: auth.username ?? "guest",
+                                          isPremium: entitlements.isPremium)
+            } else {
+              manager.debugClearSampleYear()
+            }
+            sampleYearOn = manager.hasSampleYear
+          }
+        ))
+        .onAppear { sampleYearOn = swiftManager?.hasSampleYear ?? false }
       } header: {
         Text("Developer")
       } footer: {
@@ -163,6 +182,9 @@ struct SettingsView: View {
           : "Premium is OFF — free-tier gates are active.")
 
         Seeding writes mood days locally only — no posts, nothing uploaded. Existing         days are never overwritten. Clearing removes the local cache; Calendar         pull-to-refresh restores it from Firestore.
+
+        Sample year fills January 1 to today with local memories for screenshots. They are \
+        never uploaded, and turning it off removes only what it added.
 
         Push needs notification permission before APNs will register. If the launch log \
         shows "Queued …" with no "APNs ready", send a check-in and allow the prompt.

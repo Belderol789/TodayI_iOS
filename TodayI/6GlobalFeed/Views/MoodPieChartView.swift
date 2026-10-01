@@ -7,6 +7,9 @@ struct MoodPieChart: View {
   let selectedMoods: Set<Mood>
   let title: String
   @Binding var tabSelection: AppTab
+  /// Under the total in the donut. The World feed counts today; the calendar's charts
+  /// count a month or a year and used to say "today" anyway.
+  var totalLabel: String = "today"
 
   @State private var progress: CGFloat = 0
   private let perSliceDelay: CGFloat = 0.06
@@ -46,7 +49,7 @@ struct MoodPieChart: View {
               Text("\(total)")
                 .font(.title2.weight(.bold))
                 .foregroundStyle(.primary)
-              Text("today")
+              Text(totalLabel)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             }

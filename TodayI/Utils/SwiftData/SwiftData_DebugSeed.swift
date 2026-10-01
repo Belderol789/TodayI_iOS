@@ -54,4 +54,156 @@ extension SwiftDataManager {
     context.insert(DateModel(date: day, moods: [.happy]))
   }
 }
+
+// MARK: - Sample year (App Store screenshots)
+
+/// A lived-in year for screenshots: memories and mood days from January 1 to today.
+///
+/// Safe against production by construction. Memories are written with
+/// `needsCloudBackup = false` and `isPublic = false`, so neither `CloudBackupService`
+/// nor the feed ever sees them, and nothing here calls Firebase. Days that already have
+/// real moods are skipped, and every id and date written is remembered, so turning the
+/// sample off removes exactly what it added.
+extension SwiftDataManager {
+
+  static let sampleIDPrefix = "debug-sample-"
+  private static let sampleDaysKey = "debug.sampleYear.days"
+
+  var hasSampleYear: Bool {
+    !(UserDefaults.standard.array(forKey: Self.sampleDaysKey) ?? []).isEmpty
+  }
+
+  func debugSeedSampleYear(userID: String, username: String, isPremium: Bool) {
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = .current
+    let today = cal.startOfDay(for: Date())
+    guard let jan1 = cal.date(from: cal.dateComponents([.year], from: today)) else { return }
+    let dayCount = (cal.dateComponents([.day], from: jan1, to: today).day ?? 0) + 1
+
+    var rng = SystemRandomNumberGenerator()
+    var seededDays: [Double] = []
+
+    for offset in 0 ..< dayCount {
+      guard let day = cal.date(byAdding: .day, value: offset, to: jan1) else { continue }
+      let daysAgo = dayCount - 1 - offset
+      // The last seven weeks are unbroken so the streak pill has something to show;
+      // before that, roughly one day in eight is skipped, the way a real year looks.
+      if daysAgo > 48, Int.random(in: 0 ..< 8, using: &rng) == 0 { continue }
+
+      let existing = FetchDescriptor<DateModel>(predicate: #Predicate { $0.date == day })
+      guard ((try? context.fetch(existing))?.first) == nil else { continue }
+
+      // About one day in six gets a second entry, as Premium allows.
+      let entryCount = Int.random(in: 0 ..< 6, using: &rng) == 0 ? 2 : 1
+      var moods: [Mood] = []
+      for index in 0 ..< entryCount {
+        let mood = Self.sampleMood(using: &rng)
+        moods.append(mood)
+        let hour = index == 0 ? Int.random(in: 8 ... 13, using: &rng)
+                              : Int.random(in: 17 ... 22, using: &rng)
+        let created = cal.date(bySettingHour: hour,
+                               minute: Int.random(in: 0 ... 59, using: &rng),
+                               second: 0, of: day) ?? day
+        let memory = MemoryModel(
+          id: Self.sampleIDPrefix + UUID().uuidString,
+          userID: userID,
+          username: username,
+          date: day,
+          mood: mood,
+          journalText: Self.sampleLines[mood]?.randomElement(using: &rng) ?? "",
+          likes: 0,
+          isPublic: false,
+          isPremium: isPremium,
+          createdAt: created,
+          updatedAt: created
+        )
+        memory.needsCloudBackup = false
+        context.insert(memory)
+      }
+      context.insert(DateModel(date: day, moods: moods))
+      seededDays.append(day.timeIntervalSince1970)
+    }
+
+    try? context.save()
+    UserDefaults.standard.set(seededDays, forKey: Self.sampleDaysKey)
+    refreshStreakSnapshot()
+    NotificationCenter.default.post(name: .memoryDidChangeLocally, object: nil)
+    print("🧪 Seeded a sample year: \(seededDays.count) day(s)")
+  }
+
+  func debugClearSampleYear() {
+    let prefix = Self.sampleIDPrefix
+    let memories = (try? context.fetch(FetchDescriptor<MemoryModel>(
+      predicate: #Predicate { $0.id.starts(with: prefix) }))) ?? []
+    memories.forEach { context.delete($0) }
+
+    let days = (UserDefaults.standard.array(forKey: Self.sampleDaysKey) as? [Double] ?? [])
+      .map(Date.init(timeIntervalSince1970:))
+    for day in days {
+      let fetch = FetchDescriptor<DateModel>(predicate: #Predicate { $0.date == day })
+      (try? context.fetch(fetch))?.forEach { context.delete($0) }
+    }
+
+    try? context.save()
+    UserDefaults.standard.removeObject(forKey: Self.sampleDaysKey)
+    refreshStreakSnapshot()
+    NotificationCenter.default.post(name: .memoryDidChangeLocally, object: nil)
+    print("🧪 Cleared the sample year: \(memories.count) memories, \(days.count) day(s)")
+  }
+
+  /// Weighted so the year reads as a believable mix rather than an even rainbow.
+  private static func sampleMood(using rng: inout SystemRandomNumberGenerator) -> Mood {
+    let weighted: [(Mood, Int)] = [(.happy, 30), (.neutral, 20), (.surprise, 12), (.sad, 12),
+                                   (.disgust, 9), (.angry, 9), (.fear, 8)]
+    var roll = Int.random(in: 0 ..< weighted.reduce(0) { $0 + $1.1 }, using: &rng)
+    for (mood, weight) in weighted {
+      if roll < weight { return mood }
+      roll -= weight
+    }
+    return .neutral
+  }
+
+  private static let sampleLines: [Mood: [String]] = [
+    .happy: [
+      "Finally finished the book I've been carrying around for a month.",
+      "Lunch outside with the team. Sun was out the whole time.",
+      "Called my sister and we laughed for an hour.",
+      "Morning run felt easy for once.",
+      "Got good news at work and celebrated with ice cream.",
+    ],
+    .neutral: [
+      "Quiet day. Laundry, groceries, an early night.",
+      "Work, gym, dinner. Nothing to report and that's fine.",
+      "Rain all afternoon, so I stayed in and read.",
+      "Long commute, podcast helped.",
+    ],
+    .surprise: [
+      "Bumped into a friend I hadn't seen since school.",
+      "The new café on the corner is actually great.",
+      "Didn't expect the presentation to go that well.",
+      "A package arrived I'd completely forgotten ordering.",
+    ],
+    .sad: [
+      "Missing home today.",
+      "Plans fell through and the evening felt long.",
+      "Tired in a way sleep doesn't fix.",
+      "Said goodbye to a coworker who's moving away.",
+    ],
+    .disgust: [
+      "Someone microwaved fish in the office again.",
+      "Stepped in a puddle with new shoes on.",
+      "The traffic this morning was unreal.",
+    ],
+    .angry: [
+      "Waited an hour for a delivery that never came.",
+      "Third time this week the train was late.",
+      "Got talked over in a meeting, again.",
+    ],
+    .fear: [
+      "Big interview tomorrow. Trying not to overthink it.",
+      "Doctor's appointment next week and I keep thinking about it.",
+      "First day at the new gym. Nervous for no reason.",
+    ],
+  ]
+}
 #endif

@@ -60,11 +60,8 @@ struct MonthView: View {
               total: totalMoodsCount,
               selectedMoods: [],
               title: "Month feels",
-              tabSelection: .constant(.calendar)
-              // Keep original chart’s CTA hidden on this screen (if you use that flag)
-              // showCreateButton: false
-              // If your chart requires tabSelection, pass a dummy binding or refactor
-              // to make the CTA optional. Assuming optional here:
+              tabSelection: .constant(.calendar),
+              totalLabel: "this month"
             )
             .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity),
                                     removal: .opacity))

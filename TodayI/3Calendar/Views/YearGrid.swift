@@ -47,7 +47,8 @@ struct YearGrid: View {
           total: totalMoodsCount,
           selectedMoods: [],
           title: "Year feels",
-          tabSelection: .constant(.calendar)
+          tabSelection: .constant(.calendar),
+          totalLabel: "this year"
         )
         .padding(.horizontal)
         .padding(.top, 8)
