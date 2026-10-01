@@ -110,10 +110,15 @@ struct TodayIApp: App {
           // once from `IAPStore.init()` and never again — so a price edited in App Store
           // Connect never reaches an already-running process, even once Apple's side has
           // propagated it. Re-check on every foreground, same as MaintenanceGate.
+          //
+          // Entitlements need the same: a subscription *expiring* creates no new
+          // transaction, so `Transaction.updates` never fires for it, and the scan only
+          // ran at init — a lapsed subscriber stayed Premium until a cold relaunch.
           if phase == .active {
             Task {
               await maintenance.refresh()
               await iapStore.refreshProducts(reason: "foreground")
+              await store.refresh(reason: "foreground")
             }
           }
         }

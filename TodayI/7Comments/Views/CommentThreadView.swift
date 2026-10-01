@@ -149,6 +149,15 @@ private extension CommentThreadView {
         .background(.ultraThinMaterial)
     } else {
       VStack(alignment: .trailing, spacing: 4) {
+        if let message = vm.filterMessage {
+          Label(message, systemImage: "exclamationmark.bubble")
+            .font(.caption)
+            .foregroundStyle(.red)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .transition(.opacity)
+            .accessibilityLabel(message)
+        }
+
         // Only appears as the cap gets close, so the bar stays clean normally.
         if vm.remaining <= 100 {
           Text("\(vm.remaining)")
@@ -182,8 +191,11 @@ private extension CommentThreadView {
           )
 
           Button {
-            Task { await vm.postComment(username: auth.username, photoURL: auth.photoURL) }
-            inputFocused = false
+            Task {
+              await vm.postComment(username: auth.username, photoURL: auth.photoURL)
+              // Keep the keyboard up when the filter refused it, so it can be edited.
+              if vm.filterMessage == nil { inputFocused = false }
+            }
           } label: {
             Image(systemName: "arrow.up.circle.fill")
               .font(.system(size: 28))
@@ -198,6 +210,7 @@ private extension CommentThreadView {
       .padding(.vertical, 10)
       .background(.ultraThinMaterial)
       .animation(.easeInOut(duration: 0.15), value: vm.remaining <= 100)
+      .animation(.easeInOut(duration: 0.15), value: vm.filterMessage)
     }
   }
 }

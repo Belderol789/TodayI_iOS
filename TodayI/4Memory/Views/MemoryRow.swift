@@ -337,6 +337,7 @@ private extension MemoryRow {
         HStack(spacing: 6) {
           Text("@\(memory.username)")
             .font(.subheadline.weight(.semibold))
+          if memory.isPremium { premiumStar }
           moodChip
           Spacer(minLength: 0)
         }
@@ -348,7 +349,20 @@ private extension MemoryRow {
       trailingAction
     }
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel("\(usernameLabel). Mood: \(moodLabel). \(createdAtA11y).")
+    .accessibilityLabel("\(usernameLabel)\(memory.isPremium ? ", Premium member" : ""). Mood: \(moodLabel). \(createdAtA11y).")
+  }
+
+  /// The Premium mark beside the username — the same star and seven-mood gradient as
+  /// `PremiumPill`, so it reads as the app's Premium symbol rather than a new one. The
+  /// card's own premium flair is subtle enough to miss in a fast scroll; this isn't.
+  var premiumStar: some View {
+    Image(systemName: "star.fill")
+      .font(.caption.weight(.bold))
+      .foregroundStyle(
+        LinearGradient(colors: Mood.allCases.map(\.adaptiveColor),
+                       startPoint: .topLeading, endPoint: .bottomTrailing)
+      )
+      .accessibilityHidden(true)   // carried by the header's combined label
   }
 
   @ViewBuilder

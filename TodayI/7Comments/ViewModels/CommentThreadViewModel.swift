@@ -5,7 +5,16 @@ import FirebaseAuth
 @MainActor
 final class CommentThreadViewModel: ObservableObject {
   @Published var comments: [CommentDTO] = []
-  @Published var newComment: String = "" { didSet { enforceLimit() } }
+  @Published var newComment: String = "" {
+    didSet {
+      enforceLimit()
+      // Editing is how the person fixes a blocked comment, so the warning clears as
+      // soon as they change anything.
+      if newComment != oldValue { filterMessage = nil }
+    }
+  }
+  /// Set when the word filter stopped a comment; shown above the composer.
+  @Published private(set) var filterMessage: String?
   @Published var isLoading = false
   @Published var isLoadingMore = false
   @Published var reachedEnd = false
@@ -67,6 +76,17 @@ final class CommentThreadViewModel: ObservableObject {
   func postComment(username: String?, photoURL: String? = nil) async {
     let trimmed = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty, let uid = Auth.auth().currentUser?.uid else { return }
+
+    // Same word lists as posts (`config/moderation`), but stricter, and on purpose:
+    // a post with a sensitive word is blurred so the reader chooses, whereas a comment
+    // is aimed at a specific person who never chose to see it. So a comment containing
+    // a sensitive term or a threat simply isn't sent. Checked on the device only — the
+    // draft stays in the box so it can be edited.
+    let findings = ContentModeration.scan(trimmed)
+    if findings.contains(.sensitive) || findings.contains(.violentThreat) {
+      filterMessage = "Comments can't include that language. Edit your comment to post it."
+      return
+    }
     let name = username ?? Auth.auth().currentUser?.displayName ?? "Anonymous"
     let photo = (photoURL?.isEmpty ?? true) ? nil : photoURL
     let tempID = UUID().uuidString

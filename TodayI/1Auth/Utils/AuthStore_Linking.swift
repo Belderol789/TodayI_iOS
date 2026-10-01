@@ -11,51 +11,11 @@ import GoogleSignIn
 extension AuthStore {
 
   // MARK: - Credential linking (keeps same uid)
-  // Email/Password example:
-  
-  func linkEmailPassword(email: String, password: String) async throws {
-    guard let user = Auth.auth().currentUser else {
-      throw NSError(domain: "AuthStore", code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "No active session. Please try again."])
-    }
-    let cred = EmailAuthProvider.credential(withEmail: email, password: password)
-    let result = try await user.link(with: cred)
-    await loadOrCreateProfile(for: result.user)
-  }
-  
-  func upgradeWithEmailPassword(_ email: String, password: String) async throws {
-    try await linkEmailPassword(email: email, password: password)
-  }
+  //
+  // Apple and Google only. The email/password path was removed with its UI: a third
+  // sign-in method to maintain (passwords, resets, typo'd addresses) for accounts that
+  // exist mainly to post publicly and to carry a Premium backup.
 
-  // Login path: links anonymous account to existing email account if possible,
-  // otherwise signs in directly. Prevents orphaning anonymous-user memories.
-  func signInOrLinkWithEmail(_ email: String, password: String) async throws {
-    let credential = EmailAuthProvider.credential(withEmail: email, password: password)
-
-    if let current = Auth.auth().currentUser, current.isAnonymous {
-      do {
-        let result = try await current.link(with: credential)
-        await loadOrCreateProfile(for: result.user)
-        return
-      } catch {
-        let nsError = error as NSError
-        guard let code = AuthErrorCode(rawValue: nsError.code),
-              code == .credentialAlreadyInUse || code == .emailAlreadyInUse else {
-          throw error
-        }
-        // Credential belongs to an existing account — sign in to it and clean up anon
-        let signInResult = try await Auth.auth().signIn(with: credential)
-        await loadOrCreateProfile(for: signInResult.user)
-        try? await current.delete()
-        return
-      }
-    }
-
-    // Not anonymous: plain sign-in
-    let result = try await Auth.auth().signIn(with: credential)
-    await loadOrCreateProfile(for: result.user)
-  }
-  
   @MainActor
   func signInOrLinkWithGoogle(presenting viewController: UIViewController) async throws {
     guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),

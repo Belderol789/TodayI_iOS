@@ -319,9 +319,14 @@ keeps insisting today is empty. Two constraints hold this together:
 ## Auth
 
 Anonymous by default — first launch creates a Firebase anonymous user with a `guest-XXXX` username
-and journaling works immediately. Sign-in (Google, email) is gated **only** in front of public
-posting, via `AuthRequiredView`. Don't add sign-in walls in front of private journaling. Face ID lock
-is opt-in and off by default.
+and journaling works immediately. Sign-in is gated **only** in front of public posting (and buying
+Premium — see below), via `AuthRequiredView`. Don't add sign-in walls in front of private journaling.
+Face ID lock is opt-in and off by default.
+
+Sign-in is **Apple and Google only**. Email/password was removed in Oct 2026 — it was the one
+provider with its own password-reset, verification and typo-in-the-address failure modes, and with
+Sign in with Apple already required it added nothing. Don't reintroduce it in `AuthView` or
+`AuthStore_Linking`.
 
 `auth.isRestricted` is an admin-set flag on the user doc that disables public posting; it is set from
 the Firebase console, not from the app.
@@ -390,6 +395,10 @@ The free/premium line: free users get **one memory per day** — the most recent
 cap and no video or gallery. Premium adds every memory, video, galleries, feed flair and a monthly
 mood summary.
 
+"Feed flair" is a mood-gradient `star.fill` after the username in `MemoryRow` (`premiumStar`), driven
+by `MemoryModel.isPremium` — the author's tier stamped on the post when it was written, not a live
+lookup, so a lapsed subscriber's old posts keep their star. VoiceOver reads it as "Premium member".
+
 **Never hide a user's own data silently.** Free tier used to enforce the one-per-day limit with
 `fetchLimit = 1`, so a second memory vanished from `MemoryContainer` while still sitting in SwiftData
 and Firestore — indistinguishable from data loss. That screen now loads the whole day and renders a
@@ -427,6 +436,13 @@ That only closes the *app-side* half. **Apple's own propagation is separate and 
 code** — App Store Connect price/metadata changes are documented to take up to ~24 hours to
 reach the live catalog and Sandbox, and there is no client-side way to force it faster. If a
 price edit still isn't showing after a cold relaunch, that's Apple's side, not a bug here.
+
+**Entitlements are re-scanned on foreground too** (`EntitlementStore.refresh(reason: "foreground")`).
+A subscription *expiring* creates no new transaction, so `Transaction.updates` never fires for it,
+and the scan otherwise ran only at init — a lapsed or cancelled subscriber stayed Premium for as long
+as the process lived. Cancelling (in Sandbox or for real) only turns off auto-renew; Premium is
+supposed to last until the period ends, which in Sandbox is accelerated (a monthly plan renews about
+every 5 minutes, up to 12 times a day). The `currentEntitlement … expiration:` log line says when.
 
 ## Cost shape
 
@@ -627,6 +643,11 @@ Keep `normalise()` identical in both or the client will pass text the server the
   precisely so the notification copy differs. Never refuse to *save* it — gating someone's lowest
   moment would teach them this is a bad place to be honest, which is the opposite of the product.
 - **Contact details** warn before a public post, never block.
+- **Comments are stricter than posts, and client-only.** `CommentThreadViewModel.postComment` refuses
+  a comment that matches `sensitive` or `violentThreat` and shows `filterMessage` above the composer
+  (the text stays, so it can be edited). No blur-and-reveal here: a comment is written *to* someone,
+  on their post, so blurring would still deliver it to them. There is no server-side comment check —
+  it's bypassable by a modified client, the same trade-off as the typing-time layer for posts.
 
 **Flags are shown one at a time, and posting happens last.** `CreateMemoryView.attemptPost` builds a
 queue of `PostFlag`s — threat, then self-harm, then sensitive, then contact details — and presents each
