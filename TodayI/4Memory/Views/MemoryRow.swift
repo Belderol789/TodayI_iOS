@@ -197,16 +197,21 @@ private extension MemoryRow {
 struct ReportSheet: View {
   let reportedUID: String
   let memoryID: String
+  /// Set when the report is about one comment rather than the post itself.
+  var commentID: String? = nil
+  var commentText: String? = nil
   var onBlock: ((String) -> Void)? = nil
   let onDismiss: () -> Void
 
   @State private var selectedReason: ReportReason?
+
+  private var subject: String { commentID == nil ? "post" : "comment" }
   @State private var isSubmitting = false
 
   var body: some View {
     NavigationStack {
       Form {
-        Section("Why are you reporting this post?") {
+        Section("Why are you reporting this \(subject)?") {
           reasonRow(.inappropriate)
           reasonRow(.harassment)
           reasonRow(.spam)
@@ -214,7 +219,7 @@ struct ReportSheet: View {
           reasonRow(.other)
         }
       }
-      .navigationTitle("Report Post")
+      .navigationTitle(commentID == nil ? "Report Post" : "Report Comment")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .topBarLeading) {
@@ -228,7 +233,9 @@ struct ReportSheet: View {
               try? await ReportService.report(
                 reportedUID: reportedUID,
                 memoryID: memoryID,
-                reason: reason
+                reason: reason,
+                commentID: commentID,
+                commentText: commentText
               )
               await MainActor.run {
                 isSubmitting = false

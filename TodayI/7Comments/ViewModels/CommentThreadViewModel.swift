@@ -87,7 +87,9 @@ final class CommentThreadViewModel: ObservableObject {
       filterMessage = "Comments can't include that language. Edit your comment to post it."
       return
     }
-    let name = username ?? Auth.auth().currentUser?.displayName ?? "Anonymous"
+    // Never fall back to Auth's `displayName`: Google sign-in fills it with the person's
+    // real name, which would then be published on a stranger's post.
+    let name = username ?? "Anonymous"
     let photo = (photoURL?.isEmpty ?? true) ? nil : photoURL
     let tempID = UUID().uuidString
     let optimistic = CommentDTO(id: tempID, userID: uid, username: name,

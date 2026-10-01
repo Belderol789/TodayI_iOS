@@ -328,6 +328,12 @@ provider with its own password-reset, verification and typo-in-the-address failu
 Sign in with Apple already required it added nothing. Don't reintroduce it in `AuthView` or
 `AuthStore_Linking`.
 
+**A provider's real name never becomes public.** Sign in with Apple requests `.email` only — it used
+to request `.fullName` and save the given name as the username, so a first Global post published
+someone's real name, while the privacy policy said usernames are generated. Comments likewise never
+fall back to `Auth.currentUser.displayName`, which Google fills with the real name. Usernames stay
+`guest-XXXX` until the user picks one in Settings.
+
 `auth.isRestricted` is an admin-set flag on the user doc that disables public posting; it is set from
 the Firebase console, not from the app.
 
@@ -595,6 +601,15 @@ other. Reporting from the admin's own phone after signing out now correctly deli
 Report reasons in `ReportService`, block list in `BlockedUserList` mirrored to both SwiftData and
 Firestore, and blocked/reported authors are filtered out of the feed immediately on the client
 (`GlobalFeedView` observes `BlockedUserList` via `@Query`, so a block hides the row with no refetch).
+
+**Comments are reportable too** (guideline 1.2 wants report and block on all UGC). `CommentRow`'s
+context menu offers Report Comment through the same `ReportSheet`, which then blocks the author like
+a post report does — deferred to the sheet's `onDismiss`, because the block removes the row the sheet
+is presented from. A comment report adds `commentID` and a copy of `commentText` (the author can
+delete the comment, leaving nothing to review); the `reports` rule doesn't restrict fields, so no
+rule change. `onReportCreated` labels comment reports in the admin push — **needs a functions
+deploy**. There is **no unblock UI**: `removeBlockedUser` exists with no caller, and the support page
+tells people to email.
 
 **Blocking is mute semantics, not true blocking.** It is enforced entirely on the client: nothing
 stops a blocked user reading, liking or commenting on a public post, you simply don't see them.

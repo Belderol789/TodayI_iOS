@@ -28,20 +28,27 @@ export const onReportCreated = onDocumentCreated(
     const reason = String(snap.get("reason") ?? "Unknown");
     const reportedUID = String(snap.get("reportedUID") ?? "");
     const memoryID = String(snap.get("memoryID") ?? "");
+    // Present only on a comment report. The text is copied in at report time because the
+    // commenter can delete the comment, and then there'd be nothing left to judge.
+    const commentID = snap.get("commentID") ? String(snap.get("commentID")) : null;
+    const commentText = snap.get("commentText") ? String(snap.get("commentText")) : null;
 
     try {
       await admin.messaging().send({
         topic: ADMIN_TOPIC,
         notification: {
-          title: `New report: ${reason}`,
+          title: commentID ? `New comment report: ${reason}` : `New report: ${reason}`,
           // Enough to triage from the lock screen without opening the console.
-          body: `User ${reportedUID.slice(0, 8)}… · memory ${memoryID.slice(0, 8)}…`,
+          body: commentText
+            ? `"${commentText.slice(0, 80)}" · user ${reportedUID.slice(0, 8)}…`
+            : `User ${reportedUID.slice(0, 8)}… · memory ${memoryID.slice(0, 8)}…`,
         },
         data: {
           type: "report",
           reportId: event.params.reportId,
           reportedUID,
           memoryID,
+          ...(commentID ? { commentID } : {}),
         },
       });
       console.log(`🚩 report alert sent — ${reason}`);

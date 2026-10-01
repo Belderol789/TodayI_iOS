@@ -220,7 +220,10 @@ private extension AuthView {
 // MARK: - Apple Sign In
 private extension AuthView {
   func configureAppleRequest(_ request: ASAuthorizationAppleIDRequest) {
-    request.requestedScopes = [.fullName, .email]
+    // No `.fullName`: the given name used to become the public username, so the first
+    // Global post put someone's real name in front of strangers without asking. People
+    // keep their guest-XXXX name until they choose one in Settings.
+    request.requestedScopes = [.email]
     let nonce = randomNonceString()
     currentNonce = nonce
     request.nonce = sha256(nonce)
@@ -248,7 +251,6 @@ private extension AuthView {
         rawNonce: rawNonce
       )
 
-      let suggestedName = appleIDCredential.fullName?.givenName?.trimmingCharacters(in: .whitespacesAndNewlines)
       let suggestedEmail = appleIDCredential.email
 
       Task {
@@ -257,9 +259,6 @@ private extension AuthView {
 
         await auth.signInOrLinkWithApple(credential)
 
-        if let name = suggestedName, !name.isEmpty {
-          await auth.updateUsername(name)
-        }
         if let e = suggestedEmail, let uid = auth.userID {
           try? await Firestore.firestore().collection("users").document(uid)
             .updateData(["email": e, "updatedAt": FieldValue.serverTimestamp()])

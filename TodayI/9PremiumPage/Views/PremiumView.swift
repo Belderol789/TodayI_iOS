@@ -130,7 +130,6 @@ struct PremiumView: View {
       featureRow("Premium look in the global feed")
       featureRow("Video and gallery posts")
       featureRow("Monthly mood summary")
-      featureRow("More moods coming soon")
     }
     .padding(20)
     .background(

@@ -15,6 +15,8 @@ struct CommentRow: View {
   let onBlocked: (String) -> Void
 
   @State private var showAlert = false
+  @State private var showReport = false
+  @State private var blockAfterReport = false
   @State private var isBlocking = false
 
   private var isOwn: Bool { comment.userID == auth.userID }
@@ -90,10 +92,29 @@ private extension CommentRow {
           Label("Delete Comment", systemImage: "trash")
         }
       } else {
+        Button { showReport = true } label: {
+          Label("Report Comment", systemImage: "exclamationmark.bubble")
+        }
         Button(role: .destructive) { showAlert = true } label: {
           Label("Block @\(comment.username)", systemImage: "hand.raised.fill")
         }
       }
+    }
+    // Same sheet and same outcome as reporting a post: the report is filed and the
+    // author is blocked, so the reporter never has to see them again. The block waits
+    // for `onDismiss` because it removes this row — and the sheet presented from it —
+    // and doing that mid-dismissal is the present-and-navigate-in-one-beat glitch.
+    .sheet(isPresented: $showReport, onDismiss: {
+      if blockAfterReport { blockAfterReport = false; blockUser() }
+    }) {
+      ReportSheet(
+        reportedUID: comment.userID,
+        memoryID: memoryID,
+        commentID: comment.id,
+        commentText: comment.text,
+        onBlock: { _ in blockAfterReport = true },
+        onDismiss: { showReport = false }
+      )
     }
     .alert(isOwn ? "Delete Comment?" : "Block @\(comment.username)?",
            isPresented: $showAlert) {
