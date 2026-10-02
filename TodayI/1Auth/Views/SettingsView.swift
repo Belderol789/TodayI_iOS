@@ -28,6 +28,7 @@ struct SettingsView: View {
   @State private var showDeleteConfirm = false
   @State private var deleteError: String?
   @State private var sampleYearOn = false
+  @State private var showSignIn = false
   
   // Photo picking + preview
   @State private var showPhotoPicker = false
@@ -74,12 +75,29 @@ struct SettingsView: View {
       }
       
       // MARK: - Account Section
-      Section("Account") {
-        HStack {
-          Text("Status")
-          Spacer()
-          Text(auth.isGuest ? "Guest" : "Registered")
-            .foregroundStyle(auth.isGuest ? .orange : .green)
+      // Guests reach Settings too: Face ID, the reminder and the username are about the
+      // journal, not the account, and sign-in is only ever required for posting Global
+      // and buying Premium. Home used to send guests to the sign-in screen instead.
+      Section {
+        if auth.isGuest {
+          Button {
+            showSignIn = true
+          } label: {
+            Label("Sign In", systemImage: "person.crop.circle.badge.plus")
+          }
+        } else {
+          HStack {
+            Text("Signed in")
+            Spacer()
+            Text(auth.email ?? "Registered")
+              .foregroundStyle(.secondary)
+          }
+        }
+      } header: {
+        Text("Account")
+      } footer: {
+        if auth.isGuest {
+          Text("You're journaling as a guest. Your entries stay on this iPhone. Sign in to post to the World feed or to get Premium's cloud backup.")
         }
       }
       
@@ -193,6 +211,8 @@ struct SettingsView: View {
       #endif
 
       // MARK: - Account actions
+      // A guest has no account to sign out of or delete; their entries live on the device.
+      if !auth.isGuest {
       Section {
         Button(role: .destructive) {
           isLoggingOut = true
@@ -208,20 +228,18 @@ struct SettingsView: View {
             Text("Log Out")
           }
         }
-        .disabled(auth.isGuest || isLoggingOut || isDeletingAccount)
+        .disabled(isLoggingOut || isDeletingAccount)
 
-        if !auth.isGuest {
-          Button(role: .destructive) {
-            showDeleteConfirm = true
-          } label: {
-            if isDeletingAccount {
-              ProgressView().tint(.red)
-            } else {
-              Text("Delete Account")
-            }
+        Button(role: .destructive) {
+          showDeleteConfirm = true
+        } label: {
+          if isDeletingAccount {
+            ProgressView().tint(.red)
+          } else {
+            Text("Delete Account")
           }
-          .disabled(isDeletingAccount || isLoggingOut)
         }
+        .disabled(isDeletingAccount || isLoggingOut)
       } footer: {
         if let deleteError {
           Text(deleteError)
@@ -229,6 +247,11 @@ struct SettingsView: View {
             .font(.caption)
         }
       }
+      }
+    }
+    .sheet(isPresented: $showSignIn) {
+      // Closes itself once sign-in succeeds; Settings then shows the signed-in account.
+      AuthView()
     }
     .alert("Delete Account?", isPresented: $showDeleteConfirm) {
       Button("Delete", role: .destructive) {

@@ -73,7 +73,7 @@ struct HomeView: View {
             }
             .fixedSize()
             // Make it speak like a real action
-            .accessibilityLabel(auth.isRegisteredUser ? "Profile" : "Sign in or profile")
+            .accessibilityLabel("Profile")
             .accessibilityHint("Opens settings.")
             .accessibilityAddTraits(.isButton)
           }
@@ -191,14 +191,10 @@ struct HomeView: View {
         }
       }
       .sheet(isPresented: $showSetting) {
+        // Everyone gets Settings; guests sign in from its Account section.
         NavigationStack {
-          if auth.isRegisteredUser {
-            SettingsView()
-              .accessibilityLabel("Settings")
-          } else {
-            AuthView()
-              .accessibilityLabel("Sign In")
-          }
+          SettingsView()
+            .accessibilityLabel("Settings")
         }
       }
     }

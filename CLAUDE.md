@@ -323,6 +323,12 @@ and journaling works immediately. Sign-in is gated **only** in front of public p
 Premium — see below), via `AuthRequiredView`. Don't add sign-in walls in front of private journaling.
 Face ID lock is opt-in and off by default.
 
+**Settings is open to guests.** Home's Profile button used to show `AuthView` to anyone not
+registered, which put Face ID, the daily reminder and the username — all journal settings — behind
+sign-in. Now everyone gets `SettingsView`; a guest sees a Sign In row in Account (presenting
+`AuthView` as a sheet, which closes itself on success) and no Log Out or Delete Account, since a
+guest has no account and their entries are on the device.
+
 Sign-in is **Apple and Google only**. Email/password was removed in Oct 2026 — it was the one
 provider with its own password-reset, verification and typo-in-the-address failure modes, and with
 Sign in with Apple already required it added nothing. Don't reintroduce it in `AuthView` or
