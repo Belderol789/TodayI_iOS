@@ -46,8 +46,10 @@ struct RootView: View {
             let uid = auth.userID,
             let manager = swiftManager else { return }
       if manager.hasSampleYear { manager.debugClearSampleYear() }
+      // A screenshot-friendly name on the sample entries only; the account's own
+      // username (guest-XXXX) is untouched and nothing is written to Firestore.
       manager.debugSeedSampleYear(userID: uid,
-                                  username: auth.username ?? "guest",
+                                  username: "maya.days",
                                   isPremium: entitlements.isPremium)
     }
     #endif

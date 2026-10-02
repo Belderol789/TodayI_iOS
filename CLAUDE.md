@@ -116,6 +116,10 @@ calendar day rolled over; pull-to-refresh and `loadMore` still go to the network
 notification inbox follows the same idea: one snapshot listener, no redundant one-shot fetch, and
 the unread filter applied in memory.
 
+The mood **filter chips** take their percentages from the day's tally — the numbers the chart
+above them shows — and fall back to the loaded page only until it arrives. They used to always
+count the loaded page (30 posts at most), so a chip could read 40% under a chart saying 32%.
+
 **The streak is computed from `DateModel`, never gated.** `SwiftDataManager.currentStreak()` counts
 back over the one-row-per-journaled-day table, which is written on every local save and refilled from
 Firestore once per launch — so the flame costs zero reads and survives a reinstall. Today being
@@ -839,7 +843,12 @@ conversation in Firestore permanently.
   the `-sampleYear` launch argument, which works for a guest who can't reach Settings. Memories are
   `needsCloudBackup = false`, Personal and prefixed `debug-sample-`, so nothing uploads them; days
   with real moods are skipped and the seeded dates are remembered in `UserDefaults`, so turning it
-  off removes only what it added.
+  off removes only what it added. It uses a fixed-seed `SeededGenerator`, so every run produces the
+  same year and a retaken screenshot matches the rest of the set; today is always one Happy entry
+  before 9:41. `-sampleFeed` (`GlobalFeedService_Sample.swift`) does the same for the World feed:
+  believable posts with hand-picked Picsum photos and a realistic day's tally, through the existing
+  `useTestData` path. Feed rows upsert into SwiftData when drawn, so their ids share the
+  `debug-sample-` prefix and the sample-year toggle removes them too.
 
 ## Gotchas
 

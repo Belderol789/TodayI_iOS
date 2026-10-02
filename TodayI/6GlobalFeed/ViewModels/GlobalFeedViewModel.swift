@@ -30,6 +30,11 @@ final class GlobalFeedViewModel: ObservableObject {
 
   init(day: Date) {
     self.day = day
+    #if DEBUG
+    // Screenshot feed: see GlobalFeedService_Sample.swift. Rides the existing test-data
+    // path so no network code is involved.
+    if GlobalFeedService.usesSampleFeed { useTestData = true }
+    #endif
     privacyObserver = NotificationCenter.default.addObserver(
       forName: .memoryPrivacyDidChange, object: nil, queue: .main
     ) { [weak self] note in
@@ -90,17 +95,25 @@ final class GlobalFeedViewModel: ObservableObject {
     do {
       if useTestData {
         // ---- Test data path ----
-        let page = GlobalFeedService.generateTestPage(for: day, count: 100, startIndex: 0)
+        var page = GlobalFeedService.generateTestPage(for: day, count: 100, startIndex: 0)
+        #if DEBUG
+        if GlobalFeedService.usesSampleFeed {
+          page = GlobalFeedService.generateSamplePage(for: day)
+        }
+        #endif
         self.allRows = page.items
         self.cursor = nil
         self.reachedEnd = true
         
         // Build a synthetic mood tally from test data
-        let counts = page.items.reduce(into: [Mood: Int]()) { dict, dto in
+        var counts = page.items.reduce(into: [Mood: Int]()) { dict, dto in
           if let m = Mood(rawValue: dto.mood) {
             dict[m, default: 0] += 1
           }
         }
+        #if DEBUG
+        if GlobalFeedService.usesSampleFeed { counts = GlobalFeedService.sampleTally }
+        #endif
         updateGlobalTally(from: counts)
       } else {
         // ---- Live Firestore path ----
@@ -211,11 +224,14 @@ final class GlobalFeedViewModel: ObservableObject {
   func loadGlobalMoodTally() async {
     // Test data path
     if useTestData {
-      let counts = allRows.reduce(into: [Mood: Int]()) { dict, dto in
+      var counts = allRows.reduce(into: [Mood: Int]()) { dict, dto in
         if let m = Mood(rawValue: dto.mood) {
           dict[m, default: 0] += 1
         }
       }
+      #if DEBUG
+      if GlobalFeedService.usesSampleFeed { counts = GlobalFeedService.sampleTally }
+      #endif
       updateGlobalTally(from: counts)
       return
     }
@@ -270,7 +286,15 @@ final class GlobalFeedViewModel: ObservableObject {
     moodCounts[mood, default: 0] == 0
   }
   
+  /// The filter chips' percentages. Taken from the day's tally — the same numbers the
+  /// chart above them shows — and only from the loaded page until that arrives. They used
+  /// to always count the loaded page (30 posts at most), so a chip read "Happy 40%" right
+  /// under a chart saying 32%.
   func percentage(for mood: Mood) -> Int {
+    if globalMoodTotal > 0 {
+      let count = globalMoodSlices.first { $0.mood == mood }?.count ?? 0
+      return Int((Double(count) / Double(globalMoodTotal) * 100.0).rounded())
+    }
     let total = totalCount
     guard total > 0 else { return 0 }
     let count = moodCounts[mood, default: 0]

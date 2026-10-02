@@ -57,6 +57,20 @@ extension SwiftDataManager {
 
 // MARK: - Sample year (App Store screenshots)
 
+/// SplitMix64. `SystemRandomNumberGenerator` can't be seeded, and a sample that changes
+/// every run can't produce a consistent screenshot set.
+struct SeededGenerator: RandomNumberGenerator {
+  private var state: UInt64
+  init(seed: UInt64) { state = seed }
+  mutating func next() -> UInt64 {
+    state &+= 0x9E3779B97F4A7C15
+    var z = state
+    z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
+    z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
+    return z ^ (z >> 31)
+  }
+}
+
 /// A lived-in year for screenshots: memories and mood days from January 1 to today.
 ///
 /// Safe against production by construction. Memories are written with
@@ -80,7 +94,9 @@ extension SwiftDataManager {
     guard let jan1 = cal.date(from: cal.dateComponents([.year], from: today)) else { return }
     let dayCount = (cal.dateComponents([.day], from: jan1, to: today).day ?? 0) + 1
 
-    var rng = SystemRandomNumberGenerator()
+    // Fixed seed: every run produces the same year, so a retaken screenshot matches
+    // the rest of the set instead of telling a different story each time.
+    var rng = SeededGenerator(seed: 2026)
     var seededDays: [Double] = []
 
     for offset in 0 ..< dayCount {
@@ -93,14 +109,18 @@ extension SwiftDataManager {
       let existing = FetchDescriptor<DateModel>(predicate: #Predicate { $0.date == day })
       guard ((try? context.fetch(existing))?.first) == nil else { continue }
 
-      // About one day in six gets a second entry, as Premium allows.
-      let entryCount = Int.random(in: 0 ..< 6, using: &rng) == 0 ? 2 : 1
+      // About one day in six gets a second entry, as Premium allows. Today gets exactly
+      // one, always the same warm one: it's the card at the top of the Home screenshot.
+      let isToday = daysAgo == 0
+      let entryCount = !isToday && Int.random(in: 0 ..< 6, using: &rng) == 0 ? 2 : 1
       var moods: [Mood] = []
       for index in 0 ..< entryCount {
-        let mood = Self.sampleMood(using: &rng)
+        let mood = isToday ? .happy : Self.sampleMood(using: &rng)
         moods.append(mood)
-        let hour = index == 0 ? Int.random(in: 8 ... 13, using: &rng)
-                              : Int.random(in: 17 ... 22, using: &rng)
+        // Today's entry lands before 9:41, the screenshots' status-bar time.
+        let hour = isToday ? 8
+          : index == 0 ? Int.random(in: 8 ... 13, using: &rng)
+                       : Int.random(in: 17 ... 22, using: &rng)
         let created = cal.date(bySettingHour: hour,
                                minute: Int.random(in: 0 ... 59, using: &rng),
                                second: 0, of: day) ?? day
@@ -110,7 +130,9 @@ extension SwiftDataManager {
           username: username,
           date: day,
           mood: mood,
-          journalText: Self.sampleLines[mood]?.randomElement(using: &rng) ?? "",
+          journalText: isToday
+            ? "Called my sister and we laughed for an hour."
+            : Self.sampleLines[mood]?.randomElement(using: &rng) ?? "",
           likes: 0,
           isPublic: false,
           isPremium: isPremium,
@@ -152,8 +174,8 @@ extension SwiftDataManager {
   }
 
   /// Weighted so the year reads as a believable mix rather than an even rainbow.
-  private static func sampleMood(using rng: inout SystemRandomNumberGenerator) -> Mood {
-    let weighted: [(Mood, Int)] = [(.happy, 30), (.neutral, 20), (.surprise, 12), (.sad, 12),
+  private static func sampleMood(using rng: inout SeededGenerator) -> Mood {
+    let weighted: [(Mood, Int)] = [(.happy, 34), (.neutral, 18), (.surprise, 12), (.sad, 12),
                                    (.disgust, 9), (.angry, 9), (.fear, 8)]
     var roll = Int.random(in: 0 ..< weighted.reduce(0) { $0 + $1.1 }, using: &rng)
     for (mood, weight) in weighted {
