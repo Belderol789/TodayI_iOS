@@ -38,12 +38,14 @@ struct RootView: View {
     // `-sampleYear` as a launch argument (Edit Scheme → Run → Arguments) loads the
     // sample year without opening Settings, which a guest can't reach. Runs during the
     // splash, so Home's first render already has it. Same local-only seed as the toggle.
+    // Re-seeds on every launch: a sample written yesterday stops at yesterday, which
+    // leaves today — the Home screenshot — empty.
     .task(id: auth.isSessionReady) {
       guard auth.isSessionReady,
             ProcessInfo.processInfo.arguments.contains("-sampleYear"),
             let uid = auth.userID,
-            let manager = swiftManager,
-            !manager.hasSampleYear else { return }
+            let manager = swiftManager else { return }
+      if manager.hasSampleYear { manager.debugClearSampleYear() }
       manager.debugSeedSampleYear(userID: uid,
                                   username: auth.username ?? "guest",
                                   isPremium: entitlements.isPremium)
