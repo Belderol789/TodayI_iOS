@@ -263,15 +263,20 @@ struct SettingsView: View {
       // Closes itself once sign-in succeeds; Settings then shows the signed-in account.
       AuthView()
     }
+    // For a Sign in with Apple account the next thing on screen is Apple's own sheet, which
+    // looks exactly like signing in. Name it before it appears and on the button itself —
+    // the old message mentioned it in passing, and people took the sheet for a stray
+    // sign-in, closed it, and the deletion quietly didn't happen.
     .alert("Delete Account?", isPresented: $showDeleteConfirm) {
-      Button("Delete", role: .destructive) {
+      Button(auth.isLinkedToApple ? "Delete and Confirm with Apple" : "Delete",
+             role: .destructive) {
         Task { await performDeleteAccount() }
       }
       Button("Cancel", role: .cancel) {}
     } message: {
       Text(auth.isLinkedToApple
-           ? "This permanently deletes your account, all memories, and cannot be undone. Apple will ask you to confirm once more."
-           : "This permanently deletes your account, all memories, and cannot be undone.")
+           ? "This permanently deletes your account and all your memories. It can't be undone.\n\nNext, Apple will ask you to confirm. That's to remove TodayI from your Apple ID — it isn't a sign-in. Your account is only deleted once you confirm."
+           : "This permanently deletes your account and all your memories. It can't be undone.")
     }
     .navigationTitle("Settings")
     .navigationBarTitleDisplayMode(.inline)
@@ -412,8 +417,10 @@ private extension SettingsView {
       isDeletingAccount = false
       dismiss()
     } catch AuthStore.DeleteError.cancelled {
-      // Backed out of the Apple re-confirmation: nothing happened, nothing to report.
+      // Closing Apple's sheet stops the deletion. Say so — staying silent left people
+      // believing their account was gone when nothing had been deleted.
       isDeletingAccount = false
+      deleteError = "Your account wasn't deleted. To delete it, tap Delete Account again and confirm with Apple when it asks."
     } catch {
       isDeletingAccount = false
       deleteError = error.localizedDescription
