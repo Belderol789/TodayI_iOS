@@ -50,9 +50,8 @@ extension AuthStore {
           throw error
         }
         let updated = nsError.userInfo[AuthErrorUserInfoUpdatedCredentialKey] as? AuthCredential
-        let signInResult = try await Auth.auth().signIn(with: updated ?? credential)
-        await loadOrCreateProfile(for: signInResult.user)
-        try? await current.delete()
+        // This Google ID already has an account: move the guest into it.
+        try await switchFromGuest(current, using: updated ?? credential)
         return
       }
     }
@@ -78,15 +77,8 @@ extension AuthStore {
             // Prefer the updated credential if Firebase provides one
             let updated = nsError.userInfo[AuthErrorUserInfoUpdatedCredentialKey] as? AuthCredential
             do {
-              let signInResult: AuthDataResult
-              if let updated {
-                signInResult = try await Auth.auth().signIn(with: updated)
-              } else {
-                signInResult = try await Auth.auth().signIn(with: credential)
-              }
-              await loadOrCreateProfile(for: signInResult.user)
-              // Best-effort cleanup of the temporary anonymous account
-              try? await current.delete()
+              // This Apple ID already has an account: move the guest into it.
+              try await switchFromGuest(current, using: updated ?? credential)
               return
             } catch {
               print("Apple sign-in after link-fallback failed:", error)

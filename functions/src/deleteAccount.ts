@@ -17,6 +17,7 @@
 import * as admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import * as functionsV1 from "firebase-functions/v1";
 
 const REGION = "asia-southeast1";
 
@@ -32,23 +33,16 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 /**
- * Deletes every trace of the caller's account, then the Auth user itself.
+ * Removes everything stored for `uid` except the Auth user itself.
  *
- * Callable rather than an Auth `onDelete` trigger on purpose: the client needs to know
- * whether the wipe actually succeeded before it clears local data, and a background
- * trigger gives it nothing to wait on.
- *
- * Idempotent — every step tolerates already-missing data, so a client retry after a
- * network failure is safe.
+ * Shared by `deleteAccountData` (the in-app Delete Account) and `onAuthUserDeleted` (any
+ * other way an Auth user disappears), so the two can never drift apart. Idempotent: every
+ * step tolerates already-missing data, which matters because the callable's own Auth
+ * deletion fires `onAuthUserDeleted`, and that second pass finds nothing left.
  */
-export const deleteAccountData = onCall({ region: REGION }, async (request) => {
-  const uid = request.auth?.uid;
-  if (!uid) {
-    throw new HttpsError("unauthenticated", "You must be signed in to delete your account.");
-  }
-
+export async function wipeUserData(uid: string): Promise<void> {
   const db = admin.firestore();
-  console.log(`🗑️ deleteAccountData starting for ${uid}`);
+  console.log(`🗑️ wipeUserData starting for ${uid}`);
 
   // 0. Every query first, before anything is deleted.
   //
@@ -74,7 +68,7 @@ export const deleteAccountData = onCall({ region: REGION }, async (request) => {
   console.log(`   🔎 found ${authored.size} authored comment(s), ${hubs.size} hub(s), ` +
     `${blockers.size} blocker(s), ${against.size} report(s) about, ${filed.size} filed`);
 
-  // 1. The user tree: profile doc, memories, dates, notifications.
+  // 1. The user tree: profile doc, memories (Global ones included), dates, notifications.
   //    recursiveDelete walks subcollections, which a plain document delete won't.
   await db.recursiveDelete(db.collection("users").doc(uid));
   console.log("   ✅ users/* deleted");
@@ -144,9 +138,28 @@ export const deleteAccountData = onCall({ region: REGION }, async (request) => {
     await batch.commit();
   }
   console.log(`   ✅ ${against.size} report(s) deleted, ${filed.size} anonymised`);
+  console.log(`🗑️ wipeUserData complete for ${uid}`);
+}
 
-  // 7. The Auth user, last. Everything above is retryable while this still exists.
-  //    Already-deleted is success, not an error — that's what makes a retry safe.
+/**
+ * Deletes every trace of the caller's account, then the Auth user itself.
+ *
+ * Callable rather than relying on `onAuthUserDeleted` alone on purpose: the client needs
+ * to know whether the wipe actually succeeded before it clears local data, and a
+ * background trigger gives it nothing to wait on.
+ *
+ * Idempotent — a client retry after a network failure is safe.
+ */
+export const deleteAccountData = onCall({ region: REGION }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "You must be signed in to delete your account.");
+  }
+
+  await wipeUserData(uid);
+
+  // The Auth user, last. Everything above is retryable while this still exists.
+  // Already-deleted is success, not an error — that's what makes a retry safe.
   try {
     await admin.auth().deleteUser(uid);
     console.log("   ✅ Auth user deleted");
@@ -155,7 +168,81 @@ export const deleteAccountData = onCall({ region: REGION }, async (request) => {
     if (code !== "auth/user-not-found") throw err;
     console.log("   ✅ Auth user already gone");
   }
+  return { ok: true };
+});
 
-  console.log(`🗑️ deleteAccountData complete for ${uid}`);
+/**
+ * The safety net: whenever an Auth user is deleted **by any route**, its data goes too.
+ *
+ * In-app deletion is only one way an account disappears. The others — deleting users in
+ * the Firebase console, Firebase's own cleanup of old anonymous accounts, and the app
+ * deleting a guest after it signs into an existing account — used to leave the user's
+ * documents, Storage files and Global posts behind with nobody able to remove them:
+ * posts kept appearing in the World feed from an account that no longer existed.
+ *
+ * A v1 trigger because v2 has no Auth delete event (only blocking beforeCreate /
+ * beforeSignIn). After a `deleteAccountData`, this runs again over already-empty paths,
+ * which is cheap and harmless.
+ */
+export const onAuthUserDeleted = functionsV1
+  .region(REGION)
+  .auth.user()
+  .onDelete(async (user) => {
+    try {
+      await wipeUserData(user.uid);
+    } catch (err) {
+      // Logged rather than retried: a missing index or permissions problem would fail
+      // every retry the same way, and the log is where it gets noticed.
+      console.error(`❌ onAuthUserDeleted wipe failed for ${user.uid}:`, err);
+    }
+  });
+
+/**
+ * Retires the anonymous guest a person was using before they signed into an existing
+ * account, so guest and account become one.
+ *
+ * When an Apple or Google ID already has a TodayI account, Firebase can't upgrade the
+ * guest in place: the app signs into that account instead, and the guest is left behind.
+ * The app used to delete it with `User.delete()` from the client, wrapped in `try?` — but
+ * that needs a recent sign-in, which a guest from days ago doesn't have, so it failed
+ * silently and guests (with their user documents) accumulated.
+ *
+ * The app passes the guest's ID token, taken while the guest was still signed in. That
+ * token is the proof of control: it is verified here, must belong to an **anonymous**
+ * user, and must not be the caller's own account. The guest's on-device memories have
+ * already been handed to the account by the app, so its server data is wiped and the Auth
+ * user deleted.
+ */
+export const retireGuestAccount = onCall({ region: REGION }, async (request) => {
+  const callerUID = request.auth?.uid;
+  if (!callerUID) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const guestToken = (request.data as { guestToken?: unknown })?.guestToken;
+  if (typeof guestToken !== "string" || guestToken.length === 0) {
+    throw new HttpsError("invalid-argument", "Missing guest token.");
+  }
+
+  let decoded: admin.auth.DecodedIdToken;
+  try {
+    decoded = await admin.auth().verifyIdToken(guestToken);
+  } catch {
+    throw new HttpsError("permission-denied", "That guest session can't be verified.");
+  }
+  if (decoded.firebase?.sign_in_provider !== "anonymous") {
+    throw new HttpsError("permission-denied", "Only a guest account can be retired this way.");
+  }
+  if (decoded.uid === callerUID) {
+    throw new HttpsError("failed-precondition", "That guest is the signed-in account.");
+  }
+
+  await wipeUserData(decoded.uid);
+  try {
+    await admin.auth().deleteUser(decoded.uid);
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code !== "auth/user-not-found") throw err;
+  }
+  console.log(`👋 Retired guest ${decoded.uid} into ${callerUID}`);
   return { ok: true };
 });

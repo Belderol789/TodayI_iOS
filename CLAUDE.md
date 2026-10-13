@@ -403,6 +403,15 @@ session each ran the recovery and created its own anonymous account (one person,
 users). Now `ensureSignedIn` shares one in-flight `signInTask`, the listener ignores events until
 `initialSessionVerified`, and `loadOrCreateProfile` skips a uid already in `profileLoadsInFlight`.
 
+**A guest and the account it signs into become one account.** A *new* Apple/Google ID is
+`link(with:)`ed onto the guest — same uid, nothing to move. An ID that **already has an account**
+can't be linked, so `switchFromGuest` (`AuthStore_GuestAdoption.swift`) takes the guest's ID token
+and block list, signs into the account, lets the profile load adopt the guest's memories, merges the
+blocks, then calls the `retireGuestAccount` callable with that token. The server verifies the token
+belongs to an *anonymous* user other than the caller, wipes its data and deletes it. This replaced a
+client `current.delete()` in `try?`, which needs a recent sign-in that an old guest doesn't have —
+it failed silently and guests piled up.
+
 **Guest memories follow the person, not the uid** (`AuthStore_GuestAdoption.swift`). A memory's
 `userID` is fixed when written, and Home and the day view show only the signed-in uid's memories,
 so any uid change hid a guest's journal while it sat on disk — signing in with an Apple ID that
@@ -830,6 +839,15 @@ needs a *fresh* authorization code (they expire in five minutes), so Apple users
 once more, with no scopes requested. Cancelling it throws `DeleteError.cancelled` and stops the
 deletion silently; any other revocation failure is logged and deletion continues — data deletion
 matters more than the token, and the user can still remove TodayI in their Apple ID settings.
+
+**Deleting an Auth user by any route deletes its data.** The wipe lives in `wipeUserData(uid)`,
+shared by `deleteAccountData` (in-app, which then deletes the Auth user) and `onAuthUserDeleted`, a v1
+`auth.user().onDelete` trigger (v2 has no Auth delete event). Before it, an account removed outside
+the app — in the console, by Firebase's anonymous cleanup, or a retired guest — left its documents,
+Storage and Global posts behind, unremovable: two posts kept showing in the World feed from an account
+deleted in a console wipe. The trigger reruns after `deleteAccountData` over empty paths, harmlessly.
+It can't help data written *after* its account was deleted (a dead session with a still-valid token
+writing for up to an hour) — launch-time session verification is what prevents that.
 
 Reports are handled deliberately rather than uniformly: reports *about* the deleted user are removed,
 reports they *filed* are kept with `reporterUID` scrubbed, since those are evidence about someone
