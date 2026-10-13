@@ -509,7 +509,7 @@ Restore Purchases is **not** gated — Apple requires it to be reachable, and it
 StoreKit entitlements, which are Apple-ID scoped rather than account scoped.
 
 Upsell entry points, deliberately few: the Premium pill in the World Feed and Calendar toolbars, the
-Create screen's Video/Gallery gates, its "Unlock" button and "Premium removes the limit" line, the
+Create screen's Video/Gallery gates and "Premium removes the limit" line (its "Unlock" pill was removed — squeezed beside the tools), the
 locked-memories row, and a non-blocking notice on Create when today already has a memory. The
 Notifications tab deliberately has **no** pill — four entry points for a one-screen product is
 already plenty, and the notification inbox is not where value is demonstrated.

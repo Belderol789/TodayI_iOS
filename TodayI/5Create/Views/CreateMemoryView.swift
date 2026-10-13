@@ -366,19 +366,9 @@ struct CreateMemoryView: View {
       }
       sensitiveToolbarButton
 
+      // No "Unlock" pill here any more: beside seven tools it was squeezed on every
+      // phone, and the greyed Video/Gallery buttons already open Premium.
       Spacer()
-
-      if !entitlements.isPremium {
-        Button { showPremium = true } label: {
-          Label("Unlock", systemImage: "star.fill")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Capsule().fill(moodGradient))
-        }
-        .buttonStyle(.plain)
-      }
     }
   }
 
@@ -390,7 +380,7 @@ struct CreateMemoryView: View {
           .frame(width: 36, height: 30)
         Text(label)
           .font(.system(size: 10, weight: .medium))
-          // Seven tools plus Unlock is tight on a 375pt phone; shrink rather than wrap.
+          // Seven tools are tight on a 375pt phone; shrink rather than wrap.
           .lineLimit(1)
           .minimumScaleFactor(0.75)
       }
