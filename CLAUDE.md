@@ -633,6 +633,17 @@ device and Firestore has no idea who is subscribed. Forging it only keeps your o
 alive longer, so it isn't worth defending against. Owner write already covers it — no new
 rule needed.
 
+**Each entry shows where it lives** (`CloudBackupBadge`, on your own entries outside the feed):
+blue cloud = in Firestore, gray = this iPhone only, cloud-with-arrow = queued (Premium, not
+uploaded yet — showing blue there would claim a backup that doesn't exist). Global posts are
+blue and locked. Tapping toggles: blue → gray removes the cloud copy through
+`deleteMemory(scope: .remoteOnly)`, gray → blue uploads via `backUpNow` (Premium; free users get
+the paywall). The first tap ever shows one explainer with the change as its action; after that
+there are no confirmations, only a transient word. The author's choice is
+`MemoryModel.keepLocalOnly`, which `drain` skips — `needsCloudBackup` alone means "not in
+Firestore yet" and would be re-uploaded. "Remove from Cloud Only" now sets both; it used to leave
+`needsCloudBackup == false`, so the entry claimed to be backed up. Going Global clears it.
+
 **There is no export feature.** Point 1 above is satisfied by restore, not export; if you
 want a real "download my journal" path it still needs building.
 

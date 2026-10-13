@@ -567,8 +567,15 @@ private extension MemoryRow {
       // it's shared again.
       if showsCommentButton && memory.isPublic { commentButton }
       Spacer()
+      // Your own entries, in your journal — not the feed or a thread, where the row is a
+      // post rather than a diary page.
+      if canEditPrivacy && !blursSensitiveContent {
+        CloudBackupBadge(memory: memory)
+      }
       if canToggleVisibility {
-        PrivacyBadge(isPublic: privacyBinding)
+        // Icon only, like Create's toolbar: the word appears briefly after a change. The
+        // full capsule plus a cloud crowded the row.
+        PrivacyBadge(isPublic: privacyBinding, compact: true)
           .disabled(isUpdatingPrivacy)
           .accessibilityLabel("Privacy")
           .accessibilityValue(memory.isPublic ? "Global" : "Personal")
@@ -579,6 +586,8 @@ private extension MemoryRow {
             Task {
               do {
                 try await MemoryService.updatePrivacy(for: memory, isPublic: newValue)
+                // A Global post is in the cloud; it stays there if it goes Personal again.
+                if newValue { memory.keepLocalOnly = false }
                 // The World feed holds cached DTOs that would otherwise re-upsert the
                 // old value straight back over this one.
                 NotificationCenter.default.post(
@@ -673,10 +682,8 @@ private extension MemoryRow {
       CommentThreadView(memory: memory)
     } label: {
       HStack(spacing: 5) {
+        // Icon only, like the badges beside it; the label was crowding the row.
         Image(systemName: "bubble.right")
-          .accessibilityHidden(true)
-        Text("Reply")
-          .font(.caption.weight(.semibold))
           .accessibilityHidden(true)
       }
       .padding(.horizontal, 12)

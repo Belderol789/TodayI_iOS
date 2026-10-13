@@ -38,7 +38,8 @@ enum CloudBackupService {
     let pending: [MemoryModel]
     do {
       var fetch = FetchDescriptor<MemoryModel>(
-        predicate: #Predicate { $0.needsCloudBackup == true },
+        // Entries the author keeps on this iPhone only are never backed up behind their back.
+        predicate: #Predicate { $0.needsCloudBackup == true && $0.keepLocalOnly == false },
         sortBy: [SortDescriptor(\.date, order: .forward)]
       )
       fetch.fetchLimit = 200   // a long-lapsed user could have thousands; chip away

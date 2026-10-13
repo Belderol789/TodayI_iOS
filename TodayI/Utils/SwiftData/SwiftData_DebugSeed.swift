@@ -140,6 +140,7 @@ extension SwiftDataManager {
           updatedAt: created
         )
         memory.needsCloudBackup = false
+        memory.keepLocalOnly = true   // honest gray cloud: these never reach Firestore
         context.insert(memory)
       }
       context.insert(DateModel(date: day, moods: moods))

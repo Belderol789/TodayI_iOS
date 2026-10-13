@@ -41,6 +41,11 @@ final class MemoryModel {
   /// when an upload fails, which makes it the retry queue the fire-and-forget upload
   /// never had.
   var needsCloudBackup: Bool = false
+  /// The author chose to keep this entry on the device only — the gray cloud on their
+  /// card, or "Remove from Cloud Only". It is not in Firestore (`needsCloudBackup` is
+  /// true too) and `CloudBackupService.drain` must leave it there, or the next launch
+  /// would quietly re-upload what they just took down.
+  var keepLocalOnly: Bool = false
   /// Author-marked sensitive. `MemoryRow` blurs it in the Global feed behind a
   /// tap-to-reveal. Detection of listed words happens at render time as well; this flag
   /// is what covers the cases the word list can't see, like an image.

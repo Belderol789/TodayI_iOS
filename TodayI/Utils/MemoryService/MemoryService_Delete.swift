@@ -113,6 +113,11 @@ extension MemoryService {
         // It can't be in the Global feed if it isn't on the server; keeping the flag set
         // would also re-publish it the moment anything upserts this record.
         memory.isPublic = false
+        // No Firestore document any more, and the author asked for that: mark it local
+        // only, which is what the card's gray cloud shows. It used to keep
+        // `needsCloudBackup == false`, so the entry still claimed to be backed up.
+        memory.needsCloudBackup = true
+        memory.keepLocalOnly = true
         memory.updatedAt = .now
 
         NotificationCenter.default.post(
