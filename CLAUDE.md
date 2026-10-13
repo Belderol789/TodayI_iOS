@@ -275,6 +275,15 @@ escalation route rather than a permission check.
 Uploads remain owner-scoped under `users/{uid}/...` either way.
 
 
+**Author names and photos are copies, so a rename has to travel.** Memory documents carry
+`username`/`remoteProfilePhotoURL` and comments `username`/`photoURL`, written once at creation.
+`onUserProfileUpdated` (`functions/src/profilePropagation.ts`) watches `users/{uid}` and, only when
+`username` or `photoURL` changed, rewrites every memory and comment by that user with the Admin SDK
+(rules allow no edit to a posted comment). On the device, `updateUsername` renames the user's local
+`MemoryModel`s and posts `.authorNameDidChange`, which `GlobalFeedViewModel` uses to rewrite loaded
+rows — otherwise `GlobalMemoryRow` would upsert a stale row's old name back. Before this, a guest who
+signed in and chose a username still showed as `guest-XXXX` on everything written earlier.
+
 ## Timezones — read before touching dates or notifications
 
 Every memory carries `authorTZ` and a **local** `dayKey` (`Date.formattedDayKeyLocal()`), never UTC.
@@ -704,8 +713,10 @@ Keep `normalise()` identical in both or the client will pass text the server the
   each reader chooses. Three deliberate properties: detection runs **at render time**
   (`ContentModeration.isSensitive`), so the stored text is always exactly what the author wrote and a
   newly listed word also blurs posts that already exist; only the **Global feed** blurs
-  (`blursSensitiveContent`), never Home, the calendar or a day view; and the **author never sees their
-  own post blurred**. A reveal is per-row, per-session — revealing one post isn't a standing
+  (`blursSensitiveContent`), never Home, the calendar or a day view; and **the author sees their own
+  post blurred in the feed too**, with "Your post is blurred for others" on the overlay — until Oct
+  2026 they were exempt and had no way to know their post read as sensitive. Their own journal
+  elsewhere is never blurred. A reveal is per-row, per-session — revealing one post isn't a standing
   preference. VoiceOver is told "sensitive content, hidden" until revealed, otherwise the choice is
   one only sighted readers get to make. The server deliberately does **not** know about
   `sensitiveTerms`; if it hid those posts they'd never reach the feed to be blurred.
@@ -742,7 +753,9 @@ screen: a Global post redirects to the feed, the custom tab bar tears Create dow
 presented there appeared and disappeared immediately.
 
 `MemoryModel.isSensitive` (also on the DTO, the Firestore doc and `decodeDTOManually`) is the author's
-"Mark as sensitive" toggle, offered on Create only when the post is Global. Accepting the sensitive
+"Mark as sensitive" control: an eye-slash **Sensitive** icon in Create's toolbar beside Gallery, always
+visible, greyed for a Personal entry (tapping explains why). It was a switch below the card that
+appeared only once the post was Global, and people didn't find it. It is not a Premium feature. Accepting the sensitive
 flag sets it too. The feed blurs when **either** the flag is set **or** a listed word matches — the
 flag is what covers an image, which the word list can't see.
 
@@ -859,6 +872,12 @@ gated this since the beginning, but `MemoryRow`'s badge wrote straight through t
 anonymous user could publish to the Global feed by saving privately first and flipping the badge
 afterwards. Both now share the same shape: guest → `AuthView`, restricted → silently refuse. The
 rule is about public posting, not about which screen you are on.
+
+**The Global badge applies Create's content rules before anything changes.** `MemoryRow`'s
+`privacyBinding` scans the entry: self-harm or a threat keeps it Personal and presents `PostFlagSheet`
+in `sharingExisting` mode (support resources for self-harm, an explanation for threats, one OK). It
+used to let the switch happen; the upload ran and `moderatePublicMemory` hid the post server-side, so
+it never appeared and the badge later fell back to Personal — indistinguishable from a broken toggle.
 
 **Visibility is only changeable on the memory's own day** (`MemoryRow.canToggleVisibility`). The
 feed shows one day and has no day picker, so publishing an older entry put it where nobody could

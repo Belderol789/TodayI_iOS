@@ -13,3 +13,4 @@ export { onMemoryDeleted } from "./memoryCleanup";
 export { moderatePublicMemory } from "./moderation";
 export { onReportCreated } from "./reportAlerts";
 export { pruneLapsedBackups } from "./backupRetention";
+export { onUserProfileUpdated } from "./profilePropagation";

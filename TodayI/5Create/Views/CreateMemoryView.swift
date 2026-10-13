@@ -23,6 +23,8 @@ struct CreateMemoryView: View {
   @State private var showPreview = false
   @State private var showPremium = false
   @State private var showAuth = false
+  /// Shown when the sensitive icon is tapped on a Personal entry.
+  @State private var showSensitiveInfo = false
   @State private var postedMemory: MemoryModel? = nil
 
   @AppStorage("hasPostedOnce") private var hasPostedOnce = false
@@ -57,10 +59,6 @@ struct CreateMemoryView: View {
 
           privacyRow
             .padding(.horizontal, 20)
-
-          sensitiveToggle
-            .padding(.horizontal, 20)
-            .padding(.top, 10)
 
           storageNotice
             .padding(.horizontal, 20)
@@ -360,6 +358,7 @@ struct CreateMemoryView: View {
       toolbarButton(icon: "photo.on.rectangle", label: "Gallery", enabled: entitlements.isPremium) {
         if entitlements.isPremium { vm.tapGallery() } else { showPremium = true }
       }
+      sensitiveToolbarButton
 
       Spacer()
 
@@ -385,6 +384,9 @@ struct CreateMemoryView: View {
           .frame(width: 36, height: 30)
         Text(label)
           .font(.system(size: 10, weight: .medium))
+          // Seven tools plus Unlock is tight on a 375pt phone; shrink rather than wrap.
+          .lineLimit(1)
+          .minimumScaleFactor(0.75)
       }
       .foregroundStyle(
         tint ?? (enabled
@@ -454,23 +456,48 @@ struct CreateMemoryView: View {
     }
   }
 
-  /// Only offered for a Global post — a Personal entry is never blurred, so the switch
-  /// would do nothing. The word list catches listed words on its own; this covers what
-  /// it can't see, an image above all.
-  @ViewBuilder
-  private var sensitiveToggle: some View {
-    if vm.isPublic {
-      Toggle(isOn: $vm.isSensitive) {
-        VStack(alignment: .leading, spacing: 2) {
-          Label("Mark as sensitive", systemImage: "eye.slash")
-            .font(.subheadline.weight(.semibold))
-          Text("Blurred on the Global feed until someone taps to view.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
+  /// "Mark as sensitive", as an icon beside Gallery. It used to be a switch below the card
+  /// that only appeared once the post was Global, and people didn't find it. Always shown
+  /// now; greyed for a Personal entry, which is never blurred, with a tap explaining why.
+  /// The word list blurs listed words on its own — this covers what it can't see, an image
+  /// above all. Not a Premium feature, despite sitting next to two that are.
+  private var sensitiveToolbarButton: some View {
+    let on = vm.isSensitive && vm.isPublic
+    return Button {
+      if vm.isPublic {
+        vm.isSensitive.toggle()
+      } else {
+        showSensitiveInfo = true
       }
-      .tint(vm.selectedMood?.adaptiveColor ?? .accentColor)
-      .transition(.opacity.combined(with: .move(edge: .top)))
+    } label: {
+      VStack(spacing: 3) {
+        Image(systemName: on ? "eye.slash.fill" : "eye.slash")
+          .font(.system(size: 18))
+          .frame(width: 36, height: 30)
+          .background(
+            Capsule().fill((vm.selectedMood?.adaptiveColor ?? .accentColor).opacity(on ? 0.18 : 0))
+          )
+        Text("Sensitive")
+          .font(.system(size: 10, weight: on ? .bold : .medium))
+          .lineLimit(1)
+          .minimumScaleFactor(0.75)
+      }
+      .foregroundStyle(vm.isPublic
+        ? (vm.selectedMood?.adaptiveColor ?? Color.accentColor)
+        : Color(.tertiaryLabel))
+      .opacity(vm.isPublic ? 1 : 0.45)
+    }
+    .buttonStyle(.plain)
+    .animation(.easeInOut(duration: 0.15), value: on)
+    .accessibilityLabel("Mark as sensitive")
+    .accessibilityValue(on ? "On" : "Off")
+    .accessibilityHint(vm.isPublic
+      ? "Blurs this post on the World feed until someone taps to view it."
+      : "Only available for Global posts.")
+    .alert("Only for Global posts", isPresented: $showSensitiveInfo) {
+      Button("OK", role: .cancel) {}
+    } message: {
+      Text("Marking a post sensitive blurs it on the World feed until someone taps to view it. Personal entries are only seen by you, so they're never blurred.")
     }
   }
 
@@ -536,18 +563,21 @@ struct CreateMemoryView: View {
       }
 
       if vm.videoPlayer != nil {
+        // Top-right, styled exactly like the photo and voice-note remove buttons. It was
+        // pinned top-left, the only media whose remove button sat on the other side.
         VStack {
           HStack {
+            Spacer()
             Button { vm.clearVideo() } label: {
               Image(systemName: "xmark.circle.fill")
                 .font(.title3)
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(.primary)
-                .padding(8)
+                .padding(6)
                 .background(.thinMaterial, in: Circle())
             }
-            .padding(.leading, 8).padding(.top, 8)
-            Spacer()
+            .buttonStyle(.plain)
+            .padding(8)
           }
           Spacer()
         }

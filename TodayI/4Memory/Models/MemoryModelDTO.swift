@@ -2,7 +2,7 @@ import Foundation
 
 struct MemoryDTO: Codable {
   let id: String
-  let username: String
+  var username: String
   let userID: String
   let date: Date
   let mood: String

@@ -47,6 +47,10 @@ struct PostFlagSheet: View {
   /// Whether the post was headed for the Global feed when this flag appeared — changes
   /// what the self-harm card promises.
   let wasGlobal: Bool
+  /// Shown from an existing entry's Global badge rather than from Create. There is nothing
+  /// to save or edit there — the entry already exists and simply stays Personal — so the
+  /// copy explains that and the only action is OK.
+  var sharingExisting = false
   let onChoose: (PostFlagChoice) -> Void
 
   var body: some View {
@@ -95,6 +99,16 @@ struct PostFlagSheet: View {
   }
 
   private var message: String {
+    if sharingExisting {
+      switch flag {
+      case .selfHarm:
+        return "This entry stays Personal. Entries like this aren't shared to the Global feed — nothing is flagged or reported, and it's still saved exactly as you wrote it. If you'd like to talk to someone, these are free and confidential."
+      case .threat:
+        return "Posts on the Global feed can't contain threats, so this entry stays Personal. It's still saved just for you."
+      default:
+        break
+      }
+    }
     switch flag {
     case .threat:
       return "Posts on the Global feed can't contain threats. You can still save this entry just for yourself."
@@ -142,6 +156,9 @@ struct PostFlagSheet: View {
   @ViewBuilder
   private var actions: some View {
     VStack(spacing: 10) {
+      if sharingExisting {
+        primary("OK", .keepPersonal)
+      } else {
       switch flag {
       case .threat:
         primary("Save as Personal", .keepPersonal)
@@ -158,6 +175,7 @@ struct PostFlagSheet: View {
         primary("Post anyway", .proceed)
         secondary("Save as Personal", .keepPersonal)
         secondary("Edit", .edit)
+      }
       }
     }
     .padding(.horizontal, 20)

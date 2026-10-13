@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftData
 import FirebaseFirestore
 
 extension AuthStore {
@@ -25,6 +26,7 @@ extension AuthStore {
         try? context.save()
       }
       self.username = newName
+      renameOwnMemories(uid: uid, to: newName)
     } catch {
       print("Update username failed:", error)
     }
@@ -76,4 +78,26 @@ extension AuthStore {
     }
   }
   
+
+  /// Each memory keeps a copy of its author's name, so a rename has to reach them. This
+  /// does the device's copies at once; `onUserProfileUpdated` does the Firestore copies —
+  /// memories and comments — on the server, because rules allow no edit to a posted comment.
+  private func renameOwnMemories(uid: String, to newName: String) {
+    do {
+      let mine = try context.fetch(FetchDescriptor<MemoryModel>(
+        predicate: #Predicate { $0.userID == uid }
+      ))
+      for memory in mine where memory.username != newName {
+        memory.username = newName
+      }
+      try context.save()
+    } catch {
+      print("⚠️ Couldn't rename local memories:", error)
+    }
+    NotificationCenter.default.post(
+      name: .authorNameDidChange, object: nil,
+      userInfo: ["uid": uid, "username": newName]
+    )
+    NotificationCenter.default.post(name: .memoryDidChangeLocally, object: nil)
+  }
 }

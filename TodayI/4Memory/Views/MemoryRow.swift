@@ -26,6 +26,10 @@ struct MemoryRow: View {
   /// Why the last visibility change failed. Shown in an alert — it used to be only
   /// printed, so on a release build the badge silently flipped back with no explanation.
   @State private var privacyError: String?
+  /// Set when an entry can't go Global because of what it says. Shows the same care /
+  /// explanation sheet Create uses, instead of letting the switch happen and the server
+  /// quietly hide the post — which looked like a broken toggle.
+  @State private var staysPersonalFlag: PostFlag?
   @State private var isBlocking = false
   @State private var showReportSheet = false
   @State private var selectedReportReason: ReportReason?
@@ -57,6 +61,15 @@ struct MemoryRow: View {
           return
         }
         if newValue && auth.isRestricted { return }
+        // Same rule Create applies before posting, checked here before anything changes:
+        // self-harm is never broadcast, and threats can't go on the feed. Without this the
+        // badge flipped, the upload ran, and `moderatePublicMemory` hid the post on the
+        // server — so it never appeared and the badge later fell back to Personal.
+        if newValue {
+          let findings = ContentModeration.scan(memory.journalText)
+          if findings.contains(.selfHarm) { staysPersonalFlag = .selfHarm; return }
+          if findings.contains(.violentThreat) { staysPersonalFlag = .threat; return }
+        }
         memory.isPublic = newValue
       }
     )
@@ -101,14 +114,18 @@ struct MemoryRow: View {
     return "No media."
   }
   
-  /// Blur the body of this card? Never for the author's own post — it's their writing,
-  /// and hiding it from them would be absurd.
+  /// Blur the body of this card? Only in the World feed (`blursSensitiveContent`), and for
+  /// the author too: they see their own post the way everyone else does, so they know it
+  /// reads as sensitive. It used to skip the author, who then had no way to tell. Home,
+  /// the calendar and the day view never blur, so their own journal is never hidden from
+  /// them; the overlay's wording says it's a preview of what others see.
   private var isConcealed: Bool {
     blursSensitiveContent
       && !revealed
-      && auth.userID != memory.userID
       && (memory.isSensitive || ContentModeration.isSensitive(memory.journalText))
   }
+
+  private var isOwnPost: Bool { auth.userID == memory.userID }
 
   private var rowSummaryA11y: String {
     // A blurred post must stay hidden from VoiceOver too, or the reveal is a choice only
@@ -319,18 +336,19 @@ private extension MemoryRow {
       VStack(spacing: 4) {
         Image(systemName: "eye.slash")
           .font(.title3)
-        Text("Sensitive content")
+        Text(isOwnPost ? "Your post is blurred for others" : "Sensitive content")
           .font(.subheadline.weight(.semibold))
-        Text("Tap to view")
+        Text(isOwnPost ? "It may contain sensitive content. Tap to view." : "Tap to view")
           .font(.caption)
           .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
       }
       .padding(.horizontal, 20)
       .padding(.vertical, 12)
       .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
     .buttonStyle(.plain)
-    .accessibilityLabel("Sensitive content")
+    .accessibilityLabel(isOwnPost ? "Your post is blurred for others as sensitive content" : "Sensitive content")
     .accessibilityHint("Double tap to reveal this post.")
   }
 }
@@ -580,6 +598,11 @@ private extension MemoryRow {
                   ?? "Couldn't change this memory's visibility. Check your connection and try again."
               }
               isUpdatingPrivacy = false
+            }
+          }
+          .sheet(item: $staysPersonalFlag) { flag in
+            PostFlagSheet(flag: flag, wasGlobal: true, sharingExisting: true) { _ in
+              staysPersonalFlag = nil
             }
           }
           .alert("Couldn't change visibility",

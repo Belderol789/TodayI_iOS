@@ -29,4 +29,13 @@ extension Notification.Name {
   /// draws, which recreated the memory you had just deleted. The feed drops the row on
   /// this instead of refetching a whole page to notice one deletion.
   static let memoryWasDeleted = Notification.Name("todayi.memoryWasDeleted")
+
+  /// Posted after the signed-in person changes their username.
+  /// `userInfo`: `["uid": String, "username": String]`.
+  ///
+  /// Posts and comments carry a copy of their author's name. The World feed holds its rows
+  /// as DTOs loaded earlier, and `GlobalMemoryRow` upserts them into SwiftData as it draws,
+  /// so a stale row would write the old name straight back over the renamed memory. The
+  /// feed rewrites its own copies on this.
+  static let authorNameDidChange = Notification.Name("todayi.authorNameDidChange")
 }

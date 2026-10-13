@@ -27,6 +27,7 @@ final class GlobalFeedViewModel: ObservableObject {
   // MARK: - Init
   private var privacyObserver: NSObjectProtocol?
   private var deleteObserver: NSObjectProtocol?
+  private var renameObserver: NSObjectProtocol?
 
   init(day: Date) {
     self.day = day
@@ -49,11 +50,30 @@ final class GlobalFeedViewModel: ObservableObject {
       guard let id = note.userInfo?["id"] as? String else { return }
       Task { @MainActor in self?.removeRow(id: id, reason: "deleted") }
     }
+    renameObserver = NotificationCenter.default.addObserver(
+      forName: .authorNameDidChange, object: nil, queue: .main
+    ) { [weak self] note in
+      guard let uid = note.userInfo?["uid"] as? String,
+            let name = note.userInfo?["username"] as? String else { return }
+      Task { @MainActor in self?.renameAuthor(uid: uid, to: name) }
+    }
+  }
+
+  /// Rewrites the author name on rows already loaded, so a row drawn after a rename
+  /// doesn't upsert the old name back into the renamed memory.
+  private func renameAuthor(uid: String, to name: String) {
+    func rename(_ rows: inout [MemoryDTO]) {
+      for i in rows.indices where rows[i].userID == uid { rows[i].username = name }
+    }
+    rename(&allRows)
+    rename(&justPosted)
+    applyFilter()
   }
 
   deinit {
     if let privacyObserver { NotificationCenter.default.removeObserver(privacyObserver) }
     if let deleteObserver { NotificationCenter.default.removeObserver(deleteObserver) }
+    if let renameObserver { NotificationCenter.default.removeObserver(renameObserver) }
   }
 
   /// Drops a memory the author has just made Personal.
