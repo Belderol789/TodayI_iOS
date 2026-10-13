@@ -53,7 +53,7 @@ export async function wipeUserData(uid: string): Promise<void> {
   // was half-erased, the Auth user survived, and the app told the person "nothing was
   // removed." Gathering everything up front means a failure here leaves nothing
   // touched, so the honest error message stays honest and a retry starts clean.
-  const [authored, hubs, blockers, against, filed] = await Promise.all([
+  const [authored, hubs, blockers, against, filed, names] = await Promise.all([
     // Comments the user wrote on other people's posts — they carry their userID and
     // username, so leaving them keeps a deleted account's words on strangers' posts.
     db.collectionGroup("comments").where("userID", "==", uid).get(),
@@ -64,6 +64,8 @@ export async function wipeUserData(uid: string): Promise<void> {
     // Reports about this user, and reports they filed (handled differently below).
     db.collection("reports").where("reportedUID", "==", uid).get(),
     db.collection("reports").where("reporterUID", "==", uid).get(),
+    // Username claims (usernames.ts), so a deleted account's name is free again.
+    db.collection("usernames").where("uid", "==", uid).get(),
   ]);
   console.log(`   🔎 found ${authored.size} authored comment(s), ${hubs.size} hub(s), ` +
     `${blockers.size} blocker(s), ${against.size} report(s) about, ${filed.size} filed`);
@@ -138,6 +140,14 @@ export async function wipeUserData(uid: string): Promise<void> {
     await batch.commit();
   }
   console.log(`   ✅ ${against.size} report(s) deleted, ${filed.size} anonymised`);
+
+  // 7. Username claims.
+  for (const group of chunk(names.docs, BATCH_LIMIT)) {
+    const batch = db.batch();
+    group.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+  }
+  console.log(`   ✅ ${names.size} username claim(s) released`);
   console.log(`🗑️ wipeUserData complete for ${uid}`);
 }
 

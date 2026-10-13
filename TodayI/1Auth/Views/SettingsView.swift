@@ -23,6 +23,7 @@ struct SettingsView: View {
   @State private var notificationsAuthorized = false
 
   @State private var draftUsername: String = ""
+  @State private var usernameError: String?
   @State private var isSaving = false
   @State private var isLoggingOut = false
   @State private var isDeletingAccount = false
@@ -83,11 +84,18 @@ struct SettingsView: View {
             TextField("Enter username", text: $draftUsername)
               .textInputAutocapitalization(.none)
               .disableAutocorrection(true)
+              .onChange(of: draftUsername) { _, _ in usernameError = nil }
           }
         }
         .padding(.vertical, 4)
       } header: {
         Text("Profile")
+      } footer: {
+        if let usernameError {
+          Text(usernameError).foregroundStyle(.red)
+        } else if usernameChanged {
+          Text("Letters, numbers, dots and underscores. Each username belongs to one person.")
+        }
       }
       
       // MARK: - Account Section
@@ -472,10 +480,16 @@ private extension SettingsView {
       }
     }
     
-    // 2) Update username if changed
+    // 2) Update username if changed. A refused name keeps Settings open with the reason,
+    //    rather than closing as if it had worked.
     if usernameChanged {
       let trimmed = draftUsername.trimmingCharacters(in: .whitespacesAndNewlines)
-      await auth.updateUsername(trimmed)
+      do {
+        try await auth.updateUsername(trimmed)
+      } catch {
+        usernameError = error.localizedDescription
+        return
+      }
     }
     
     // 3) Auto-dismiss

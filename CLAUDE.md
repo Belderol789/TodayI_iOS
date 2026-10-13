@@ -280,6 +280,19 @@ escalation route rather than a permission check.
 Uploads remain owner-scoped under `users/{uid}/...` either way.
 
 
+**Usernames are unique, claimed through the server.** `usernames/{lowercased name}` holds the
+owner's uid, and the only way to take one is the `claimUsername` callable
+(`functions/src/usernames.ts`): one transaction checks the claim, refuses a name someone else's
+profile still shows from before claims existed, releases your previous claim, and writes the new
+name onto `users/{uid}` (which `onUserProfileUpdated` then propagates). Case-insensitive; 3–20
+letters, numbers, dots and underscores (so generated `guest-XXXX` names, with their hyphen, can
+never be picked); a reserved list (admin, todayi, support…); and names made of words from
+`config/moderation` are refused. `updateUsername` throws a message Settings shows under the
+field, and Settings stays open on a refusal. No rule exists for `usernames`, so clients can't read
+or write it — only the Admin SDK does. `wipeUserData` releases claims on deletion. **2.0 and 2.0.1
+still write `username` straight to the profile**; once 2.0.2 is widespread, a console rule
+forbidding client writes to `users/{uid}.username` closes that path.
+
 **Author names and photos are copies, so a rename has to travel.** Memory documents carry
 `username`/`remoteProfilePhotoURL` and comments `username`/`photoURL`, written once at creation.
 `onUserProfileUpdated` (`functions/src/profilePropagation.ts`) watches `users/{uid}` and, only when

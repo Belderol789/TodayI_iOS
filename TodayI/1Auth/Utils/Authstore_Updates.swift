@@ -8,28 +8,67 @@
 import Foundation
 import SwiftData
 import FirebaseFirestore
+import FirebaseFunctions
 
 extension AuthStore {
   
   // MARK: - Username editing
-  func updateUsername(_ newName: String) async {
-    guard let uid = userID else { return }
-    do {
-      try await db.collection("users").document(uid).updateData([
-        "username": newName,
-        "updatedAt": FieldValue.serverTimestamp()
-      ])
-      // Local cache + state
-      if let local = try? fetchLocalUser(uid: uid) {
-        local.username = newName
-        local.updatedAt = .now
-        try? context.save()
-      }
-      self.username = newName
-      renameOwnMemories(uid: uid, to: newName)
-    } catch {
-      print("Update username failed:", error)
+
+  /// Why a username can't be used, phrased for Settings.
+  struct UsernameError: LocalizedError {
+    let errorDescription: String?
+  }
+
+  /// The same shape `claimUsername` enforces, checked first so most mistakes are caught
+  /// without a round trip. The server stays the authority — it also checks the name is
+  /// free and not reserved or offensive.
+  static func usernameProblem(_ name: String) -> String? {
+    let key = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    guard (3...20).contains(key.count) else {
+      return "Usernames are 3–20 characters long."
     }
+    let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789._")
+    guard key.unicodeScalars.allSatisfy(allowed.contains) else {
+      return "Use only letters, numbers, dots and underscores."
+    }
+    return nil
+  }
+
+  /// Claims the name through the `claimUsername` callable, which checks it's free and
+  /// writes it in one transaction — usernames used to be written straight to the profile
+  /// with no check, so two people could share one. Throws `UsernameError` with a message
+  /// to show; nothing local changes unless the server accepted the name.
+  func updateUsername(_ newName: String) async throws {
+    guard let uid = userID else { return }
+    if let problem = Self.usernameProblem(newName) {
+      throw UsernameError(errorDescription: problem)
+    }
+    let stored: String
+    do {
+      let result = try await Functions.functions(region: "asia-southeast1")
+        .httpsCallable("claimUsername")
+        .call(["username": newName.trimmingCharacters(in: .whitespacesAndNewlines)])
+      stored = (result.data as? [String: Any])?["username"] as? String ?? newName
+    } catch let error as NSError where error.domain == FunctionsErrorDomain {
+      print("Claim username failed:", error)
+      let code = FunctionsErrorCode(rawValue: error.code)
+      switch code {
+      case .alreadyExists, .invalidArgument:
+        throw UsernameError(errorDescription: error.localizedDescription)
+      default:
+        throw UsernameError(errorDescription:
+          "Couldn't save that username. Check your connection and try again.")
+      }
+    }
+
+    // Local cache + state. The server already wrote the profile.
+    if let local = try? fetchLocalUser(uid: uid) {
+      local.username = stored
+      local.updatedAt = .now
+      try? context.save()
+    }
+    self.username = stored
+    renameOwnMemories(uid: uid, to: stored)
   }
   
   func updateProfilePhoto(url: String, localImage: UIImage?) async {
