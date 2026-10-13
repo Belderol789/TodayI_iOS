@@ -693,8 +693,8 @@ a post report does — deferred to the sheet's `onDismiss`, because the block re
 is presented from. A comment report adds `commentID` and a copy of `commentText` (the author can
 delete the comment, leaving nothing to review); the `reports` rule doesn't restrict fields, so no
 rule change. `onReportCreated` labels comment reports in the admin push — **needs a functions
-deploy**. There is **no unblock UI**: `removeBlockedUser` exists with no caller, and the support page
-tells people to email.
+deploy**. There is **no unblock UI, by decision** (Oct 2026): a block is permanent. `removeBlockedUser`
+exists with no caller; don't add an Unblock screen.
 
 **Blocking is mute semantics, not true blocking.** It is enforced entirely on the client: nothing
 stops a blocked user reading, liking or commenting on a public post, you simply don't see them.
