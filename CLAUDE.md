@@ -305,6 +305,9 @@ stopped the push, and switching it on doubled up at 8pm. The client no longer su
 topic; `migrateServerReminderToLocalOnce()` moves devices still on it to the local reminder and
 unsubscribes them. `sendDaily8pmByTZ` still runs but now publishes to empty topics — safe to delete
 from `functions/` once 2.0.1 is widely installed.
+Settings' Reminder Time is a **draft**: changing it enables Save (with a footer naming the new time)
+and nothing reschedules until Save is tapped. It used to reschedule silently on every change, so
+people couldn't tell whether the new time had taken. The Daily Reminder switch still applies at once.
 
 Both schedulers (`dailyByTz.ts`, `dailyWorldMood.ts`) run hourly at UTC, compute which whole-hour
 offsets are currently at the target local hour (20:00 for the journal nudge, 18:00 for the world-mood
@@ -732,6 +735,13 @@ Keep `normalise()` identical in both or the client will pass text the server the
   it. Framed as care, never as enforcement: `verdictFor` returns `selfHarm` rather than `policy`
   precisely so the notification copy differs. Never refuse to *save* it — gating someone's lowest
   moment would teach them this is a bad place to be honest, which is the opposite of the product.
+  Keeping it off the feed protects strangers but can leave the writer feeling unheard, so the
+  support sheet (`PostFlagSheet`, full height for self-harm) also offers two ways to reach people
+  who *can* respond, neither touching a server: **"Send this to someone you trust"** (`ShareLink`
+  with the entry text — the person picks the recipient) and **"Check in with me tomorrow"**
+  (`NotificationManager_CareCheckIn.swift`): one local notification at the next 10am at least four
+  hours away, asking permission if needed. Its text never quotes or hints at the entry — a lock
+  screen is readable by whoever holds the phone. Both appear from Create and from the Global badge.
 - **Contact details** warn before a public post, never block.
 - **Comments are stricter than posts, and client-only.** `CommentThreadViewModel.postComment` refuses
   a comment that matches `sensitive` or `violentThreat` and shows `filterMessage` above the composer

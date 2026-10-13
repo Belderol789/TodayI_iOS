@@ -110,7 +110,7 @@ struct CreateMemoryView: View {
       // One flag at a time. `onDismiss` fires after the sheet has fully gone, so the next
       // flag — or the post and its redirect — never collides with a dismissal in flight.
       .sheet(item: $activeFlag, onDismiss: flagDismissed) { flag in
-        PostFlagSheet(flag: flag, wasGlobal: flagWasGlobal) { choice in
+        PostFlagSheet(flag: flag, wasGlobal: flagWasGlobal, entryText: vm.text) { choice in
           flagChoice = choice
           activeFlag = nil
         }

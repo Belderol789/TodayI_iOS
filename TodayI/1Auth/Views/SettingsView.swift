@@ -45,8 +45,23 @@ struct SettingsView: View {
     draftUsername.trimmingCharacters(in: .whitespacesAndNewlines) != (auth.username ?? "")
   }
   
+  /// The picker holds a draft; the reminder only moves when Save is tapped. It used to
+  /// reschedule on every change with nothing to confirm it, so people couldn't tell
+  /// whether the new time had taken.
+  private var reminderTimeChanged: Bool {
+    guard dailyReminderEnabled else { return false }
+    let comps = Calendar.current.dateComponents([.hour, .minute], from: reminderDate)
+    return comps.hour != dailyReminderHour || comps.minute != dailyReminderMinute
+  }
+
+  private var savedReminderTime: String {
+    let saved = Calendar.current.date(
+      from: DateComponents(hour: dailyReminderHour, minute: dailyReminderMinute)) ?? reminderDate
+    return saved.formatted(date: .omitted, time: .shortened)
+  }
+
   private var hasUnsavedChanges: Bool {
-    usernameChanged || photoDirty
+    usernameChanged || photoDirty || reminderTimeChanged
   }
   
   var authUserPhotoURL: String? {
@@ -114,19 +129,17 @@ struct SettingsView: View {
             DatePicker("Reminder Time",
                        selection: $reminderDate,
                        displayedComponents: .hourAndMinute)
-              .onChange(of: reminderDate) { _, date in
-                let comps = Calendar.current.dateComponents([.hour, .minute], from: date)
-                dailyReminderHour = comps.hour ?? 20
-                dailyReminderMinute = comps.minute ?? 0
-                Task { await applyReminderChange(enabled: true) }
-              }
           }
         } header: {
           Text("Notifications")
         } footer: {
-          Text(dailyReminderEnabled
-               ? "You'll get a daily nudge to log how you're feeling."
-               : "Get a daily nudge to log how you're feeling.")
+          if reminderTimeChanged {
+            Text("Tap Save to move your reminder to \(reminderDate.formatted(date: .omitted, time: .shortened)).")
+          } else {
+            Text(dailyReminderEnabled
+                 ? "You'll get a nudge at \(savedReminderTime) every day to log how you're feeling."
+                 : "Get a daily nudge to log how you're feeling.")
+          }
         }
       }
 
@@ -433,14 +446,22 @@ private extension SettingsView {
   }
 
   func saveChangesAndDismiss() async {
-    guard let uid = auth.userID else { return }
     if !hasUnsavedChanges { dismiss(); return }
-    
+
     isSaving = true
     defer { isSaving = false }
-    
+
+    // 0) Reminder time — local, so it needs no account
+    if reminderTimeChanged {
+      let comps = Calendar.current.dateComponents([.hour, .minute], from: reminderDate)
+      dailyReminderHour = comps.hour ?? 20
+      dailyReminderMinute = comps.minute ?? 0
+      await applyReminderChange(enabled: true)
+      UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
     // 1) Upload photo if user picked a new one AND is premium
-    if photoDirty, entitlements.isPremium, let img = profileUIImage {
+    if photoDirty, entitlements.isPremium, let img = profileUIImage, let uid = auth.userID {
       do {
         let url = try await FirebaseStorageManager.uploadProfilePhoto(img, userID: uid)
         await auth.updateProfilePhoto(url: url.absoluteString, localImage: img) // updates Firestore + SwiftData

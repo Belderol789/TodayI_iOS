@@ -601,7 +601,8 @@ private extension MemoryRow {
             }
           }
           .sheet(item: $staysPersonalFlag) { flag in
-            PostFlagSheet(flag: flag, wasGlobal: true, sharingExisting: true) { _ in
+            PostFlagSheet(flag: flag, wasGlobal: true, sharingExisting: true,
+                          entryText: memory.journalText) { _ in
               staysPersonalFlag = nil
             }
           }

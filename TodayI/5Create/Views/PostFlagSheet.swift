@@ -51,14 +51,22 @@ struct PostFlagSheet: View {
   /// to save or edit there — the entry already exists and simply stays Personal — so the
   /// copy explains that and the only action is OK.
   var sharingExisting = false
+  /// What the author wrote, for "Send this to someone you trust".
+  var entryText = ""
   let onChoose: (PostFlagChoice) -> Void
+
+  @State private var checkInDate: Date?
+  @State private var checkInUnavailable = false
 
   var body: some View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 18) {
           header
-          if flag == .selfHarm { resources }
+          if flag == .selfHarm {
+            careOptions
+            resources
+          }
         }
         .padding(20)
       }
@@ -66,7 +74,14 @@ struct PostFlagSheet: View {
       .navigationTitle(navigationTitle)
       .navigationBarTitleDisplayMode(.inline)
     }
-    .presentationDetents(flag == .selfHarm ? [.medium, .large] : [.medium])
+    // Full height for self-harm, so the people to reach and the helplines are all on
+    // screen without a scroll.
+    .presentationDetents(flag == .selfHarm ? [.large] : [.medium])
+    .task {
+      if flag == .selfHarm {
+        checkInDate = await NotificationManager.shared.pendingCareCheckInDate()
+      }
+    }
   }
 
   // MARK: - Copy
@@ -102,7 +117,7 @@ struct PostFlagSheet: View {
     if sharingExisting {
       switch flag {
       case .selfHarm:
-        return "This entry stays Personal. Entries like this aren't shared to the Global feed — nothing is flagged or reported, and it's still saved exactly as you wrote it. If you'd like to talk to someone, these are free and confidential."
+        return "This entry stays Personal. Entries like this aren't shared to the Global feed — nothing is flagged or reported, and it's still saved exactly as you wrote it."
       case .threat:
         return "Posts on the Global feed can't contain threats, so this entry stays Personal. It's still saved just for you."
       default:
@@ -115,8 +130,8 @@ struct PostFlagSheet: View {
     case .selfHarm:
       // Care, never enforcement: nothing here suggests a rule was broken.
       return wasGlobal
-        ? "Whenever you're ready, your entry will be saved exactly as you wrote it — kept Personal rather than posted to the Global feed. Nothing is flagged or reported. If you'd rather talk to someone, these are free and confidential."
-        : "Whenever you're ready, your entry will be saved exactly as you wrote it. Nothing is flagged or reported. If you'd rather talk to someone, these are free and confidential."
+        ? "Whenever you're ready, your entry will be saved exactly as you wrote it — kept Personal rather than posted to the Global feed. Nothing is flagged or reported."
+        : "Whenever you're ready, your entry will be saved exactly as you wrote it. Nothing is flagged or reported."
     case .sensitive:
       return "This post will appear blurred on the Global feed. Readers will see your name and mood, and choose whether to tap and view it."
     case .contactDetails:
@@ -140,16 +155,90 @@ struct PostFlagSheet: View {
     }
   }
 
-  private var resources: some View {
-    ForEach(ContentModeration.crisisResources) { resource in
-      VStack(alignment: .leading, spacing: 2) {
-        Text(resource.name).font(.subheadline.weight(.semibold))
-        Text(resource.contact).font(.title3.weight(.bold)).foregroundStyle(.tint)
-        Text(resource.region).font(.caption).foregroundStyle(.secondary)
+  // Keeping an entry like this off the feed protects strangers, but it can leave the
+  // writer feeling unheard. These point them at people who can actually respond: someone
+  // who knows them, and the app itself tomorrow. Neither sends anything to a server.
+  private var careOptions: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      sectionLabel("Reach out")
+
+      if !entryText.isEmpty {
+        ShareLink(item: entryText) {
+          careRow(icon: "paperplane.fill",
+                  title: "Send this to someone you trust",
+                  detail: "Share what you wrote with a friend or family member. Only the person you choose will see it.")
+        }
+        .buttonStyle(.plain)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(14)
-      .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+
+      Button {
+        // Not `.disabled` once it's set: that greys out the confirmation, which then
+        // reads as something that failed.
+        guard checkInDate == nil else { return }
+        Task {
+          if let date = await NotificationManager.shared.scheduleCareCheckIn() {
+            checkInDate = date
+          } else {
+            checkInUnavailable = true
+          }
+        }
+      } label: {
+        careRow(icon: checkInDate == nil ? "bell.fill" : "checkmark.circle.fill",
+                title: checkInDate == nil ? "Check in with me tomorrow" : "We'll check in \(checkInPhrase)",
+                detail: checkInUnavailable
+                  ? "Notifications are off for TodayI. You can turn them on in the Settings app."
+                  : "One gentle notification, no more. It won't mention what you wrote.")
+      }
+      .buttonStyle(.plain)
+      .accessibilityAddTraits(checkInDate == nil ? [] : .isStaticText)
+    }
+  }
+
+  private var checkInPhrase: String {
+    guard let checkInDate else { return "" }
+    let time = checkInDate.formatted(date: .omitted, time: .shortened)
+    return Calendar.current.isDateInToday(checkInDate) ? "at \(time)" : "tomorrow at \(time)"
+  }
+
+  private func careRow(icon: String, title: String, detail: String) -> some View {
+    HStack(alignment: .top, spacing: 12) {
+      Image(systemName: icon)
+        .font(.body)
+        .foregroundStyle(.tint)
+        .frame(width: 24)
+        .accessibilityHidden(true)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title).font(.subheadline.weight(.semibold))
+        Text(detail).font(.caption).foregroundStyle(.secondary)
+      }
+      Spacer(minLength: 0)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(14)
+    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+    .contentShape(RoundedRectangle(cornerRadius: 12))
+  }
+
+  private func sectionLabel(_ text: String) -> some View {
+    Text(text)
+      .font(.footnote.weight(.semibold))
+      .foregroundStyle(.secondary)
+      .padding(.top, 4)
+  }
+
+  private var resources: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      sectionLabel("Free, confidential helplines")
+      ForEach(ContentModeration.crisisResources) { resource in
+        VStack(alignment: .leading, spacing: 2) {
+          Text(resource.name).font(.subheadline.weight(.semibold))
+          Text(resource.contact).font(.title3.weight(.bold)).foregroundStyle(.tint)
+          Text(resource.region).font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+      }
     }
   }
 
