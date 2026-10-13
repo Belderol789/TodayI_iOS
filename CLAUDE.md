@@ -317,7 +317,11 @@ fan-out and no token table — keep it that way. Known limitation: the offset li
 so half-hour zones (India, Nepal) are not covered.
 
 Per-user notifications (comment and like milestones in `socialMilestones.ts`) use the
-`user_{uid}` topic instead.
+`user_{uid}` topic instead. Comment milestones (1, 5, 10) count only **other people's** comments
+(`othersCommentCount`, in a transaction): counting every comment let an author's own first reply
+use up "first comment" silently. The "already notified" flags are nested maps
+(`notifiedCommentMilestones: {"1": true}`) — the Admin SDK's `set()` stores a `"field.1"` key as a
+literal field name, so the old flags were never read back and never prevented a repeat.
 
 **Every topic subscribe must go through `NotificationManager.enqueueSubscribe`.** FCM rejects
 `subscribe(toTopic:)` until an APNs token has reached `Messaging`, failing with code 505 ("No APNS

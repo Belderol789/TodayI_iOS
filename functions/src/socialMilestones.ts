@@ -8,6 +8,8 @@ const MEMORIES = "memories";   // users/{ownerId}/memories/{memoryId}
 const COMMENTS_TOP = "comments";
 
 const F_COMMENT_CT  = "commentCount";
+/** Comments from anyone but the post's author — what comment milestones count. */
+const F_OTHERS_CMT  = "othersCommentCount";
 const F_LIKE_CT     = "likes";
 const F_NOTIF_CMT   = "notifiedCommentMilestones";
 const F_NOTIF_LIKE  = "notifiedLikeMilestones";
@@ -51,22 +53,32 @@ export const onCommentCreated = onDocumentCreated(
     }
 
     const memRef = memoryRef(ownerID, memoryId);
-
-    // Increment comment count and read updated doc
-    await memRef.set({ [F_COMMENT_CT]: FieldValue.increment(1) }, { merge: true });
-    const mem = (await memRef.get()).data() || {};
-    const count = Number(mem[F_COMMENT_CT] ?? 0);
-    const notified: Record<string, boolean> = mem[F_NOTIF_CMT] ?? {};
-
-    const hit = COMMENT_MILESTONES.find(m => m === count && !notified[String(m)]);
-    if (!hit) return;
-
-    // Optional: ignore owner’s own comment
     const authorUid = String(snap.get("userID") || "");
-    if (authorUid && authorUid === ownerID) return;
+    const fromOwner = authorUid !== "" && authorUid === ownerID;
 
-    // Mark as notified (idempotent)
-    await memRef.set({ [`${F_NOTIF_CMT}.${hit}`]: true }, { merge: true });
+    // Milestones count only other people's comments. They used to count every comment
+    // and skip the owner's afterwards, so an author replying first used up "first
+    // comment" without a notification and the next person's comment (number 2) matched
+    // nothing. One transaction gives each comment its own exact count, so two arriving
+    // together can't both read the same number and skip a milestone.
+    const hit = await admin.firestore().runTransaction(async (tx) => {
+      const mem = (await tx.get(memRef)).data() || {};
+      const patch: Record<string, unknown> = { [F_COMMENT_CT]: FieldValue.increment(1) };
+      if (fromOwner) {
+        tx.set(memRef, patch, { merge: true });
+        return undefined;
+      }
+      const count = Number(mem[F_OTHERS_CMT] ?? 0) + 1;
+      patch[F_OTHERS_CMT] = count;
+      const notified: Record<string, boolean> = mem[F_NOTIF_CMT] ?? {};
+      const milestone = COMMENT_MILESTONES.find(m => m === count && !notified[String(m)]);
+      // A nested map, not a "field.1" key: set() stores dotted keys as literal field
+      // names, so the old flag was never found again and never prevented a repeat.
+      if (milestone) patch[F_NOTIF_CMT] = { [String(milestone)]: true };
+      tx.set(memRef, patch, { merge: true });
+      return milestone;
+    });
+    if (!hit) return;
 
     // Minimal inbox record (deduped by deterministic ID)
     await admin.firestore()
@@ -120,7 +132,9 @@ export const onMemoryLikesUpdated = onDocumentUpdated(
     if (!hit) return;
 
     const memRef = memoryRef(ownerId, memoryId);
-    await memRef.set({ [`${F_NOTIF_LIKE}.${hit}`]: true }, { merge: true });
+    // Nested map: a "field.10" key in set() becomes a literal field name, which the
+    // check above never read, so unliking and re-liking across 10 notified again.
+    await memRef.set({ [F_NOTIF_LIKE]: { [String(hit)]: true } }, { merge: true });
 
     await admin.firestore()
       .collection("users").doc(ownerId)
