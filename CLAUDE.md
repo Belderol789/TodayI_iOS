@@ -91,6 +91,11 @@ are an aspect-ratio box (4:5, Instagram's tallest portrait), never a fixed pixel
 photos are a paged `TabView` with a counter and dots. Don't reintroduce fixed media heights or the
 old negative-horizontal-padding bleed hack.
 
+**Comment threads read like a chat.** `CommentRow` puts your own comments on the right in an
+accent bubble with no avatar or name, everyone else's on the left with theirs; the composer has no
+avatar either. The post at the top of a thread is blurred like the feed (`blursSensitiveContent`) —
+opening one through Reply used to show a sensitive post the reader had never chosen to reveal.
+
 **Navigation** is a custom tab bar, not `TabView`. `RootView` switches on the `AppTab` enum inside a
 `ZStack`. `auth.hideTabBar` is the global escape hatch for full-screen surfaces (comment thread);
 set it on appear, clear it on disappear.
@@ -728,6 +733,14 @@ Keep `normalise()` identical in both or the client will pass text the server the
   one only sighted readers get to make. The server deliberately does **not** know about
   `sensitiveTerms`; if it hid those posts they'd never reach the feed to be blurred.
   Images are only blurred when the *text* matches — there's no image classifier.
+- **Slurs (`blockedTerms`) keep an entry off the Global feed altogether.** Typing one removes the
+  Global button from Create (a Global draft turns Personal, with a line saying why), a Personal
+  entry containing one has no visibility badge on its card, and `moderation.ts` hides a public one
+  as a policy violation. Blurring was the old answer, but a blurred slur still reaches everyone who
+  taps, and nothing about these words is excusable. Each one also stays in `sensitiveTerms`, so 2.0
+  (which reads only that list) keeps blurring them, and `isSensitive` blurs on either list. Words
+  with common innocent meanings — fag, dyke, chink, coon, retard — stay blur-only; the JSON's
+  `_comment` says why.
 - **Ordinary profanity is allowed.** People swear when they are upset; that is the app working.
 - **Self-harm is never refused, but never broadcast.** Resources are offered **before** saving —
   showing them afterwards meant the moment had passed, and for a Global entry it had already
@@ -748,7 +761,7 @@ Keep `normalise()` identical in both or the client will pass text the server the
   screen is readable by whoever holds the phone. Both appear from Create and from the Global badge.
 - **Contact details** warn before a public post, never block.
 - **Comments are stricter than posts, and client-only.** `CommentThreadViewModel.postComment` refuses
-  a comment that matches `sensitive` or `violentThreat` and shows `filterMessage` above the composer
+  a comment that matches `sensitive`, `hate` or `violentThreat` and shows `filterMessage` above the composer
   (the text stays, so it can be edited). No blur-and-reveal here: a comment is written *to* someone,
   on their post, so blurring would still deliver it to them. There is no server-side comment check —
   it's bypassable by a modified client, the same trade-off as the typing-time layer for posts.
@@ -780,7 +793,9 @@ takes effect within minutes, on both layers, by editing one document — no App 
 functions deploy. Don't reintroduce a second copy in either place; the whole point is that they
 can't drift.
 
-Shape: `{ version: Int, sensitiveTerms: [String], blockedPhrases: [String], selfHarmPhrases: [String] }`.
+Shape: `{ version: Int, sensitiveTerms: [String], blockedTerms: [String], blockedPhrases: [String], selfHarmPhrases: [String] }`.
+A document without `blockedTerms` keeps the bundled list on the client; the server has no
+built-in copy and enforces nothing for slurs until the field exists.
 `sensitiveTerms` (formerly `hateTerms`, which hid posts; renamed when the behaviour became blur) matches
 whole-word after leetspeak normalisation (so `h4te` finds `hate`, and no variants need listing). `blockedPhrases` and `selfHarmPhrases` match their words **in order with up
 to `maxPhraseGap` (2) other words between each pair** — plain substring matching let "I hope you all
@@ -791,7 +806,7 @@ through, and only a semantic classifier closes that.
 `version` is for cache invalidation and log legibility only — it is deliberately *not* a separate
 version-check request, because that would cost an extra read to save a read.
 
-`sensitiveTerms` lives in **`TodayI/Utils/SensitiveTerms.json`** — the one source for the list. The app
+`sensitiveTerms` and `blockedTerms` live in **`TodayI/Utils/SensitiveTerms.json`** — the one source for both lists. The app
 bundles it as its fallback (`ModerationTerms.bundledSensitiveTerms()`), and the same file is pushed to
 `config/moderation`, where Firestore wins at runtime. To change it: edit the JSON, bump nothing in
 code, then push the field and increment `version` (a REST PATCH with `gcloud auth print-access-token`

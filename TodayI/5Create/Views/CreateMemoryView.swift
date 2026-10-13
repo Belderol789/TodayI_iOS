@@ -75,7 +75,8 @@ struct CreateMemoryView: View {
         // the privacy control used to sit under the editor, which the keyboard covers
         // exactly when you're most likely to reconsider posting publicly.
         ToolbarItemGroup(placement: .topBarTrailing) {
-          privacyToolbarButton
+          // No Global option at all while the text contains a slur — `privacyRow` says why.
+          if !containsHate { privacyToolbarButton }
           postToolbarButton
         }
       }
@@ -89,6 +90,11 @@ struct CreateMemoryView: View {
       }
       .onChange(of: auth.isRestricted) { _, restricted in
         if restricted { vm.isPublic = false }
+      }
+      // Typing a slur into a Global draft makes it Personal on the spot, rather than
+      // leaving it to a refusal at Post.
+      .onChange(of: containsHate) { _, hate in
+        if hate && vm.isPublic { vm.isPublic = false }
       }
       .modifier(MediaPickers(vm: vm, entitlements: entitlements))
       .modifier(LinkAlert(vm: vm))
@@ -400,10 +406,17 @@ struct CreateMemoryView: View {
 
   // MARK: - Privacy row
 
+  /// Slurs keep an entry off the Global feed altogether. Blurring was the old answer, but
+  /// a blurred slur still reaches everyone who taps, and there's no reading of these words
+  /// a reader needs to opt into. Ordinary swearing and the rest of `sensitiveTerms` still
+  /// blur instead.
+  private var containsHate: Bool { ContentModeration.containsHate(vm.text) }
+
   private var privacyBinding: Binding<Bool> {
     Binding(
       get: { vm.isPublic },
       set: { newValue in
+        if newValue && containsHate { return }
         if newValue && auth.isGuest {
           showAuth = true
         } else if newValue && auth.isRestricted {
@@ -503,7 +516,14 @@ struct CreateMemoryView: View {
 
   @ViewBuilder
   private var privacyRow: some View {
-    if auth.isRestricted {
+    if containsHate {
+      Label("Entries with slurs stay Personal. They can't be shared to the Global feed.",
+            systemImage: "lock.fill")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.leading, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    } else if auth.isRestricted {
       Text("Your account is currently restricted from public posts.")
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -708,6 +728,9 @@ struct CreateMemoryView: View {
     let findings = ContentModeration.scan(vm.text)
     var queue: [PostFlag] = []
     if vm.isPublic, findings.contains(.violentThreat) { queue.append(.threat) }
+    // Unreachable from the screen — the Global option goes when a slur is typed — but
+    // a draft can't be allowed out on the strength of the UI alone.
+    if vm.isPublic, findings.contains(.hate) { queue.append(.hate) }
     if findings.contains(.selfHarm) { queue.append(.selfHarm) }
     // Already marked sensitive by the author: the blur is agreed, nothing to ask.
     if vm.isPublic, !vm.isSensitive, findings.contains(.sensitive) { queue.append(.sensitive) }

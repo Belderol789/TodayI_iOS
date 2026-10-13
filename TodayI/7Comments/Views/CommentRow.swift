@@ -21,10 +21,19 @@ struct CommentRow: View {
 
   private var isOwn: Bool { comment.userID == auth.userID }
 
+  /// Laid out like a chat: your own comments on the right in an accent bubble with no
+  /// avatar or name (it's you), everyone else's on the left with theirs. The spacer on the
+  /// open side keeps a bubble from running the full width, so the two sides read apart.
   var body: some View {
     HStack(alignment: .top, spacing: 10) {
-      avatar
-      bubble
+      if isOwn {
+        Spacer(minLength: 56)
+        bubble
+      } else {
+        avatar
+        bubble
+        Spacer(minLength: 40)
+      }
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 4)
@@ -64,28 +73,39 @@ private extension CommentRow {
       .accessibilityHidden(true)
   }
 
+  var time: String { comment.createdAt.formatted(date: .omitted, time: .shortened) }
+
   var bubble: some View {
-    VStack(alignment: .leading, spacing: 3) {
-      HStack(spacing: 6) {
-        Text("@\(comment.username)")
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(isOwn ? Color.accentColor : .primary)
-        Text(comment.createdAt.formatted(date: .omitted, time: .shortened))
-          .font(.caption2)
-          .foregroundStyle(.tertiary)
+    VStack(alignment: isOwn ? .trailing : .leading, spacing: 3) {
+      if !isOwn {
+        HStack(spacing: 6) {
+          Text("@\(comment.username)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.primary)
+          Text(time)
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+        }
       }
       Text(comment.text)
         .font(.subheadline)
-        .foregroundStyle(.primary)
+        .foregroundStyle(isOwn ? Color.white : .primary)
         .fixedSize(horizontal: false, vertical: true)
+      if isOwn {
+        Text(time)
+          .font(.caption2)
+          .foregroundStyle(.white.opacity(0.75))
+      }
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 8)
     .background(
-      RoundedRectangle(cornerRadius: 14, style: .continuous)
-        .fill(isOwn ? Color.accentColor.opacity(0.08) : Color(.secondarySystemBackground))
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .fill(isOwn ? Color.accentColor : Color(.secondarySystemBackground))
     )
-    .frame(maxWidth: .infinity, alignment: .leading)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(isOwn ? "You, \(time): \(comment.text)"
+                              : "@\(comment.username), \(time): \(comment.text)")
     .contextMenu {
       if isOwn {
         Button(role: .destructive) { showAlert = true } label: {

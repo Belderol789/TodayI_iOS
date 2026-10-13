@@ -60,7 +60,9 @@ private extension CommentThreadView {
     // Interactive: `allowsHitTesting(false)` here used to disable the privacy toggle
     // and the like button along with everything else. Only the comment button is
     // dropped, since tapping it from inside the thread would just push another one.
-    MemoryRow(memory: memory, showsCommentButton: false)
+    // Blurred like the feed: a thread only exists for a Global post, and opening one
+    // through Reply used to show a sensitive post the reader had never chosen to reveal.
+    MemoryRow(memory: memory, blursSensitiveContent: true, showsCommentButton: false)
       .padding(.horizontal, 16)
   }
 }
@@ -167,9 +169,6 @@ private extension CommentThreadView {
         }
 
         HStack(alignment: .bottom, spacing: 10) {
-          // Matches CommentRow's avatar so your draft looks like your posted comment.
-          composerAvatar
-
           ZStack(alignment: .leading) {
             if vm.newComment.isEmpty {
               Text("Add a comment…")
@@ -212,42 +211,6 @@ private extension CommentThreadView {
       .animation(.easeInOut(duration: 0.15), value: vm.remaining <= 100)
       .animation(.easeInOut(duration: 0.15), value: vm.filterMessage)
     }
-  }
-}
-
-// MARK: - Composer avatar
-private extension CommentThreadView {
-  /// Your own cached profile image first, then your remote photo, then the memory's
-  /// mood icon — the same fallback order `CommentRow` uses.
-  @ViewBuilder
-  var composerAvatar: some View {
-    if let image = auth.profileImage {
-      Image(uiImage: image)
-        .resizable()
-        .scaledToFill()
-        .frame(width: 32, height: 32)
-        .clipShape(Circle())
-    } else if let urlString = auth.photoURL, let url = URL(string: urlString) {
-      AsyncImage(url: url) { phase in
-        if case .success(let image) = phase {
-          image.resizable().scaledToFill()
-            .frame(width: 32, height: 32)
-            .clipShape(Circle())
-        } else {
-          moodAvatar
-        }
-      }
-    } else {
-      moodAvatar
-    }
-  }
-
-  var moodAvatar: some View {
-    Circle()
-      .fill(memory.mood.adaptiveColor.opacity(0.18))
-      .frame(width: 32, height: 32)
-      .overlay(MoodIcon(mood: memory.mood, size: 16).opacity(0.9))
-      .accessibilityHidden(true)
   }
 }
 

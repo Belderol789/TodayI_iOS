@@ -1,5 +1,11 @@
 {
-  "_comment": "Words that blur a post on the Global feed (tap to reveal). Whole-word, case-insensitive, after leetspeak normalisation (0→o 1→i 3→e 4→a 5→s @→a $→s), so list inflections, not spellings. Multi-word entries work. This file is the app's built-in fallback AND the source pushed to Firestore config/moderation.sensitiveTerms — edit here, then push. Deliberately excluded because they'd blur ordinary posts: shit, damn, ass (everyday venting), puke (English 'vomit'), paki (Taglish 'please'), gaga (Lady Gaga), die/kill (grief, and threats are blocked separately).",
+  "_comment": "Words that blur a post on the Global feed (tap to reveal). Whole-word, case-insensitive, after leetspeak normalisation (0→o 1→i 3→e 4→a 5→s @→a $→s), so list inflections, not spellings. Multi-word entries work. This file is the app's built-in fallback AND the source pushed to Firestore config/moderation.sensitiveTerms — edit here, then push. Deliberately excluded because they'd blur ordinary posts: shit, damn, ass (everyday venting), puke (English 'vomit'), paki (Taglish 'please'), gaga (Lady Gaga), die/kill (grief, and threats are blocked separately). blockedTerms are slurs that keep an entry off the Global feed altogether (the app removes the Global option; the server hides one that gets through) and are also blurred at render time. Each one also stays in sensitiveTerms so 2.0, which only reads sensitiveTerms, keeps blurring them. Left in sensitiveTerms only, because they have common innocent meanings a block would punish: fag (UK cigarette), dyke (levee; reclaimed), chink (a chink of light), coon (raccoon), retard/retarded (to slow; medical).",
+  "blockedTerms": [
+    "nigger", "niggers", "nigga", "niggas", "faggot", "faggots",
+    "tranny", "trannies", "kike", "kikes", "spic", "spics", "gook", "gooks",
+    "wetback", "wetbacks", "raghead", "ragheads", "towelhead", "towelheads",
+    "beaner", "beaners"
+  ],
   "sensitiveTerms": [
     "fuck", "fucks", "fucked", "fucker", "fuckers", "fucking", "fuckin",
     "motherfucker", "motherfuckers", "motherfucking", "fck", "fuk", "fuq",

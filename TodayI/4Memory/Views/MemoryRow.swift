@@ -69,6 +69,7 @@ struct MemoryRow: View {
           let findings = ContentModeration.scan(memory.journalText)
           if findings.contains(.selfHarm) { staysPersonalFlag = .selfHarm; return }
           if findings.contains(.violentThreat) { staysPersonalFlag = .threat; return }
+          if findings.contains(.hate) { staysPersonalFlag = .hate; return }
         }
         memory.isPublic = newValue
       }
@@ -82,8 +83,13 @@ struct MemoryRow: View {
   /// nothing. Limiting it to today also removes the awkward states: no re-uploading
   /// media for a day that has passed, and no post quietly changing visibility long
   /// after anyone saw it. Deleting an old memory is still fine; that's `canEditPrivacy`.
+  ///
+  /// A Personal entry containing a slur has no badge at all: there's nowhere for it to go.
+  /// A public one keeps its badge, so an entry that predates the block can still be taken
+  /// down by its author.
   private var canToggleVisibility: Bool {
     canEditPrivacy && Calendar.current.isDateInToday(memory.date)
+      && (memory.isPublic || !ContentModeration.containsHate(memory.journalText))
   }
   private var timeString: String { DateFormatter.shortDateFormatter.string(from: memory.createdAt) }
   private var isPremium: Bool { memory.isPremium }

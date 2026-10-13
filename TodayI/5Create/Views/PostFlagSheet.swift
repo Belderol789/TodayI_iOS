@@ -16,6 +16,10 @@ import SwiftUI
 enum PostFlag: String, Identifiable {
   /// A threat. Can't go on the Global feed at all.
   case threat
+  /// A slur. Can't go on the Global feed at all. Create and the memory card remove the
+  /// Global option as soon as one is typed, so this is the fallback for anything that
+  /// still gets here.
+  case hate
   /// Self-harm. Support first; the entry is always kept Personal.
   case selfHarm
   /// A listed sensitive word. Can go out, blurred behind a tap-to-reveal.
@@ -88,7 +92,7 @@ struct PostFlagSheet: View {
 
   private var navigationTitle: String {
     switch flag {
-    case .threat:         return "Global feed"
+    case .threat, .hate:  return "Global feed"
     case .selfHarm:       return "You're not alone"
     case .sensitive:      return "Sensitive content"
     case .contactDetails: return "Contact details"
@@ -97,7 +101,7 @@ struct PostFlagSheet: View {
 
   private var icon: String {
     switch flag {
-    case .threat:         return "hand.raised.fill"
+    case .threat, .hate:  return "hand.raised.fill"
     case .selfHarm:       return "heart.fill"
     case .sensitive:      return "eye.slash.fill"
     case .contactDetails: return "person.text.rectangle"
@@ -106,7 +110,7 @@ struct PostFlagSheet: View {
 
   private var title: String {
     switch flag {
-    case .threat:         return "This can't go on the Global feed"
+    case .threat, .hate:  return "This can't go on the Global feed"
     case .selfHarm:       return "That sounded like a hard day."
     case .sensitive:      return "Sensitive content detected"
     case .contactDetails: return "Sharing contact details?"
@@ -120,6 +124,8 @@ struct PostFlagSheet: View {
         return "This entry stays Personal. Entries like this aren't shared to the Global feed — nothing is flagged or reported, and it's still saved exactly as you wrote it."
       case .threat:
         return "Posts on the Global feed can't contain threats, so this entry stays Personal. It's still saved just for you."
+      case .hate:
+        return "Posts on the Global feed can't contain slurs, so this entry stays Personal. It's still saved just for you."
       default:
         break
       }
@@ -127,6 +133,8 @@ struct PostFlagSheet: View {
     switch flag {
     case .threat:
       return "Posts on the Global feed can't contain threats. You can still save this entry just for yourself."
+    case .hate:
+      return "Posts on the Global feed can't contain slurs. You can still save this entry just for yourself."
     case .selfHarm:
       // Care, never enforcement: nothing here suggests a rule was broken.
       return wasGlobal
@@ -249,7 +257,7 @@ struct PostFlagSheet: View {
         primary("OK", .keepPersonal)
       } else {
       switch flag {
-      case .threat:
+      case .threat, .hate:
         primary("Save as Personal", .keepPersonal)
         secondary("Edit", .edit)
       case .selfHarm:

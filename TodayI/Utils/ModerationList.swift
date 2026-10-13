@@ -24,6 +24,10 @@ struct ModerationTerms: Codable, Equatable {
   /// term also blurs posts that already exist. Slurs belong here; so does anything else
   /// a reader should get to opt into rather than have pushed at them.
   var sensitiveTerms: [String]
+  /// Slurs that keep an entry off the Global feed altogether — the app removes the Global
+  /// option, and `moderation.ts` hides one that gets through. Matched whole-word like
+  /// `sensitiveTerms`, and blurred too if one is already public.
+  var blockedTerms: [String]
   /// Matched as substrings, so multi-word threats work.
   var blockedPhrases: [String]
   /// Drives the support sheet. Never blocks anything.
@@ -39,6 +43,7 @@ struct ModerationTerms: Codable, Equatable {
   static let fallback = ModerationTerms(
     version: 0,
     sensitiveTerms: bundledSensitiveTerms(),
+    blockedTerms: bundledBlockedTerms(),
     blockedPhrases: [
       "kill you", "kill him", "kill her", "kill them",
       "hunt you down", "beat you up", "i will find you",
@@ -59,22 +64,35 @@ extension ModerationTerms {
   /// Reads `SensitiveTerms.json` from the app bundle. Empty on any failure — a missing or
   /// malformed file must never stop the app, and Firestore supplies the list anyway.
   static func bundledSensitiveTerms() -> [String] {
-    struct File: Decodable { let sensitiveTerms: [String] }
+    bundledFile()?.sensitiveTerms.map { $0.lowercased() } ?? []
+  }
+
+  /// The slur list from the same file.
+  static func bundledBlockedTerms() -> [String] {
+    bundledFile()?.blockedTerms?.map { $0.lowercased() } ?? []
+  }
+
+  private struct BundledFile: Decodable {
+    let sensitiveTerms: [String]
+    let blockedTerms: [String]?
+  }
+
+  private static func bundledFile() -> BundledFile? {
     guard let url = Bundle.main.url(forResource: "SensitiveTerms", withExtension: "json"),
           let data = try? Data(contentsOf: url),
-          let file = try? JSONDecoder().decode(File.self, from: data) else {
+          let file = try? JSONDecoder().decode(BundledFile.self, from: data) else {
       print("⚠️ SensitiveTerms.json missing or unreadable — fallback has no sensitive terms")
-      return []
+      return nil
     }
-    return file.sensitiveTerms.map { $0.lowercased() }
+    return file
   }
 }
 
 enum ModerationList {
 
-  // v2: `hateTerms` became `sensitiveTerms`. A new key rather than a migration — the
-  // cache is disposable and refetched every launch anyway.
-  private static let cacheKey = "moderation.terms.v2"
+  // v2: `hateTerms` became `sensitiveTerms`. v3: `blockedTerms` added. A new key rather
+  // than a migration — the cache is disposable and refetched every launch anyway.
+  private static let cacheKey = "moderation.terms.v3"
 
   /// The list the filter actually uses. Read synchronously from `ContentModeration.scan`,
   /// so it's a plain cached value rather than something awaited per keystroke.
@@ -100,6 +118,11 @@ enum ModerationList {
       let fetched = ModerationTerms(
         version: data["version"] as? Int ?? 0,
         sensitiveTerms: lowercased(data["sensitiveTerms"]),
+        // A document without the field yet keeps the bundled list rather than silently
+        // switching the slur block off.
+        blockedTerms: data["blockedTerms"] == nil
+          ? ModerationTerms.bundledBlockedTerms()
+          : lowercased(data["blockedTerms"]),
         blockedPhrases: lowercased(data["blockedPhrases"]),
         selfHarmPhrases: lowercased(data["selfHarmPhrases"])
       )
@@ -108,7 +131,8 @@ enum ModerationList {
       current = fetched
       saveCache(fetched)
       print("✅ Moderation list updated to v\(fetched.version) "
-            + "(\(fetched.sensitiveTerms.count) sensitive terms, \(fetched.blockedPhrases.count) blocked phrases)")
+            + "(\(fetched.sensitiveTerms.count) sensitive terms, \(fetched.blockedTerms.count) blocked terms, "
+            + "\(fetched.blockedPhrases.count) blocked phrases)")
     } catch {
       print("⚠️ Moderation list fetch failed, using cached v\(current.version):", error)
     }

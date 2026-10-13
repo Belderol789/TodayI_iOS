@@ -83,7 +83,7 @@ final class CommentThreadViewModel: ObservableObject {
     // a sensitive term or a threat simply isn't sent. Checked on the device only — the
     // draft stays in the box so it can be edited.
     let findings = ContentModeration.scan(trimmed)
-    if findings.contains(.sensitive) || findings.contains(.violentThreat) {
+    if !findings.isDisjoint(with: [.sensitive, .violentThreat, .hate]) {
       filterMessage = "Comments can't include that language. Edit your comment to post it."
       return
     }

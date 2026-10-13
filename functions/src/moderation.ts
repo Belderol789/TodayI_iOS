@@ -27,9 +27,14 @@ const REGION = "asia-southeast1";
 // No `sensitiveTerms` here on purpose. Those posts are *allowed* on the Global feed and
 // blurred by the app at render time, so the server has nothing to enforce for them —
 // hiding them here would stop them reaching the feed to be blurred at all.
-type Lists = { blockedPhrases: string[]; selfHarmPhrases: string[] };
+// `blockedTerms` (slurs) is the exception: those can't go on the feed at all.
+type Lists = { blockedTerms: string[]; blockedPhrases: string[]; selfHarmPhrases: string[] };
 
 const FALLBACK: Lists = {
+  // Empty: the list lives in `config/moderation` (sourced from the app's
+  // SensitiveTerms.json), and a second copy here is exactly the drift that document
+  // exists to prevent. Until the first read this fails open, like the rest of the filter.
+  blockedTerms: [],
   blockedPhrases: [
     "kill you", "kill him", "kill her", "kill them",
     "hunt you down", "beat you up", "i will find you",
@@ -63,6 +68,7 @@ async function lists(): Promise<Lists> {
     const data = snap.data();
     if (data) {
       cached = {
+        blockedTerms: clean(data.blockedTerms),
         blockedPhrases: clean(data.blockedPhrases).length
           ? clean(data.blockedPhrases)
           : FALLBACK.blockedPhrases,
@@ -142,9 +148,19 @@ export function phraseMatches(phrase: string, words: string[]): boolean {
   return false;
 }
 
+/**
+ * Whole word, like `ContentModeration.containsWord` (`\b` there): letters, digits and `_`
+ * count as word characters, so a term can't match inside a longer word.
+ */
+function containsWord(term: string, haystack: string): boolean {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^\\p{L}\\p{N}_])${escaped}($|[^\\p{L}\\p{N}_])`, "u").test(haystack);
+}
+
 export function verdictWith(text: string, list: Lists): Verdict {
   const haystack = normalise(text);
   const words = tokens(haystack);
+  if (list.blockedTerms.some((t) => containsWord(t, haystack))) return "policy";
   if (list.blockedPhrases.some((p) => phraseMatches(p, words))) return "policy";
   // Not a policy violation and never treated as one — but the Global feed is
   // day-scoped and anonymous with no support structure, so it cannot help the person
