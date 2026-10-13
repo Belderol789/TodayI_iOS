@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import FirebaseCrashlytics
 
 struct MemoryRow: View {
   @Bindable var memory: MemoryModel
@@ -22,6 +23,9 @@ struct MemoryRow: View {
   @State private var hasLiked = false
   @State private var likeTask: Task<Void, Never>? = nil
   @State private var isUpdatingPrivacy = false
+  /// Why the last visibility change failed. Shown in an alert — it used to be only
+  /// printed, so on a release build the badge silently flipped back with no explanation.
+  @State private var privacyError: String?
   @State private var isBlocking = false
   @State private var showReportSheet = false
   @State private var selectedReportReason: ReportReason?
@@ -560,9 +564,30 @@ private extension MemoryRow {
                 )
               } catch {
                 print("⚠️ Failed to update privacy:", error)
+                // Release builds have no console, so this is the only way to learn why
+                // sharing fails on a real device.
+                Crashlytics.crashlytics().record(error: error, userInfo: [
+                  "context": "updatePrivacy",
+                  "toPublic": newValue,
+                  "needsCloudBackup": memory.needsCloudBackup
+                ])
+                // Flip the badge back while isUpdatingPrivacy is still true, so the
+                // onChange above ignores it instead of starting another update. The
+                // upload path already reverts; the patch path didn't, and kept showing
+                // a state the server never got.
+                memory.isPublic = !newValue
+                privacyError = (error as? LocalizedError)?.errorDescription
+                  ?? "Couldn't change this memory's visibility. Check your connection and try again."
               }
               isUpdatingPrivacy = false
             }
+          }
+          .alert("Couldn't change visibility",
+                 isPresented: Binding(get: { privacyError != nil },
+                                      set: { if !$0 { privacyError = nil } })) {
+            Button("OK", role: .cancel) {}
+          } message: {
+            Text(privacyError ?? "")
           }
       }
     }

@@ -11,6 +11,7 @@ struct SettingsView: View {
   @Environment(\.dismiss) private var dismiss
   
   @AppStorage("requireFaceID") private var requireFaceID = false
+  @AppStorage(SoundEffects.enabledKey) private var soundEffectsEnabled = true
   @State private var biometricsAvailable: Bool = false
 
   // Daily reminder
@@ -127,6 +128,15 @@ struct SettingsView: View {
                ? "You'll get a daily nudge to log how you're feeling."
                : "Get a daily nudge to log how you're feeling.")
         }
+      }
+
+      // MARK: - Sounds
+      Section {
+        Toggle("Sound Effects", isOn: $soundEffectsEnabled)
+      } header: {
+        Text("Sounds")
+      } footer: {
+        Text("A soft chime when you save a memory. Follows your iPhone's silent switch.")
       }
 
       // MARK: - Security

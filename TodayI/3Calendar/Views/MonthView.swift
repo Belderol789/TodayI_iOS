@@ -5,14 +5,12 @@ import Charts
 struct MonthView: View {
   let month: Date
   let models: [DateModel]
-  /// Read-only — was a `@Binding` but nothing here ever wrote to it.
-  let isPremium: Bool
   var onSelectDate: (Date) -> Void = { _ in }
   
   // hover state lives at parent level so cells can scale above neighbors
   @State private var hoveredIndex: Int? = nil
   
-  // Premium: toggle chart visibility
+  // Toggles the month's mood chart
   @State private var showChart: Bool = false
   
   private var monthTitle: String {
@@ -51,9 +49,9 @@ struct MonthView: View {
     VStack(alignment: .leading, spacing: 12) {
       titleBar
       
-      // Premium-only: collapsible chart
-      if isPremium {
-        Group {
+      // Collapsible month chart — free for everyone. It was Premium-only, which left
+      // free users with a calendar of coloured days and no way to read them back.
+      Group {
           if showChart {
             MoodPieChart(
               slices: moodSlices,
@@ -70,7 +68,6 @@ struct MonthView: View {
           }
         }
         .animation(.spring(response: 0.5, dampingFraction: 0.85), value: showChart)
-      }
       
       WeekdayHeader()
       
@@ -88,7 +85,6 @@ struct MonthView: View {
   
   private var titleBar: some View {
     Group {
-      if isPremium {
         Button {
           withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
             showChart.toggle()
@@ -110,11 +106,6 @@ struct MonthView: View {
         .buttonStyle(.plain)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(Text("\(monthTitle), toggle mood chart"))
-      } else {
-        Text(monthTitle)
-          .font(.system(.largeTitle, design: .rounded).weight(.semibold))
-          .frame(maxWidth: .infinity, alignment: .leading)
-      }
     }
   }
 }

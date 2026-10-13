@@ -254,6 +254,13 @@ valid relative URL**, so the form must be checked explicitly or private media si
 broken remote image — that is why `imageSources` branches on `isPublicRef` rather than on
 `URL.init?`.
 
+**A failed visibility change is shown, not swallowed.** `MemoryRow`'s badge used to only `print`
+the error, so on a release build a Personal → Global switch quietly flipped back with no
+explanation. It now reverts the badge itself (the patch path never did), shows the error in an
+alert, and records it to Crashlytics; `CloudBackupService.backUp` records its underlying error too,
+because `firstUpload` reduces every cause to `uploadFailed`. Crashlytics is the only window into
+why sharing fails on a real device.
+
 `updatePrivacy(for:isPublic:)` converts the media *before* writing the flag: Global mints a token,
 Personal **revokes** it by clearing `firebaseStorageDownloadTokens`, which invalidates every link
 already handed out. The plain `updatePrivacy(userID:memoryID:)` overload only flips the flag — use
@@ -408,8 +415,13 @@ compiled out of release) is surfaced as "Force Premium" in Settings → Develope
 keeps Premium on regardless of that switch.
 
 The free/premium line: free users get **one memory per day** — the most recent — plus a 300-character
-cap and no video or gallery. Premium adds every memory, video, galleries, feed flair and a monthly
-mood summary.
+cap and no video or gallery. Premium adds every memory, video, galleries and feed flair.
+
+The **month mood chart is free** (the chevron beside the month name in `MonthView`). It was
+Premium-only until Oct 2026, which left free users with a calendar of coloured days and no way to
+read them back; the year chart was already free. The paywall no longer lists it. The App Store
+description and the subscription review notes still mention "a monthly mood summary" until the
+next version's metadata is updated.
 
 "Feed flair" is a mood-gradient `star.fill` after the username in `MemoryRow` (`premiumStar`), driven
 by `MemoryModel.isPremium` — the author's tier stamped on the post when it was written, not a live
@@ -849,6 +861,14 @@ conversation in Firestore permanently.
   believable posts with hand-picked Picsum photos and a realistic day's tally, through the existing
   `useTestData` path. Feed rows upsert into SwiftData when drawn, so their ids share the
   `debug-sample-` prefix and the sample-year toggle removes them too.
+
+## Sound
+
+`SoundEffects` plays `TodayI/Utils/Sounds/post_chime.m4a` after a memory is saved locally (the
+moment it's safe, not after the upload). The chime was synthesized for this app — two soft sine
+tones a fifth apart — so it carries no third-party licence. The audio session is `.ambient` with
+`.mixWithOthers`: it obeys the silent switch and never interrupts music. Settings → Sounds turns it
+off; the key defaults to on when absent.
 
 ## Gotchas
 

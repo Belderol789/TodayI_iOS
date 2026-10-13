@@ -91,8 +91,8 @@ struct PremiumView: View {
 
   private var subhead: String {
     entitlements.isPremium
-    ? "Your journal is backed up, with multiple memories per day, premium feed flair, videos and galleries, and a monthly mood summary — all unlocked."
-    : "Back your journal up to the cloud, and unlock multiple memories per day, premium feed flair, videos and galleries, and a monthly mood summary."
+    ? "Your journal is backed up, with multiple memories per day, premium feed flair, and videos and galleries — all unlocked."
+    : "Back your journal up to the cloud, and unlock multiple memories per day, premium feed flair, and videos and galleries."
   }
 
   private var header: some View {
@@ -129,7 +129,6 @@ struct PremiumView: View {
       featureRow("More than one memory per day")
       featureRow("Premium look in the global feed")
       featureRow("Video and gallery posts")
-      featureRow("Monthly mood summary")
     }
     .padding(20)
     .background(

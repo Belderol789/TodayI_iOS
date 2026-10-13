@@ -10,6 +10,7 @@ import SwiftData
 import UIKit
 import FirebaseFirestore
 import FirebaseAuth
+import FirebaseCrashlytics
 
 /// Uploads memories that were saved locally while the user was on the free tier.
 ///
@@ -125,6 +126,12 @@ enum CloudBackupService {
       return true
     } catch {
       print("⚠️ Backup failed for \(model.id) — will retry:", error)
+      // The caller only sees "upload failed"; this keeps the real cause (a Storage 403,
+      // a denied batch write, a timeout) visible for release builds.
+      Crashlytics.crashlytics().record(error: error, userInfo: [
+        "context": "CloudBackupService.backUp",
+        "isPublic": model.isPublic
+      ])
       return false
     }
   }
