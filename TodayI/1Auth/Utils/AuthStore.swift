@@ -37,7 +37,19 @@ final class AuthStore: ObservableObject {
   let context: ModelContext
   
   var authHandle: AuthStateDidChangeListenerHandle?
-  
+
+  /// The one in-flight `ensureSignedIn`. Launch used to run it alongside the auth
+  /// listener, and both resolved a dead cached session independently — each signing out
+  /// and creating its own anonymous account, several per launch. Callers now wait on
+  /// this instead of starting another.
+  var signInTask: Task<Void, Never>?
+  /// False until the first `ensureSignedIn` has verified the cached session. The listener
+  /// ignores events before then, so it can't load a profile for a session that may not
+  /// exist any more.
+  var initialSessionVerified = false
+  /// uids whose profile is being loaded right now — a second concurrent load is skipped.
+  var profileLoadsInFlight = Set<String>()
+
   init(context: ModelContext) {
     self.context = context
     Task {

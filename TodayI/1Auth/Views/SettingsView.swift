@@ -421,17 +421,8 @@ private extension SettingsView {
   }
 
   func applyReminderChange(enabled: Bool) async {
-    if enabled {
-      try? await NotificationManager.shared.rescheduleDaily(
-        id: "daily-reminder",
-        hour: dailyReminderHour,
-        minute: dailyReminderMinute,
-        title: "How are you feeling today?",
-        body: "Take a moment to log your mood in TodayI."
-      )
-    } else {
-      NotificationManager.shared.cancel(id: "daily-reminder")
-    }
+    // The prompt on Root calls the same function, so both stay in step.
+    await NotificationManager.shared.setDailyReminder(enabled: enabled)
   }
 
   func saveChangesAndDismiss() async {

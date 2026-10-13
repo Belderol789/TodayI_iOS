@@ -84,7 +84,13 @@ struct RootView: View {
     .animation(.easeInOut(duration: 0.2), value: auth.hideTabBar)
     .alert("Build a journaling habit?", isPresented: $showHabitPrompt) {
       Button("Yes, remind me daily") {
-        Task { await NotificationManager.shared.configure() }
+        // Same reminder Settings → Daily Reminder controls, so the switch there is on
+        // afterwards. It used to subscribe to a separate server push instead.
+        Task {
+          if await NotificationManager.shared.configure() {
+            await NotificationManager.shared.setDailyReminder(enabled: true)
+          }
+        }
       }
       Button("Maybe later", role: .cancel) {}
     } message: {

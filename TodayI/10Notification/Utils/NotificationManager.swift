@@ -159,9 +159,10 @@ final class NotificationManager: NSObject {
     let absH = abs(hours)
     let tz = "\(signPrefix)\(String(format: "%02d", absH))" // p08, m05, etc.
     
-    // Existing daily topic
-    subscribe(topic: "daily8pm_tz_\(tz)", key: "lastTZTopic_daily8pm")
-    
+    // No journal-reminder topic any more — that's a local notification now (see
+    // NotificationManager_DailyReminder). Devices still on it are moved over below.
+    Task { await migrateServerReminderToLocalOnce() }
+
     // ✅ NEW: world mood topic (matches your Cloud Function)
     subscribe(topic: "worldmood_6pm_tz_\(tz)", key: "lastTZTopic_worldmood6pm")
   }

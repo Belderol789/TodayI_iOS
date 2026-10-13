@@ -13,30 +13,76 @@ import SwiftData
 
 extension AuthStore {
   // MARK: - Entry point
+  /// Resolves the session at launch (and after a sign-out or account deletion).
+  ///
+  /// Single-flight: a second caller waits for the first instead of starting its own.
   func ensureSignedIn() async {
-    // If already a registered user, do nothing
-    if let u = Auth.auth().currentUser, !u.isAnonymous {
-      // Session already valid; mark ready if not already done
-      if !isSessionReady { isSessionReady = true }
+    if let running = signInTask {
+      await running.value
       return
     }
+    let task = Task { await self.resolveSession() }
+    signInTask = task
+    await task.value
+    signInTask = nil
+    initialSessionVerified = true
+    if let uid = Auth.auth().currentUser?.uid {
+      NotificationManager.shared.subscribeUserTopic(uid: uid)
+    }
+  }
 
-    if let u = Auth.auth().currentUser {
-      await loadOrCreateProfile(for: u)
-    } else {
-      do {
-        let result = try await Auth.auth().signInAnonymously()
-        await loadOrCreateProfile(for: result.user)
-      } catch {
-        print("Anonymous sign-in failed:", error)
-        // Still unblock the UI so user doesn't see a permanent loading screen
-        isSessionReady = true
+  /// Uses the cached Keychain session only if the server still knows it.
+  ///
+  /// The Keychain outlives the app and the account. A *registered* cached user used to be
+  /// trusted outright ("already signed in, do nothing"), so after its account was deleted
+  /// — by `deleteAccountData`, a console wipe, anything — the app showed that person as
+  /// signed in to an account that no longer existed. Its ID token can stay valid for up
+  /// to an hour, so Firestore even accepted writes for a while, which made it look fine.
+  private func resolveSession() async {
+    if let user = Auth.auth().currentUser {
+      if await isSessionAlive(user) {
+        await loadOrCreateProfile(for: user)
+        return
+      }
+      print("⚠️ Cached session \(user.uid) no longer exists server-side — starting fresh")
+      try? Auth.auth().signOut()
+    }
+    do {
+      let result = try await Auth.auth().signInAnonymously()
+      await loadOrCreateProfile(for: result.user)
+    } catch {
+      print("Anonymous sign-in failed:", error)
+      // Still unblock the UI so user doesn't see a permanent loading screen
+      isSessionReady = true
+    }
+  }
+
+  /// `reload()` asks the Auth server about this user. Only answers that mean "this account
+  /// is gone" count as dead; being offline must not throw someone out of their journal, so
+  /// any other failure trusts the cached session.
+  private func isSessionAlive(_ user: FirebaseAuth.User) async -> Bool {
+    do {
+      try await user.reload()
+      return true
+    } catch {
+      guard let code = AuthErrorCode(rawValue: (error as NSError).code) else { return true }
+      switch code {
+      case .userNotFound, .userDisabled, .invalidUserToken, .userTokenExpired:
+        return false
+      default:
+        return true
       }
     }
   }
   
   func loadOrCreateProfile(for user: FirebaseAuth.User, isRecoveryAttempt: Bool = false) async {
     let uid = user.uid
+    // The listener and an explicit caller often load the same user at once. Two
+    // concurrent loads of a dead session each ran the recovery below and each created an
+    // anonymous account.
+    guard !profileLoadsInFlight.contains(uid) else { return }
+    profileLoadsInFlight.insert(uid)
+    defer { profileLoadsInFlight.remove(uid) }
     let userDoc = db.collection("users").document(uid)
     
     do {
@@ -77,6 +123,7 @@ extension AuthStore {
         // the same queued, APNs-safe path every other topic already goes through.
         NotificationManager.shared.syncAdminReportsTopic(isAdmin: data["admin"] as? Bool == true)
         upsertLocalUser(uid: uid, username: uname, email: email, isAnonymous: isAnon)
+        adoptGuestMemories(into: uid, username: uname)
         publish(uid: uid, username: uname, email: email, isAnonymous: isAnon, photoURL: photoURL, isRestricted: isRestricted)
         return
       }
@@ -96,6 +143,7 @@ extension AuthStore {
       NotificationManager.shared.syncAdminReportsTopic(isAdmin: false)
       
       upsertLocalUser(uid: uid, username: uname, email: user.email, isAnonymous: isAnon)
+      adoptGuestMemories(into: uid, username: uname)
       publish(uid: uid, username: uname, email: email, isAnonymous: isAnon)
       
     } catch {
@@ -195,6 +243,10 @@ extension AuthStore {
       
       Task { @MainActor in
         if let user {
+          // Launch belongs to `ensureSignedIn`, which checks the cached session with the
+          // server first. Acting here before that loaded a profile for a session that
+          // might already be gone — and raced it into creating extra accounts.
+          guard self.initialSessionVerified else { return }
           await self.loadOrCreateProfile(for: user)
           NotificationManager.shared.subscribeUserTopic(uid: user.uid)
         } else {

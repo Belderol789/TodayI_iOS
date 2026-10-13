@@ -286,6 +286,17 @@ Every memory carries `authorTZ` and a **local** `dayKey` (`Date.formattedDayKeyL
 `savePostPayload(for:)` allows — filed itself under the wrong day and became unfindable by every
 dayKey lookup (Home, `MemoryContainer`, the global feed) and stamped the wrong `dates/{dayKey}` and
 `moods/{dayKey}` documents.
+**The daily journal reminder is local, and there is exactly one.** The first-post prompt and
+Settings → Daily Reminder both go through `NotificationManager.setDailyReminder(enabled:)`
+(`NotificationManager_DailyReminder.swift`), which schedules a repeating local notification at the
+saved time (8pm default) and writes the same `dailyReminder*` keys Settings' `@AppStorage` reads.
+Until Oct 2026 the prompt subscribed to the server's `daily8pm_tz_*` topic instead — a second,
+independent reminder: accepting it never turned the Settings switch on, switching Settings off never
+stopped the push, and switching it on doubled up at 8pm. The client no longer subscribes to that
+topic; `migrateServerReminderToLocalOnce()` moves devices still on it to the local reminder and
+unsubscribes them. `sendDaily8pmByTZ` still runs but now publishes to empty topics — safe to delete
+from `functions/` once 2.0.1 is widely installed.
+
 Both schedulers (`dailyByTz.ts`, `dailyWorldMood.ts`) run hourly at UTC, compute which whole-hour
 offsets are currently at the target local hour (20:00 for the journal nudge, 18:00 for the world-mood
 nudge), and publish to per-offset FCM topics like `daily8pm_tz_p08` / `worldmood_6pm_tz_m05`.
@@ -378,6 +389,28 @@ reliable signal, not a coincidence — under this ruleset `create` has exactly o
 signs out, requests a genuinely fresh anonymous session, and retries **once** — bounded, so an actual
 rules regression doesn't loop forever instead of surfacing. A non-`permission-denied` failure (offline,
 mid-flight) still unblocks `isSessionReady` without publishing a fabricated identity.
+
+**Launch now verifies every cached session, registered ones included.** `ensureSignedIn` calls
+`user.reload()` first; `userNotFound`/`userDisabled`/`invalidUserToken`/`userTokenExpired` mean the
+account is gone, so it signs out and starts one fresh anonymous session, while any other failure
+(offline) trusts the cache. It used to skip registered users entirely ("already signed in, do
+nothing"), so after a console wipe the app showed someone as signed in to a deleted account — and a
+deleted user's ID token stays valid for up to an hour, so Firestore even accepted writes for a while.
+
+**Launch is single-flight.** `init` starts the auth listener and `ensureSignedIn` together, and the
+listener fires at once for the cached user, so both loaded the same profile concurrently; on a dead
+session each ran the recovery and created its own anonymous account (one person, eight anonymous
+users). Now `ensureSignedIn` shares one in-flight `signInTask`, the listener ignores events until
+`initialSessionVerified`, and `loadOrCreateProfile` skips a uid already in `profileLoadsInFlight`.
+
+**Guest memories follow the person, not the uid** (`AuthStore_GuestAdoption.swift`). A memory's
+`userID` is fixed when written, and Home and the day view show only the signed-in uid's memories,
+so any uid change hid a guest's journal while it sat on disk — signing in with an Apple ID that
+already has an account (Firebase signs into that account rather than upgrading the guest), signing
+out to a new guest, or a dead-session recovery. `adoptGuestMemories(into:username:)` runs on every
+profile load and re-owns memories whose owner is an **anonymous** `UserModel`. A registered
+account's memories are never handed to anyone; they reappear when it signs back in. Guest memories
+were never uploaded, so they keep `needsCloudBackup` and back up under the new uid if it's Premium.
 
 `CloudBackupService.backUp` and `MemoryService_Privacy.firstUpload` separately guard
 `Auth.auth().currentUser?.uid == model.userID` before any Storage write. That covers a different case
