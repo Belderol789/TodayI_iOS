@@ -24,11 +24,12 @@ extension GlobalFeedService {
       || UserDefaults.standard.bool(forKey: sampleFeedDefaultsKey)
   }
 
-  /// A day's worth of tallies, so the chart reads like a real crowd rather than the
-  /// dozen posts on screen.
+  /// A small day's tally — 45 in all, the same mix as before — so the chart's count and
+  /// the handful of posts on screen tell one story. It was 1,281, which read as far too
+  /// many next to nine posts.
   static let sampleTally: [Mood: Int] = [
-    .happy: 412, .neutral: 288, .sad: 197, .surprise: 151,
-    .angry: 96, .fear: 83, .disgust: 54,
+    .happy: 14, .neutral: 9, .sad: 7, .surprise: 6,
+    .angry: 4, .fear: 3, .disgust: 2,
   ]
 
   static func generateSamplePage(for day: Date) -> GlobalFeedPage {

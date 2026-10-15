@@ -130,7 +130,7 @@ final class GlobalFeedViewModel: ObservableObject {
     do {
       if useTestData {
         // ---- Test data path ----
-        var page = GlobalFeedService.generateTestPage(for: day, count: 100, startIndex: 0)
+        var page = GlobalFeedService.generateTestPage(for: day, count: 40, startIndex: 0)
         #if DEBUG
         if GlobalFeedService.usesSampleFeed {
           page = GlobalFeedService.generateSamplePage(for: day)
