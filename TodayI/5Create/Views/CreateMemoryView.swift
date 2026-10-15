@@ -794,6 +794,7 @@ struct CreateMemoryView: View {
           // Plays on the local save, which is the moment the entry is safe — the upload
           // that follows is background work the user never waits on.
           SoundEffects.playPostChime()
+          RatingPrompt.entrySaved(mood: model.mood, text: model.journalText)
 
           if model.isPublic {
             // A public post belongs in the feed, not behind a modal. Hand it to the

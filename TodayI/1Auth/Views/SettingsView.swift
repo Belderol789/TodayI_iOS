@@ -151,6 +151,15 @@ struct SettingsView: View {
         }
       }
 
+      // MARK: - Rate
+      Section {
+        Link(destination: RatingPrompt.writeReviewURL) {
+          Label("Rate TodayI", systemImage: "star")
+        }
+      } footer: {
+        Text("Enjoying it? A rating on the App Store helps other people find TodayI.")
+      }
+
       // MARK: - Sounds
       Section {
         Toggle("Sound Effects", isOn: $soundEffectsEnabled)

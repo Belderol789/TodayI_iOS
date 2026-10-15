@@ -985,6 +985,16 @@ conversation in Firestore permanently.
   `useTestData` path. Feed rows upsert into SwiftData when drawn, so their ids share the
   `debug-sample-` prefix and the sample-year toggle removes them too.
 
+## Ratings
+
+`RatingPrompt` (`Utils/RatingPrompt.swift`) asks for an App Store rating through Apple's own sheet
+(`AppStore.requestReview(in:)`, which Apple caps at three a year and may decline to show). It counts
+saved entries, first asks after the 7th, then at most every 120 days, and **only after a calm
+entry** — Happy, Neutral or Surprise, with no self-harm, threat or slur finding. This is a journal
+people open on their worst days; asking right after a hard one is careless and earns a one-star.
+Don't loosen it to "after any save". Settings has a "Rate TodayI" row linking to the App Store's
+review composer for anyone who wants to leave one unprompted.
+
 ## Sound
 
 `SoundEffects` plays `TodayI/Utils/Sounds/post_chime.m4a` after a memory is saved locally (the
