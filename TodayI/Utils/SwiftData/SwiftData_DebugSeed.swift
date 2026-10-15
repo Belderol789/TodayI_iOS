@@ -115,7 +115,10 @@ extension SwiftDataManager {
       let entryCount = !isToday && Int.random(in: 0 ..< 6, using: &rng) == 0 ? 2 : 1
       var moods: [Mood] = []
       for index in 0 ..< entryCount {
-        let mood = isToday ? .happy : Self.sampleMood(using: &rng)
+        // Drawn first, then overridden, so forcing a day Sad doesn't change how many
+        // numbers the generator hands out — and so the rest of the year stays as it was.
+        let drawn = isToday ? Mood.happy : Self.sampleMood(using: &rng)
+        let mood = !isToday && index == 0 && Self.isRoughOctoberDay(day, in: cal) ? Mood.sad : drawn
         moods.append(mood)
         // Today's entry lands before 9:41, the screenshots' status-bar time.
         let hour = isToday ? 8
@@ -172,6 +175,13 @@ extension SwiftDataManager {
     refreshStreakSnapshot()
     NotificationCenter.default.post(name: .memoryDidChangeLocally, object: nil)
     print("🧪 Cleared the sample year: \(memories.count) memories, \(days.count) day(s)")
+  }
+
+  /// A few low days in October, so that month's chart has a visible Sad slice. Fixed days,
+  /// not random, for the same reason the generator is seeded.
+  private static func isRoughOctoberDay(_ day: Date, in cal: Calendar) -> Bool {
+    let parts = cal.dateComponents([.month, .day], from: day)
+    return parts.month == 10 && [3, 4, 9, 10, 13].contains(parts.day ?? 0)
   }
 
   /// Weighted so the year reads as a believable mix rather than an even rainbow.
