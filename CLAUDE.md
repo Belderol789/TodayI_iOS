@@ -980,7 +980,7 @@ conversation in Firestore permanently.
   with real moods are skipped and the seeded dates are remembered in `UserDefaults`, so turning it
   off removes only what it added. It uses a fixed-seed `SeededGenerator`, so every run produces the
   same year and a retaken screenshot matches the rest of the set; today is always one Happy entry
-  before 9:41. `-sampleFeed` (`GlobalFeedService_Sample.swift`) does the same for the World feed:
+  before 9:41. `-sampleFeed` — or Settings → Developer → "Sample World feed", which applies live — (`GlobalFeedService_Sample.swift`) does the same for the World feed:
   believable posts with hand-picked Picsum photos and a realistic day's tally, through the existing
   `useTestData` path. Feed rows upsert into SwiftData when drawn, so their ids share the
   `debug-sample-` prefix and the sample-year toggle removes them too.

@@ -30,6 +30,7 @@ struct SettingsView: View {
   @State private var showDeleteConfirm = false
   @State private var deleteError: String?
   @State private var sampleYearOn = false
+  @State private var sampleFeedOn = UserDefaults.standard.bool(forKey: "debug.sampleFeed")
   @State private var showSignIn = false
   
   // Photo picking + preview
@@ -231,6 +232,18 @@ struct SettingsView: View {
           }
         ))
         .onAppear { sampleYearOn = swiftManager?.hasSampleYear ?? false }
+
+        // A believable day of World feed posts, entirely local — nothing is read from or
+        // written to Firestore. Don't like, comment on or report these: a report would
+        // file a real document and ping the admin alert.
+        Toggle("Sample World feed", isOn: Binding(
+          get: { sampleFeedOn },
+          set: { on in
+            UserDefaults.standard.set(on, forKey: GlobalFeedService.sampleFeedDefaultsKey)
+            sampleFeedOn = on
+            NotificationCenter.default.post(name: .sampleFeedSettingDidChange, object: nil)
+          }
+        ))
       } header: {
         Text("Developer")
       } footer: {

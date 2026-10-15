@@ -15,8 +15,13 @@ import Foundation
 /// sample year off in Settings removes them with everything else it seeded.
 extension GlobalFeedService {
 
+  /// Settings → Developer → "Sample World feed" persists here; the launch argument still
+  /// works for a run that shouldn't touch the setting.
+  static let sampleFeedDefaultsKey = "debug.sampleFeed"
+
   static var usesSampleFeed: Bool {
     ProcessInfo.processInfo.arguments.contains("-sampleFeed")
+      || UserDefaults.standard.bool(forKey: sampleFeedDefaultsKey)
   }
 
   /// A day's worth of tallies, so the chart reads like a real crowd rather than the

@@ -28,6 +28,7 @@ final class GlobalFeedViewModel: ObservableObject {
   private var privacyObserver: NSObjectProtocol?
   private var deleteObserver: NSObjectProtocol?
   private var renameObserver: NSObjectProtocol?
+  private var sampleFeedObserver: NSObjectProtocol?
 
   init(day: Date) {
     self.day = day
@@ -57,6 +58,19 @@ final class GlobalFeedViewModel: ObservableObject {
             let name = note.userInfo?["username"] as? String else { return }
       Task { @MainActor in self?.renameAuthor(uid: uid, to: name) }
     }
+    #if DEBUG
+    // The Developer switch takes effect at once: swap the data path and reload.
+    sampleFeedObserver = NotificationCenter.default.addObserver(
+      forName: .sampleFeedSettingDidChange, object: nil, queue: .main
+    ) { [weak self] _ in
+      Task { @MainActor in
+        guard let self else { return }
+        self.useTestData = GlobalFeedService.usesSampleFeed
+        self.justPosted = []
+        await self.refresh()
+      }
+    }
+    #endif
   }
 
   /// Rewrites the author name on rows already loaded, so a row drawn after a rename
@@ -73,6 +87,7 @@ final class GlobalFeedViewModel: ObservableObject {
   deinit {
     if let privacyObserver { NotificationCenter.default.removeObserver(privacyObserver) }
     if let deleteObserver { NotificationCenter.default.removeObserver(deleteObserver) }
+    if let sampleFeedObserver { NotificationCenter.default.removeObserver(sampleFeedObserver) }
     if let renameObserver { NotificationCenter.default.removeObserver(renameObserver) }
   }
 

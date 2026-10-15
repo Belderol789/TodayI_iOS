@@ -37,5 +37,7 @@ extension Notification.Name {
   /// as DTOs loaded earlier, and `GlobalMemoryRow` upserts them into SwiftData as it draws,
   /// so a stale row would write the old name straight back over the renamed memory. The
   /// feed rewrites its own copies on this.
+  /// DEBUG only in effect: the Developer switch for the sample World feed changed.
+  static let sampleFeedSettingDidChange = Notification.Name("todayi.sampleFeedSettingDidChange")
   static let authorNameDidChange = Notification.Name("todayi.authorNameDidChange")
 }
